@@ -565,3 +565,105 @@ func TestDefaultPaymentSelector_SelectAndSign_SigningError(t *testing.T) {
 		t.Errorf("expected error code %s, got %s", ErrCodeSigningFailed, paymentErr.Code)
 	}
 }
+
+// T063 [P]: Benchmark for signer selection with 10 signers (SC-006: <100ms)
+func BenchmarkDefaultPaymentSelector_SelectAndSign_10Signers(b *testing.B) {
+	// Create 10 signers with different priorities
+	signers := make([]Signer, 10)
+	for i := 0; i < 10; i++ {
+		signers[i] = &mockSignerForSelector{
+			network:      "base",
+			scheme:       "exact",
+			priority:     i + 1,
+			canSignValue: true,
+			tokens:       []TokenConfig{{Address: "0xUSDC", Symbol: "USDC", Decimals: 6}},
+		}
+	}
+
+	requirements := &PaymentRequirement{
+		Network:           "base",
+		Asset:             "0xUSDC",
+		MaxAmountRequired: "1000000",
+	}
+
+	selector := NewDefaultPaymentSelector()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := selector.SelectAndSign(requirements, signers)
+		if err != nil {
+			b.Fatalf("SelectAndSign failed: %v", err)
+		}
+	}
+}
+
+// T067 [P]: Test for priority ordering convention (1 > 2 > 3)
+func TestDefaultPaymentSelector_PriorityOrderingConvention(t *testing.T) {
+	tests := []struct {
+		name             string
+		signerPriorities []int
+		expectedPriority int // lowest number = highest priority
+	}{
+		{
+			name:             "priority 1 is highest (1 > 2 > 3)",
+			signerPriorities: []int{3, 1, 2},
+			expectedPriority: 1,
+		},
+		{
+			name:             "priority 0 (default) is highest priority",
+			signerPriorities: []int{1, 2, 0, 3},
+			expectedPriority: 0,
+		},
+		{
+			name:             "lower number always wins",
+			signerPriorities: []int{10, 5, 1, 3},
+			expectedPriority: 1,
+		},
+		{
+			name:             "single digit priorities sorted correctly",
+			signerPriorities: []int{9, 8, 7, 6, 5, 4, 3, 2, 1},
+			expectedPriority: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			signers := make([]Signer, len(tt.signerPriorities))
+			for i, priority := range tt.signerPriorities {
+				signers[i] = &mockSignerForSelector{
+					network:      "base",
+					scheme:       "exact",
+					priority:     priority,
+					canSignValue: true,
+					tokens:       []TokenConfig{{Address: "0xUSDC", Symbol: "USDC", Decimals: 6}},
+				}
+			}
+
+			requirements := &PaymentRequirement{
+				Network:           "base",
+				Asset:             "0xUSDC",
+				MaxAmountRequired: "1000000",
+			}
+
+			selector := NewDefaultPaymentSelector()
+			_, err := selector.SelectAndSign(requirements, signers)
+			if err != nil {
+				t.Fatalf("SelectAndSign failed: %v", err)
+			}
+
+			// Find which signer was called
+			var selectedPriority int
+			for _, s := range signers {
+				mock := s.(*mockSignerForSelector)
+				if mock.signCalled {
+					selectedPriority = mock.priority
+					break
+				}
+			}
+
+			if selectedPriority != tt.expectedPriority {
+				t.Errorf("expected priority %d to be selected, got %d", tt.expectedPriority, selectedPriority)
+			}
+		})
+	}
+}

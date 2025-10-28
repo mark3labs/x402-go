@@ -180,12 +180,6 @@ func (s *Signer) CanSign(requirements *x402.PaymentRequirement) bool {
 
 // Sign implements x402.Signer.
 func (s *Signer) Sign(requirements *x402.PaymentRequirement) (*x402.PaymentPayload, error) {
-	fmt.Printf("\n🔑 SVM SIGNER CALLED\n")
-	fmt.Printf("  Network: %s\n", requirements.Network)
-	fmt.Printf("  Asset: %s\n", requirements.Asset)
-	fmt.Printf("  Amount: %s\n", requirements.MaxAmountRequired)
-	fmt.Printf("  PayTo: %s\n", requirements.PayTo)
-
 	// Verify we can sign
 	if !s.CanSign(requirements) {
 		return nil, x402.ErrNoValidSigner
@@ -228,7 +222,6 @@ func (s *Signer) Sign(requirements *x402.PaymentRequirement) (*x402.PaymentPaylo
 	if err != nil {
 		return nil, fmt.Errorf("invalid fee payer: %w", err)
 	}
-	fmt.Printf("  Fee payer: %s\n", feePayer.String())
 
 	// Get RPC URL for the network
 	rpcURL, err := getRPCURL(s.network)
@@ -268,8 +261,6 @@ func (s *Signer) Sign(requirements *x402.PaymentRequirement) (*x402.PaymentPaylo
 			"transaction": txBase64,
 		},
 	}
-
-	fmt.Printf("  ✅ Created transaction: %d base64 chars, %d bytes\n\n", len(txBase64), len(txBase64)*3/4)
 
 	return payload, nil
 }

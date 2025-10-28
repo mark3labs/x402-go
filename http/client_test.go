@@ -20,12 +20,12 @@ type mockSigner struct {
 	maxAmount    *big.Int
 }
 
-func (m *mockSigner) Network() string                            { return m.network }
-func (m *mockSigner) Scheme() string                             { return m.scheme }
+func (m *mockSigner) Network() string                           { return m.network }
+func (m *mockSigner) Scheme() string                            { return m.scheme }
 func (m *mockSigner) CanSign(req *x402.PaymentRequirement) bool { return m.canSignValue }
-func (m *mockSigner) GetPriority() int                           { return m.priority }
-func (m *mockSigner) GetTokens() []x402.TokenConfig              { return nil }
-func (m *mockSigner) GetMaxAmount() *big.Int                     { return m.maxAmount }
+func (m *mockSigner) GetPriority() int                          { return m.priority }
+func (m *mockSigner) GetTokens() []x402.TokenConfig             { return nil }
+func (m *mockSigner) GetMaxAmount() *big.Int                    { return m.maxAmount }
 
 func (m *mockSigner) Sign(req *x402.PaymentRequirement) (*x402.PaymentPayload, error) {
 	if m.signError != nil {
@@ -294,4 +294,150 @@ func TestGetSettlement_InvalidJSON(t *testing.T) {
 	if settlement != nil {
 		t.Error("expected nil settlement for invalid JSON")
 	}
+}
+
+// T066 [P]: Test for stdlib compatibility - non-payment requests unchanged (FR-014)
+func TestClient_StdlibCompatibility_NonPaymentRequestsUnchanged(t *testing.T) {
+	// Test various HTTP methods and verify requests are unchanged
+	tests := []struct {
+		name   string
+		method string
+		path   string
+	}{
+		{"GET request", "GET", "/api/data"},
+		{"POST request", "POST", "/api/submit"},
+		{"PUT request", "PUT", "/api/update"},
+		{"DELETE request", "DELETE", "/api/delete"},
+		{"HEAD request", "HEAD", "/api/check"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Track original request headers to verify they're not modified
+			originalHeaders := make(map[string]string)
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// Verify no payment headers are added for non-402 responses
+				if r.Header.Get("X-PAYMENT") != "" {
+					t.Error("FR-014 violation: X-PAYMENT header should not be added to non-payment requests")
+				}
+
+				// Verify original headers are preserved
+				for key, value := range originalHeaders {
+					if r.Header.Get(key) != value {
+						t.Errorf("FR-014 violation: header %s changed from %s to %s", key, value, r.Header.Get(key))
+					}
+				}
+
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte("success"))
+			}))
+			defer server.Close()
+
+			// Create client with signer (but server won't require payment)
+			client, err := NewClient(
+				WithSigner(&mockSigner{
+					network:      "base",
+					scheme:       "exact",
+					canSignValue: true,
+				}),
+			)
+			if err != nil {
+				t.Fatalf("failed to create client: %v", err)
+			}
+
+			// Create request with custom headers
+			req, err := http.NewRequest(tt.method, server.URL+tt.path, nil)
+			if err != nil {
+				t.Fatalf("failed to create request: %v", err)
+			}
+
+			// Add some custom headers
+			req.Header.Set("User-Agent", "TestClient/1.0")
+			req.Header.Set("X-Custom-Header", "CustomValue")
+			originalHeaders["User-Agent"] = "TestClient/1.0"
+			originalHeaders["X-Custom-Header"] = "CustomValue"
+
+			// Make request
+			resp, err := client.Do(req)
+			if err != nil {
+				t.Fatalf("request failed: %v", err)
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode != http.StatusOK {
+				t.Errorf("expected status 200, got %d", resp.StatusCode)
+			}
+		})
+	}
+
+	t.Log("FR-014 passed: non-payment requests work identically to stdlib http.Client")
+}
+
+// T066 [P]: Test that client behaves exactly like stdlib for various scenarios
+func TestClient_StdlibCompatibility_VariousScenarios(t *testing.T) {
+	tests := []struct {
+		name           string
+		statusCode     int
+		responseBody   string
+		expectedStatus int
+	}{
+		{"200 OK", http.StatusOK, "success", http.StatusOK},
+		{"404 Not Found", http.StatusNotFound, "not found", http.StatusNotFound},
+		{"500 Internal Error", http.StatusInternalServerError, "error", http.StatusInternalServerError},
+		{"201 Created", http.StatusCreated, "created", http.StatusCreated},
+		{"204 No Content", http.StatusNoContent, "", http.StatusNoContent},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create server that returns specified status
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tt.statusCode)
+				w.Write([]byte(tt.responseBody))
+			}))
+			defer server.Close()
+
+			// Create x402 client
+			x402Client, err := NewClient(
+				WithSigner(&mockSigner{
+					network:      "base",
+					scheme:       "exact",
+					canSignValue: true,
+				}),
+			)
+			if err != nil {
+				t.Fatalf("failed to create x402 client: %v", err)
+			}
+
+			// Create stdlib client for comparison
+			stdlibClient := &http.Client{}
+
+			// Make request with x402 client
+			x402Resp, err := x402Client.Get(server.URL)
+			if err != nil {
+				t.Fatalf("x402 client request failed: %v", err)
+			}
+			defer x402Resp.Body.Close()
+
+			// Make request with stdlib client
+			stdlibResp, err := stdlibClient.Get(server.URL)
+			if err != nil {
+				t.Fatalf("stdlib client request failed: %v", err)
+			}
+			defer stdlibResp.Body.Close()
+
+			// Verify both clients got same status code
+			if x402Resp.StatusCode != stdlibResp.StatusCode {
+				t.Errorf("FR-014 violation: status codes differ - x402: %d, stdlib: %d",
+					x402Resp.StatusCode, stdlibResp.StatusCode)
+			}
+
+			if x402Resp.StatusCode != tt.expectedStatus {
+				t.Errorf("expected status %d, got %d", tt.expectedStatus, x402Resp.StatusCode)
+			}
+		})
+	}
+
+	t.Log("FR-014 passed: client maintains stdlib compatibility for all status codes")
 }
