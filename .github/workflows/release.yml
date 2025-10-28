@@ -34,7 +34,7 @@ jobs:
             -d "{
               \"embeds\": [{
                 \"title\": \"🚀 New Release: $TAG_NAME\",
-                \"description\": \"A new version of mcp-go-x402 has been released!\",
+                \"description\": \"A new version of x402-go has been released!\",
                 \"color\": 5814783,
                 \"fields\": [
                   {
@@ -44,7 +44,7 @@ jobs:
                   },
                   {
                     \"name\": \"Repository\",
-                    \"value\": \"[mcp-go-x402](https://github.com/${{ github.repository }})\",
+                    \"value\": \"[x402-go](https://github.com/${{ github.repository }})\",
                     \"inline\": true
                   }
                 ],
