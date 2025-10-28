@@ -18,7 +18,7 @@
 ### Session 2025-10-28
 
 - Q: Which USDC token standard should the constants represent for each chain (native Circle USDC, bridged USDC, or both)? → A: Native Circle USDC only (official Circle-deployed contracts)
-- Q: What is the authoritative source for validating USDC addresses against official chain deployments? → A: https://developers.circle.com/stablecoins/usdc-contract-addresses
+- Q: What is the authoritative source for validating USDC addresses against official chain deployments? → A: [Circle USDC Contract Addresses](https://developers.circle.com/stablecoins/usdc-contract-addresses)
 - Q: What format should error messages use when helper functions return errors for invalid parameters? → A: Structured with parameter name and reason (e.g., "amount: must be positive")
 - Q: How should developers discover that their library version has outdated USDC addresses after contract upgrades/migrations? → A: Documentation clearly states version when addresses were last verified, no runtime checks
 - Q: Should optional parameters for helper customization be passed as function arguments or via configuration struct? → A: Configuration struct with optional fields
@@ -130,7 +130,7 @@ A developer receives a payment requirement from a server and needs to match it a
 
 - **SC-001**: Developers can configure a single-chain client in under 10 lines of code using provided helpers and constants
 - **SC-002**: Developers can configure middleware to accept payments on 3+ chains in under 15 lines of code
-- **SC-003**: 100% of provided USDC addresses are validated against Circle's official documentation (https://developers.circle.com/stablecoins/usdc-contract-addresses) before release
+- **SC-003**: 100% of provided USDC addresses are validated against [Circle's official documentation](https://developers.circle.com/stablecoins/usdc-contract-addresses) before release
 - **SC-004**: Zero runtime errors from helper functions when provided with valid inputs
 - **SC-005**: Helper functions handle all supported chains (8 total: 4 mainnet + 4 testnet) with consistent interface
 

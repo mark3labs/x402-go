@@ -181,7 +181,7 @@ Follows constitution principle I: no unnecessary documentation. GoDoc is suffici
 **Last Verified**: 2025-10-28
 
 All USDC contract addresses and EIP-3009 parameters verified against:
-- Circle's official documentation: https://developers.circle.com/stablecoins/usdc-contract-addresses
+- [Circle's official documentation](https://developers.circle.com/stablecoins/usdc-contract-addresses)
 - Live contract queries via `cast call` on production and testnet RPCs
 
 Developers should check for updated addresses when upgrading library versions.

@@ -80,7 +80,7 @@ Network validator helper returns NetworkType for a given network identifier stri
 
 ## Relationships
 
-```
+```text
 ChainConfig
     ↓ (used by)
 PaymentRequirementConfig
@@ -113,7 +113,7 @@ NetworkType (enum)
 ## Data Flow
 
 ### PaymentRequirement Creation Flow
-```
+```text
 Developer Input (chain, amount, recipient)
     ↓
 PaymentRequirementConfig struct
@@ -128,7 +128,7 @@ PaymentRequirement struct (existing x402 type)
 ```
 
 ### TokenConfig Creation Flow
-```
+```text
 ChainConfig constant
     ↓
 TokenConfigHelper function
@@ -141,7 +141,7 @@ TokenConfig struct with:
 ```
 
 ### Network Validation Flow
-```
+```text
 Network identifier string (e.g., "base")
     ↓
 NetworkValidator function
