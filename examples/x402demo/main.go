@@ -106,18 +106,6 @@ func runServer(args []string) {
 		MaxTimeoutSeconds: 60,
 	}
 
-	// Add extra field for Solana networks
-	if strings.HasPrefix(strings.ToLower(*network), "solana") {
-		// For demo purposes, we'll use a placeholder fee payer
-		// In production, this would be fetched from the facilitator's /supported endpoint
-		requirement.Extra = map[string]interface{}{
-			"feePayer": "EwWqGE4ZFKLofuestmU4LDdK7XM1N4ALgdZccwYugwGd",
-		}
-		fmt.Printf("Note: Solana payments require a fee payer (facilitator)\n")
-		fmt.Printf("Fee payer: %s\n", requirement.Extra["feePayer"])
-		fmt.Println()
-	}
-
 	requirements := []x402.PaymentRequirement{requirement}
 
 	// Create x402 middleware
