@@ -11,23 +11,24 @@ func TestErrorDefinitions(t *testing.T) {
 		err  error
 		want string
 	}{
-		{"PaymentRequired", ErrPaymentRequired, "payment required"},
-		{"InvalidPayment", ErrInvalidPayment, "invalid payment"},
-		{"MalformedHeader", ErrMalformedHeader, "malformed payment header"},
-		{"UnsupportedVersion", ErrUnsupportedVersion, "unsupported x402 version"},
-		{"UnsupportedScheme", ErrUnsupportedScheme, "unsupported payment scheme"},
-		{"UnsupportedNetwork", ErrUnsupportedNetwork, "unsupported network"},
-		{"InvalidSignature", ErrInvalidSignature, "invalid signature"},
-		{"InvalidAuthorization", ErrInvalidAuthorization, "invalid authorization"},
-		{"ExpiredAuthorization", ErrExpiredAuthorization, "expired authorization"},
-		{"InsufficientFunds", ErrInsufficientFunds, "insufficient funds"},
-		{"InvalidNonce", ErrInvalidNonce, "invalid nonce"},
-		{"RecipientMismatch", ErrRecipientMismatch, "recipient mismatch"},
-		{"AmountMismatch", ErrAmountMismatch, "amount mismatch"},
-		{"FacilitatorUnavailable", ErrFacilitatorUnavailable, "facilitator unavailable"},
-		{"SettlementFailed", ErrSettlementFailed, "settlement failed"},
-		{"VerificationFailed", ErrVerificationFailed, "verification failed"},
-		{"Timeout", ErrTimeout, "operation timed out"},
+		{"NoValidSigner", ErrNoValidSigner, "x402: no signer can satisfy payment requirements"},
+		{"AmountExceeded", ErrAmountExceeded, "x402: payment amount exceeds per-call limit"},
+		{"InvalidRequirements", ErrInvalidRequirements, "x402: invalid payment requirements"},
+		{"SigningFailed", ErrSigningFailed, "x402: payment signing failed"},
+		{"NetworkError", ErrNetworkError, "x402: network error during payment"},
+		{"InvalidAmount", ErrInvalidAmount, "x402: invalid amount"},
+		{"InvalidKey", ErrInvalidKey, "x402: invalid private key"},
+		{"InvalidNetwork", ErrInvalidNetwork, "x402: invalid or unsupported network"},
+		{"InvalidToken", ErrInvalidToken, "x402: invalid token configuration"},
+		{"InvalidKeystore", ErrInvalidKeystore, "x402: invalid keystore file"},
+		{"InvalidMnemonic", ErrInvalidMnemonic, "x402: invalid mnemonic phrase"},
+		{"NoTokens", ErrNoTokens, "x402: no tokens configured"},
+		{"FacilitatorUnavailable", ErrFacilitatorUnavailable, "x402: facilitator service unavailable"},
+		{"VerificationFailed", ErrVerificationFailed, "x402: payment verification failed"},
+		{"MalformedHeader", ErrMalformedHeader, "x402: malformed payment header"},
+		{"UnsupportedVersion", ErrUnsupportedVersion, "x402: unsupported protocol version"},
+		{"UnsupportedScheme", ErrUnsupportedScheme, "x402: unsupported payment scheme"},
+		{"SettlementFailed", ErrSettlementFailed, "x402: payment settlement failed"},
 	}
 
 	for _, tt := range tests {
@@ -48,20 +49,20 @@ func TestErrorComparison(t *testing.T) {
 	}{
 		{
 			name: "same error",
-			err1: ErrPaymentRequired,
-			err2: ErrPaymentRequired,
+			err1: ErrNoValidSigner,
+			err2: ErrNoValidSigner,
 			want: true,
 		},
 		{
 			name: "different errors",
-			err1: ErrPaymentRequired,
-			err2: ErrInvalidPayment,
+			err1: ErrNoValidSigner,
+			err2: ErrInvalidAmount,
 			want: false,
 		},
 		{
 			name: "wrapped error",
-			err1: errors.New("wrapped: payment required"),
-			err2: ErrPaymentRequired,
+			err1: errors.New("wrapped: no valid signer"),
+			err2: ErrNoValidSigner,
 			want: false,
 		},
 	}

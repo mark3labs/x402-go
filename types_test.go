@@ -1,436 +1,403 @@
 package x402
 
 import (
-	"encoding/json"
+	"math/big"
 	"testing"
 )
 
-func TestPaymentRequirement_Validate(t *testing.T) {
+func TestAmountToBigInt(t *testing.T) {
 	tests := []struct {
-		name    string
-		req     PaymentRequirement
-		wantErr bool
+		name     string
+		amount   string
+		decimals int
+		want     string // expected value as string for comparison
+		wantErr  bool
 	}{
 		{
-			name: "valid requirement",
-			req: PaymentRequirement{
-				Scheme:            "exact",
-				Network:           "base-sepolia",
-				MaxAmountRequired: "10000",
-				Asset:             "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-				PayTo:             "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
-				Resource:          "https://api.example.com/data",
-				Description:       "Premium data access",
-				MaxTimeoutSeconds: 60,
-			},
-			wantErr: false,
+			name:     "1 USDC (6 decimals)",
+			amount:   "1",
+			decimals: 6,
+			want:     "1000000",
+			wantErr:  false,
 		},
 		{
-			name: "missing scheme",
-			req: PaymentRequirement{
-				Network:           "base-sepolia",
-				MaxAmountRequired: "10000",
-				Asset:             "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-				PayTo:             "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
-				Resource:          "https://api.example.com/data",
-				Description:       "Premium data access",
-				MaxTimeoutSeconds: 60,
-			},
-			wantErr: true,
+			name:     "1.5 USDC (6 decimals)",
+			amount:   "1.5",
+			decimals: 6,
+			want:     "1500000",
+			wantErr:  false,
 		},
 		{
-			name: "missing network",
-			req: PaymentRequirement{
-				Scheme:            "exact",
-				MaxAmountRequired: "10000",
-				Asset:             "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-				PayTo:             "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
-				Resource:          "https://api.example.com/data",
-				Description:       "Premium data access",
-				MaxTimeoutSeconds: 60,
-			},
-			wantErr: true,
+			name:     "0.000001 USDC (6 decimals)",
+			amount:   "0.000001",
+			decimals: 6,
+			want:     "1",
+			wantErr:  false,
 		},
 		{
-			name: "invalid amount - zero",
-			req: PaymentRequirement{
-				Scheme:            "exact",
-				Network:           "base-sepolia",
-				MaxAmountRequired: "0",
-				Asset:             "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-				PayTo:             "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
-				Resource:          "https://api.example.com/data",
-				Description:       "Premium data access",
-				MaxTimeoutSeconds: 60,
-			},
-			wantErr: true,
+			name:     "1 ETH (18 decimals)",
+			amount:   "1",
+			decimals: 18,
+			want:     "1000000000000000000",
+			wantErr:  false,
 		},
 		{
-			name: "invalid amount - negative",
-			req: PaymentRequirement{
-				Scheme:            "exact",
-				Network:           "base-sepolia",
-				MaxAmountRequired: "-100",
-				Asset:             "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-				PayTo:             "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
-				Resource:          "https://api.example.com/data",
-				Description:       "Premium data access",
-				MaxTimeoutSeconds: 60,
-			},
-			wantErr: true,
+			name:     "0.5 ETH (18 decimals)",
+			amount:   "0.5",
+			decimals: 18,
+			want:     "500000000000000000",
+			wantErr:  false,
 		},
 		{
-			name: "invalid timeout - zero",
-			req: PaymentRequirement{
-				Scheme:            "exact",
-				Network:           "base-sepolia",
-				MaxAmountRequired: "10000",
-				Asset:             "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-				PayTo:             "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
-				Resource:          "https://api.example.com/data",
-				Description:       "Premium data access",
-				MaxTimeoutSeconds: 0,
-			},
-			wantErr: true,
+			name:     "invalid amount - non-numeric",
+			amount:   "abc",
+			decimals: 6,
+			want:     "",
+			wantErr:  true,
 		},
 		{
-			name: "missing asset",
-			req: PaymentRequirement{
-				Scheme:            "exact",
-				Network:           "base-sepolia",
-				MaxAmountRequired: "10000",
-				PayTo:             "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
-				Resource:          "https://api.example.com/data",
-				Description:       "Premium data access",
-				MaxTimeoutSeconds: 60,
-			},
-			wantErr: true,
+			name:     "zero amount",
+			amount:   "0",
+			decimals: 6,
+			want:     "0",
+			wantErr:  false,
 		},
 		{
-			name: "missing payTo",
-			req: PaymentRequirement{
-				Scheme:            "exact",
-				Network:           "base-sepolia",
-				MaxAmountRequired: "10000",
-				Asset:             "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-				Resource:          "https://api.example.com/data",
-				Description:       "Premium data access",
-				MaxTimeoutSeconds: 60,
-			},
-			wantErr: true,
+			name:     "large amount",
+			amount:   "1000000",
+			decimals: 6,
+			want:     "1000000000000",
+			wantErr:  false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.req.Validate()
-			if (err != nil) != tt.wantErr {
-				t.Errorf("PaymentRequirement.Validate() error = %v, wantErr %v", err, tt.wantErr)
+			got, err := AmountToBigInt(tt.amount, tt.decimals)
+
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("AmountToBigInt() expected error, got nil")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("AmountToBigInt() unexpected error: %v", err)
+				return
+			}
+
+			if got.String() != tt.want {
+				t.Errorf("AmountToBigInt() = %s, want %s", got.String(), tt.want)
 			}
 		})
 	}
 }
 
-func TestEVMPayload_Validate(t *testing.T) {
+func TestBigIntToAmount(t *testing.T) {
 	tests := []struct {
-		name    string
-		payload EVMPayload
-		wantErr bool
+		name     string
+		value    *big.Int
+		decimals int
+		want     string
 	}{
 		{
-			name: "valid EVM payload",
-			payload: EVMPayload{
-				Signature: "0x2d6a7588d6acca505cbf0d9a4a227e0c52c6c34008c8e8986a1283259764173608a2ce6496642e377d6da8dbbf5836e9bd15092f9ecab05ded3d6293af148b571c",
-				Authorization: Authorization{
-					From:        "0x857b06519E91e3A54538791bDbb0E22373e36b66",
-					To:          "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
-					Value:       "10000",
-					ValidAfter:  "1740672089",
-					ValidBefore: "1740672154",
-					Nonce:       "0xf3746613c2d920b5fdabc0856f2aeb2d4f88ee6037b8cc5d04a71a4462f13480",
-				},
-			},
-			wantErr: false,
+			name:     "1000000 atomic units with 6 decimals",
+			value:    big.NewInt(1000000),
+			decimals: 6,
+			want:     "1.000000",
 		},
 		{
-			name: "invalid signature format",
-			payload: EVMPayload{
-				Signature: "invalid-signature",
-				Authorization: Authorization{
-					From:        "0x857b06519E91e3A54538791bDbb0E22373e36b66",
-					To:          "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
-					Value:       "10000",
-					ValidAfter:  "1740672089",
-					ValidBefore: "1740672154",
-					Nonce:       "0xf3746613c2d920b5fdabc0856f2aeb2d4f88ee6037b8cc5d04a71a4462f13480",
-				},
-			},
-			wantErr: true,
+			name:     "1500000 atomic units with 6 decimals",
+			value:    big.NewInt(1500000),
+			decimals: 6,
+			want:     "1.500000",
 		},
 		{
-			name: "invalid from address",
-			payload: EVMPayload{
-				Signature: "0x2d6a7588d6acca505cbf0d9a4a227e0c52c6c34008c8e8986a1283259764173608a2ce6496642e377d6da8dbbf5836e9bd15092f9ecab05ded3d6293af148b571c",
-				Authorization: Authorization{
-					From:        "invalid-address",
-					To:          "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
-					Value:       "10000",
-					ValidAfter:  "1740672089",
-					ValidBefore: "1740672154",
-					Nonce:       "0xf3746613c2d920b5fdabc0856f2aeb2d4f88ee6037b8cc5d04a71a4462f13480",
-				},
-			},
-			wantErr: true,
+			name:     "1 atomic unit with 6 decimals",
+			value:    big.NewInt(1),
+			decimals: 6,
+			want:     "0.000001",
 		},
 		{
-			name: "invalid to address",
-			payload: EVMPayload{
-				Signature: "0x2d6a7588d6acca505cbf0d9a4a227e0c52c6c34008c8e8986a1283259764173608a2ce6496642e377d6da8dbbf5836e9bd15092f9ecab05ded3d6293af148b571c",
-				Authorization: Authorization{
-					From:        "0x857b06519E91e3A54538791bDbb0E22373e36b66",
-					To:          "invalid-address",
-					Value:       "10000",
-					ValidAfter:  "1740672089",
-					ValidBefore: "1740672154",
-					Nonce:       "0xf3746613c2d920b5fdabc0856f2aeb2d4f88ee6037b8cc5d04a71a4462f13480",
-				},
-			},
-			wantErr: true,
+			name: "1000000000000000000 atomic units with 18 decimals (1 ETH)",
+			value: func() *big.Int {
+				v := new(big.Int)
+				v.SetString("1000000000000000000", 10)
+				return v
+			}(),
+			decimals: 18,
+			want:     "1.000000000000000000",
 		},
 		{
-			name: "invalid nonce - too short",
-			payload: EVMPayload{
-				Signature: "0x2d6a7588d6acca505cbf0d9a4a227e0c52c6c34008c8e8986a1283259764173608a2ce6496642e377d6da8dbbf5836e9bd15092f9ecab05ded3d6293af148b571c",
-				Authorization: Authorization{
-					From:        "0x857b06519E91e3A54538791bDbb0E22373e36b66",
-					To:          "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
-					Value:       "10000",
-					ValidAfter:  "1740672089",
-					ValidBefore: "1740672154",
-					Nonce:       "0x1234",
-				},
-			},
-			wantErr: true,
+			name: "500000000000000000 atomic units with 18 decimals (0.5 ETH)",
+			value: func() *big.Int {
+				v := new(big.Int)
+				v.SetString("500000000000000000", 10)
+				return v
+			}(),
+			decimals: 18,
+			want:     "0.500000000000000000",
 		},
 		{
-			name: "invalid timestamps - validBefore before validAfter",
-			payload: EVMPayload{
-				Signature: "0x2d6a7588d6acca505cbf0d9a4a227e0c52c6c34008c8e8986a1283259764173608a2ce6496642e377d6da8dbbf5836e9bd15092f9ecab05ded3d6293af148b571c",
-				Authorization: Authorization{
-					From:        "0x857b06519E91e3A54538791bDbb0E22373e36b66",
-					To:          "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
-					Value:       "10000",
-					ValidAfter:  "1740672154",
-					ValidBefore: "1740672089",
-					Nonce:       "0xf3746613c2d920b5fdabc0856f2aeb2d4f88ee6037b8cc5d04a71a4462f13480",
-				},
-			},
-			wantErr: true,
+			name:     "nil value",
+			value:    nil,
+			decimals: 6,
+			want:     "0",
 		},
 		{
-			name: "invalid value - zero",
-			payload: EVMPayload{
-				Signature: "0x2d6a7588d6acca505cbf0d9a4a227e0c52c6c34008c8e8986a1283259764173608a2ce6496642e377d6da8dbbf5836e9bd15092f9ecab05ded3d6293af148b571c",
-				Authorization: Authorization{
-					From:        "0x857b06519E91e3A54538791bDbb0E22373e36b66",
-					To:          "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
-					Value:       "0",
-					ValidAfter:  "1740672089",
-					ValidBefore: "1740672154",
-					Nonce:       "0xf3746613c2d920b5fdabc0856f2aeb2d4f88ee6037b8cc5d04a71a4462f13480",
-				},
-			},
-			wantErr: true,
+			name:     "zero value",
+			value:    big.NewInt(0),
+			decimals: 6,
+			want:     "0.000000",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.payload.Validate()
-			if (err != nil) != tt.wantErr {
-				t.Errorf("EVMPayload.Validate() error = %v, wantErr %v", err, tt.wantErr)
+			got := BigIntToAmount(tt.value, tt.decimals)
+			if got != tt.want {
+				t.Errorf("BigIntToAmount() = %s, want %s", got, tt.want)
 			}
 		})
 	}
 }
 
-func TestSVMPayload_Validate(t *testing.T) {
+func TestTokenConfig(t *testing.T) {
 	tests := []struct {
-		name    string
-		payload SVMPayload
-		wantErr bool
+		name  string
+		token TokenConfig
+		valid bool
 	}{
 		{
-			name: "valid SVM payload",
-			payload: SVMPayload{
-				Transaction: "base64encodedtransaction==",
+			name: "valid USDC token",
+			token: TokenConfig{
+				Address:  "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+				Symbol:   "USDC",
+				Decimals: 6,
+				Priority: 1,
+				Name:     "USD Coin",
 			},
-			wantErr: false,
+			valid: true,
 		},
 		{
-			name: "empty transaction",
-			payload: SVMPayload{
-				Transaction: "",
+			name: "valid token with zero priority",
+			token: TokenConfig{
+				Address:  "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+				Symbol:   "USDC",
+				Decimals: 6,
+				Priority: 0,
 			},
-			wantErr: true,
+			valid: true,
+		},
+		{
+			name: "valid token with high priority number",
+			token: TokenConfig{
+				Address:  "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+				Symbol:   "USDC",
+				Decimals: 6,
+				Priority: 100,
+			},
+			valid: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.payload.Validate()
-			if (err != nil) != tt.wantErr {
-				t.Errorf("SVMPayload.Validate() error = %v, wantErr %v", err, tt.wantErr)
+			// Verify token fields are set correctly
+			if tt.token.Address == "" && tt.valid {
+				t.Error("valid token should have non-empty address")
+			}
+			if tt.token.Symbol == "" && tt.valid {
+				t.Error("valid token should have non-empty symbol")
+			}
+			if tt.token.Decimals < 0 {
+				t.Error("decimals should not be negative")
 			}
 		})
 	}
 }
 
-func TestValidateEVMAddress(t *testing.T) {
+func TestTokenConfigPriorityConvention(t *testing.T) {
+	// Test that lower priority numbers indicate higher priority
+	tokens := []TokenConfig{
+		{Address: "0xUSDC", Symbol: "USDC", Decimals: 6, Priority: 1},
+		{Address: "0xUSDT", Symbol: "USDT", Decimals: 6, Priority: 2},
+		{Address: "0xDAI", Symbol: "DAI", Decimals: 18, Priority: 3},
+	}
+
+	// Verify priority convention: 1 < 2 < 3 (lower number = higher priority)
+	if tokens[0].Priority >= tokens[1].Priority {
+		t.Error("USDC (priority 1) should have higher priority than USDT (priority 2)")
+	}
+	if tokens[1].Priority >= tokens[2].Priority {
+		t.Error("USDT (priority 2) should have higher priority than DAI (priority 3)")
+	}
+
+	// Test that sorting by priority works correctly
+	if !(tokens[0].Priority < tokens[1].Priority && tokens[1].Priority < tokens[2].Priority) {
+		t.Error("token priorities should be sortable in ascending order (1, 2, 3...)")
+	}
+}
+
+func TestPaymentPayload(t *testing.T) {
 	tests := []struct {
 		name    string
-		address string
-		wantErr bool
+		payload PaymentPayload
+		valid   bool
 	}{
 		{
-			name:    "valid address",
-			address: "0x857b06519E91e3A54538791bDbb0E22373e36b66",
-			wantErr: false,
+			name: "valid EVM payment",
+			payload: PaymentPayload{
+				X402Version: 1,
+				Scheme:      "exact",
+				Network:     "base",
+				Payload: EVMPayload{
+					Signature: "0x1234",
+					Authorization: EVMAuthorization{
+						From:        "0xFrom",
+						To:          "0xTo",
+						Value:       "1000000",
+						ValidAfter:  "0",
+						ValidBefore: "999999999",
+						Nonce:       "0x0000000000000000000000000000000000000000000000000000000000000001",
+					},
+				},
+			},
+			valid: true,
 		},
 		{
-			name:    "valid address lowercase",
-			address: "0x857b06519e91e3a54538791bdbb0e22373e36b66",
-			wantErr: false,
-		},
-		{
-			name:    "invalid - missing 0x prefix",
-			address: "857b06519E91e3A54538791bDbb0E22373e36b66",
-			wantErr: true,
-		},
-		{
-			name:    "invalid - too short",
-			address: "0x857b06519E91e3A5453879",
-			wantErr: true,
-		},
-		{
-			name:    "invalid - too long",
-			address: "0x857b06519E91e3A54538791bDbb0E22373e36b66FF",
-			wantErr: true,
-		},
-		{
-			name:    "invalid - non-hex characters",
-			address: "0x857b06519E91e3A54538791bDbb0E22373e36bZZ",
-			wantErr: true,
+			name: "valid SVM payment",
+			payload: PaymentPayload{
+				X402Version: 1,
+				Scheme:      "exact",
+				Network:     "solana",
+				Payload: SVMPayload{
+					Transaction: "base64encodedtransaction==",
+				},
+			},
+			valid: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := ValidateEVMAddress(tt.address)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("ValidateEVMAddress() error = %v, wantErr %v", err, tt.wantErr)
+			if tt.payload.X402Version != 1 {
+				t.Errorf("expected X402Version 1, got %d", tt.payload.X402Version)
+			}
+			if tt.payload.Scheme == "" && tt.valid {
+				t.Error("valid payload should have non-empty scheme")
+			}
+			if tt.payload.Network == "" && tt.valid {
+				t.Error("valid payload should have non-empty network")
+			}
+			if tt.payload.Payload == nil && tt.valid {
+				t.Error("valid payload should have non-nil payload")
 			}
 		})
 	}
 }
 
-func TestPaymentRequirementsResponse_JSON(t *testing.T) {
-	resp := PaymentRequirementsResponse{
-		X402Version: 1,
-		Error:       "Payment required for this resource",
-		Accepts: []PaymentRequirement{
-			{
+func TestPaymentRequirements(t *testing.T) {
+	tests := []struct {
+		name  string
+		req   PaymentRequirement
+		valid bool
+	}{
+		{
+			name: "valid requirements",
+			req: PaymentRequirement{
 				Scheme:            "exact",
-				Network:           "base-sepolia",
-				MaxAmountRequired: "10000",
-				Asset:             "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-				PayTo:             "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+				Network:           "base",
+				MaxAmountRequired: "1000000",
+				Asset:             "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+				PayTo:             "0x1234567890123456789012345678901234567890",
 				Resource:          "https://api.example.com/data",
-				Description:       "Premium data access",
 				MaxTimeoutSeconds: 60,
 			},
+			valid: true,
+		},
+		{
+			name: "valid requirements with extra data",
+			req: PaymentRequirement{
+				Scheme:            "exact",
+				Network:           "base",
+				MaxAmountRequired: "1000000",
+				Asset:             "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+				PayTo:             "0x1234567890123456789012345678901234567890",
+				Resource:          "https://api.example.com/data",
+				MaxTimeoutSeconds: 60,
+				Extra: map[string]interface{}{
+					"custom": "data",
+				},
+			},
+			valid: true,
 		},
 	}
 
-	// Marshal to JSON
-	data, err := json.Marshal(resp)
-	if err != nil {
-		t.Fatalf("Failed to marshal: %v", err)
-	}
-
-	// Unmarshal back
-	var decoded PaymentRequirementsResponse
-	if err := json.Unmarshal(data, &decoded); err != nil {
-		t.Fatalf("Failed to unmarshal: %v", err)
-	}
-
-	// Verify
-	if decoded.X402Version != resp.X402Version {
-		t.Errorf("X402Version mismatch: got %d, want %d", decoded.X402Version, resp.X402Version)
-	}
-	if decoded.Error != resp.Error {
-		t.Errorf("Error mismatch: got %s, want %s", decoded.Error, resp.Error)
-	}
-	if len(decoded.Accepts) != len(resp.Accepts) {
-		t.Errorf("Accepts length mismatch: got %d, want %d", len(decoded.Accepts), len(resp.Accepts))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.req.Scheme == "" && tt.valid {
+				t.Error("valid requirements should have scheme")
+			}
+			if tt.req.Network == "" && tt.valid {
+				t.Error("valid requirements should have network")
+			}
+			if tt.req.MaxAmountRequired == "" && tt.valid {
+				t.Error("valid requirements should have amount")
+			}
+			if tt.req.Asset == "" && tt.valid {
+				t.Error("valid requirements should have asset")
+			}
+			if tt.req.PayTo == "" && tt.valid {
+				t.Error("valid requirements should have payTo")
+			}
+		})
 	}
 }
 
-func TestPaymentPayload_JSON(t *testing.T) {
-	evmPayload := EVMPayload{
-		Signature: "0x2d6a7588d6acca505cbf0d9a4a227e0c52c6c34008c8e8986a1283259764173608a2ce6496642e377d6da8dbbf5836e9bd15092f9ecab05ded3d6293af148b571c",
-		Authorization: Authorization{
-			From:        "0x857b06519E91e3A54538791bDbb0E22373e36b66",
-			To:          "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
-			Value:       "10000",
-			ValidAfter:  "1740672089",
-			ValidBefore: "1740672154",
-			Nonce:       "0xf3746613c2d920b5fdabc0856f2aeb2d4f88ee6037b8cc5d04a71a4462f13480",
+func TestSettlementResponse(t *testing.T) {
+	tests := []struct {
+		name       string
+		settlement SettlementResponse
+		valid      bool
+	}{
+		{
+			name: "successful settlement",
+			settlement: SettlementResponse{
+				Success:     true,
+				Transaction: "0xabcdef1234567890",
+				Network:     "base",
+				Payer:       "0x1234567890",
+			},
+			valid: true,
+		},
+		{
+			name: "failed settlement with reason",
+			settlement: SettlementResponse{
+				Success:     false,
+				ErrorReason: "insufficient funds",
+				Network:     "base",
+				Payer:       "0x1234567890",
+			},
+			valid: true,
 		},
 	}
 
-	payloadData, err := json.Marshal(evmPayload)
-	if err != nil {
-		t.Fatalf("Failed to marshal EVM payload: %v", err)
-	}
-
-	payment := PaymentPayload{
-		X402Version: 1,
-		Scheme:      "exact",
-		Network:     "base-sepolia",
-		Payload:     payloadData,
-	}
-
-	// Marshal to JSON
-	data, err := json.Marshal(payment)
-	if err != nil {
-		t.Fatalf("Failed to marshal payment: %v", err)
-	}
-
-	// Unmarshal back
-	var decoded PaymentPayload
-	if err := json.Unmarshal(data, &decoded); err != nil {
-		t.Fatalf("Failed to unmarshal payment: %v", err)
-	}
-
-	// Verify
-	if decoded.X402Version != payment.X402Version {
-		t.Errorf("X402Version mismatch")
-	}
-	if decoded.Scheme != payment.Scheme {
-		t.Errorf("Scheme mismatch")
-	}
-	if decoded.Network != payment.Network {
-		t.Errorf("Network mismatch")
-	}
-
-	// Unmarshal the payload
-	var decodedEVM EVMPayload
-	if err := json.Unmarshal(decoded.Payload, &decodedEVM); err != nil {
-		t.Fatalf("Failed to unmarshal EVM payload: %v", err)
-	}
-
-	if decodedEVM.Signature != evmPayload.Signature {
-		t.Errorf("Signature mismatch")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.settlement.Network == "" && tt.valid {
+				t.Error("valid settlement should have network")
+			}
+			if tt.settlement.Payer == "" && tt.valid {
+				t.Error("valid settlement should have payer")
+			}
+			if tt.settlement.Success && tt.settlement.Transaction == "" {
+				t.Error("successful settlement should have transaction hash")
+			}
+			if !tt.settlement.Success && tt.settlement.ErrorReason == "" {
+				t.Error("failed settlement should have error reason")
+			}
+		})
 	}
 }

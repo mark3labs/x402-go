@@ -2,57 +2,123 @@ package x402
 
 import "errors"
 
-// Standard x402 error definitions
-
+// Common errors for x402 payment operations.
 var (
-	// ErrPaymentRequired indicates that payment is required to access the resource.
-	ErrPaymentRequired = errors.New("payment required")
+	// ErrNoValidSigner indicates no signer can satisfy the payment requirements.
+	ErrNoValidSigner = errors.New("x402: no signer can satisfy payment requirements")
 
-	// ErrInvalidPayment indicates that the provided payment is invalid.
-	ErrInvalidPayment = errors.New("invalid payment")
+	// ErrAmountExceeded indicates the payment amount exceeds the per-call limit.
+	ErrAmountExceeded = errors.New("x402: payment amount exceeds per-call limit")
 
-	// ErrMalformedHeader indicates that the X-PAYMENT header is malformed.
-	ErrMalformedHeader = errors.New("malformed payment header")
+	// ErrInvalidRequirements indicates the payment requirements from the server are invalid.
+	ErrInvalidRequirements = errors.New("x402: invalid payment requirements")
 
-	// ErrUnsupportedVersion indicates an unsupported x402 protocol version.
-	ErrUnsupportedVersion = errors.New("unsupported x402 version")
+	// ErrSigningFailed indicates the payment signing operation failed.
+	ErrSigningFailed = errors.New("x402: payment signing failed")
 
-	// ErrUnsupportedScheme indicates an unsupported payment scheme.
-	ErrUnsupportedScheme = errors.New("unsupported payment scheme")
+	// ErrNetworkError indicates a network error occurred during payment.
+	ErrNetworkError = errors.New("x402: network error during payment")
 
-	// ErrUnsupportedNetwork indicates an unsupported blockchain network.
-	ErrUnsupportedNetwork = errors.New("unsupported network")
+	// ErrInvalidAmount indicates an invalid amount string.
+	ErrInvalidAmount = errors.New("x402: invalid amount")
 
-	// ErrInvalidSignature indicates an invalid cryptographic signature.
-	ErrInvalidSignature = errors.New("invalid signature")
+	// ErrInvalidKey indicates an invalid private key.
+	ErrInvalidKey = errors.New("x402: invalid private key")
 
-	// ErrInvalidAuthorization indicates invalid payment authorization data.
-	ErrInvalidAuthorization = errors.New("invalid authorization")
+	// ErrInvalidNetwork indicates an unsupported network.
+	ErrInvalidNetwork = errors.New("x402: invalid or unsupported network")
 
-	// ErrExpiredAuthorization indicates the payment authorization has expired.
-	ErrExpiredAuthorization = errors.New("expired authorization")
+	// ErrInvalidToken indicates invalid token configuration.
+	ErrInvalidToken = errors.New("x402: invalid token configuration")
 
-	// ErrInsufficientFunds indicates the payer has insufficient funds.
-	ErrInsufficientFunds = errors.New("insufficient funds")
+	// ErrInvalidKeystore indicates an invalid or corrupted keystore file.
+	ErrInvalidKeystore = errors.New("x402: invalid keystore file")
 
-	// ErrInvalidNonce indicates an invalid or reused nonce.
-	ErrInvalidNonce = errors.New("invalid nonce")
+	// ErrInvalidMnemonic indicates an invalid BIP39 mnemonic phrase.
+	ErrInvalidMnemonic = errors.New("x402: invalid mnemonic phrase")
 
-	// ErrRecipientMismatch indicates payment recipient doesn't match requirements.
-	ErrRecipientMismatch = errors.New("recipient mismatch")
-
-	// ErrAmountMismatch indicates payment amount doesn't meet requirements.
-	ErrAmountMismatch = errors.New("amount mismatch")
+	// ErrNoTokens indicates no tokens are configured for the signer.
+	ErrNoTokens = errors.New("x402: no tokens configured")
 
 	// ErrFacilitatorUnavailable indicates the facilitator service is unavailable.
-	ErrFacilitatorUnavailable = errors.New("facilitator unavailable")
-
-	// ErrSettlementFailed indicates on-chain settlement failed.
-	ErrSettlementFailed = errors.New("settlement failed")
+	ErrFacilitatorUnavailable = errors.New("x402: facilitator service unavailable")
 
 	// ErrVerificationFailed indicates payment verification failed.
-	ErrVerificationFailed = errors.New("verification failed")
+	ErrVerificationFailed = errors.New("x402: payment verification failed")
 
-	// ErrTimeout indicates the operation timed out.
-	ErrTimeout = errors.New("operation timed out")
+	// ErrMalformedHeader indicates the X-PAYMENT header is malformed.
+	ErrMalformedHeader = errors.New("x402: malformed payment header")
+
+	// ErrUnsupportedVersion indicates an unsupported x402 protocol version.
+	ErrUnsupportedVersion = errors.New("x402: unsupported protocol version")
+
+	// ErrUnsupportedScheme indicates an unsupported payment scheme.
+	ErrUnsupportedScheme = errors.New("x402: unsupported payment scheme")
+
+	// ErrSettlementFailed indicates payment settlement failed.
+	ErrSettlementFailed = errors.New("x402: payment settlement failed")
 )
+
+// PaymentError represents a structured error with additional context.
+type PaymentError struct {
+	// Code is the error code for programmatic handling.
+	Code ErrorCode
+
+	// Message is the human-readable error message.
+	Message string
+
+	// Details contains additional error context.
+	Details map[string]interface{}
+
+	// Err is the underlying error.
+	Err error
+}
+
+// ErrorCode represents payment error codes.
+type ErrorCode string
+
+const (
+	// ErrCodeNoValidSigner indicates no signer can satisfy requirements.
+	ErrCodeNoValidSigner ErrorCode = "NO_VALID_SIGNER"
+
+	// ErrCodeAmountExceeded indicates payment exceeds limits.
+	ErrCodeAmountExceeded ErrorCode = "AMOUNT_EXCEEDED"
+
+	// ErrCodeInvalidRequirements indicates invalid server requirements.
+	ErrCodeInvalidRequirements ErrorCode = "INVALID_REQUIREMENTS"
+
+	// ErrCodeSigningFailed indicates signing operation failed.
+	ErrCodeSigningFailed ErrorCode = "SIGNING_FAILED"
+
+	// ErrCodeNetworkError indicates network communication error.
+	ErrCodeNetworkError ErrorCode = "NETWORK_ERROR"
+)
+
+// Error implements the error interface.
+func (e *PaymentError) Error() string {
+	if e.Err != nil {
+		return e.Message + ": " + e.Err.Error()
+	}
+	return e.Message
+}
+
+// Unwrap returns the underlying error.
+func (e *PaymentError) Unwrap() error {
+	return e.Err
+}
+
+// NewPaymentError creates a new PaymentError with the given code and message.
+func NewPaymentError(code ErrorCode, message string, err error) *PaymentError {
+	return &PaymentError{
+		Code:    code,
+		Message: message,
+		Err:     err,
+		Details: make(map[string]interface{}),
+	}
+}
+
+// WithDetails adds additional context to the error.
+func (e *PaymentError) WithDetails(key string, value interface{}) *PaymentError {
+	e.Details[key] = value
+	return e
+}
