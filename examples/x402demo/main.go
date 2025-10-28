@@ -9,11 +9,13 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/mark3labs/x402-go"
 	"github.com/mark3labs/x402-go/evm"
 	x402http "github.com/mark3labs/x402-go/http"
+	"github.com/mark3labs/x402-go/svm"
 )
 
 func main() {
@@ -47,10 +49,10 @@ func printUsage() {
 func runServer(args []string) {
 	fs := flag.NewFlagSet("server", flag.ExitOnError)
 	port := fs.String("port", "8080", "Server port")
-	network := fs.String("network", "base", "Network to accept payments on (base, base-sepolia)")
+	network := fs.String("network", "base", "Network to accept payments on (base, base-sepolia, solana, solana-devnet)")
 	payTo := fs.String("payTo", "", "Address to receive payments (required)")
-	tokenAddr := fs.String("token", "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", "Token address (default: USDC on Base)")
-	amount := fs.String("amount", "100000", "Payment amount in atomic units (default: 0.1 USDC)")
+	tokenAddr := fs.String("token", "", "Token address (auto-detected based on network if not specified)")
+	amount := fs.String("amount", "", "Payment amount in atomic units (auto-detected based on network if not specified)")
 	facilitatorURL := fs.String("facilitator", "https://facilitator.x402.rs", "Facilitator URL")
 	verbose := fs.Bool("verbose", false, "Enable verbose debug output")
 
@@ -62,6 +64,24 @@ func runServer(args []string) {
 		fmt.Println()
 		fs.PrintDefaults()
 		os.Exit(1)
+	}
+
+	// Set defaults based on network if not specified
+	if *tokenAddr == "" {
+		switch strings.ToLower(*network) {
+		case "solana":
+			*tokenAddr = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" // USDC on Solana mainnet
+		case "solana-devnet":
+			*tokenAddr = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU" // USDC on Solana devnet
+		case "base", "base-sepolia":
+			*tokenAddr = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" // USDC on Base
+		default:
+			*tokenAddr = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" // Default to Base USDC
+		}
+	}
+
+	if *amount == "" {
+		*amount = "1000" // Default: 0.001 USDC (6 decimals)
 	}
 
 	fmt.Printf("Starting x402 demo server on port %s\n", *port)
@@ -76,16 +96,29 @@ func runServer(args []string) {
 	fmt.Println()
 
 	// Create payment requirements
-	requirements := []x402.PaymentRequirement{
-		{
-			Scheme:            "exact",
-			Network:           *network,
-			MaxAmountRequired: *amount,
-			Asset:             *tokenAddr,
-			PayTo:             *payTo,
-			MaxTimeoutSeconds: 60,
-		},
+	// For Solana, we need to add the feePayer in extra field
+	requirement := x402.PaymentRequirement{
+		Scheme:            "exact",
+		Network:           *network,
+		MaxAmountRequired: *amount,
+		Asset:             *tokenAddr,
+		PayTo:             *payTo,
+		MaxTimeoutSeconds: 60,
 	}
+
+	// Add extra field for Solana networks
+	if strings.HasPrefix(strings.ToLower(*network), "solana") {
+		// For demo purposes, we'll use a placeholder fee payer
+		// In production, this would be fetched from the facilitator's /supported endpoint
+		requirement.Extra = map[string]interface{}{
+			"feePayer": "EwWqGE4ZFKLofuestmU4LDdK7XM1N4ALgdZccwYugwGd",
+		}
+		fmt.Printf("Note: Solana payments require a fee payer (facilitator)\n")
+		fmt.Printf("Fee payer: %s\n", requirement.Extra["feePayer"])
+		fmt.Println()
+	}
+
+	requirements := []x402.PaymentRequirement{requirement}
 
 	// Create x402 middleware
 	middleware := x402http.NewX402Middleware(&x402http.Config{
@@ -148,18 +181,19 @@ func runServer(args []string) {
 
 func runClient(args []string) {
 	fs := flag.NewFlagSet("client", flag.ExitOnError)
-	network := fs.String("network", "base", "Network to use (base, base-sepolia)")
-	key := fs.String("key", "", "Private key (hex format, with or without 0x prefix)")
+	network := fs.String("network", "base", "Network to use (base, base-sepolia, solana, solana-devnet)")
+	key := fs.String("key", "", "Private key (hex for EVM, base58 for Solana)")
+	keyFile := fs.String("keyfile", "", "Solana keygen JSON file (alternative to --key for Solana)")
 	url := fs.String("url", "", "URL to fetch (must be paywalled with x402)")
-	tokenAddr := fs.String("token", "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", "Token address (default: USDC on Base)")
+	tokenAddr := fs.String("token", "", "Token address (auto-detected based on network if not specified)")
 	maxAmount := fs.String("max", "", "Maximum amount per call (optional)")
 	verbose := fs.Bool("verbose", false, "Enable verbose debug output")
 
 	fs.Parse(args)
 
 	// Validate inputs
-	if *key == "" {
-		fmt.Println("Error: --key is required")
+	if *key == "" && *keyFile == "" {
+		fmt.Println("Error: --key or --keyfile is required")
 		fmt.Println()
 		fs.PrintDefaults()
 		os.Exit(1)
@@ -172,33 +206,89 @@ func runClient(args []string) {
 		os.Exit(1)
 	}
 
-	// Create EVM signer
-	signerOpts := []evm.SignerOption{
-		evm.WithPrivateKey(*key),
-		evm.WithNetwork(*network),
-		evm.WithToken(*tokenAddr, "USDC", 6),
+	// Set defaults based on network if not specified
+	if *tokenAddr == "" {
+		switch strings.ToLower(*network) {
+		case "solana":
+			*tokenAddr = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" // USDC on Solana mainnet
+		case "solana-devnet":
+			*tokenAddr = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU" // USDC on Solana devnet
+		case "base", "base-sepolia":
+			*tokenAddr = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" // USDC on Base
+		default:
+			*tokenAddr = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" // Default to Base USDC
+		}
 	}
 
-	if *maxAmount != "" {
-		signerOpts = append(signerOpts, evm.WithMaxAmountPerCall(*maxAmount))
+	var client *x402http.Client
+	var signerAddress string
+
+	// Create appropriate signer based on network
+	if strings.HasPrefix(strings.ToLower(*network), "solana") {
+		// Create Solana signer
+		var svmOpts []svm.SignerOption
+
+		if *keyFile != "" {
+			svmOpts = append(svmOpts, svm.WithKeygenFile(*keyFile))
+		} else {
+			svmOpts = append(svmOpts, svm.WithPrivateKey(*key))
+		}
+
+		svmOpts = append(svmOpts,
+			svm.WithNetwork(*network),
+			svm.WithToken(*tokenAddr, "USDC", 6),
+		)
+
+		if *maxAmount != "" {
+			svmOpts = append(svmOpts, svm.WithMaxAmountPerCall(*maxAmount))
+		}
+
+		svmSigner, err := svm.NewSigner(svmOpts...)
+		if err != nil {
+			log.Fatalf("Failed to create Solana signer: %v", err)
+		}
+
+		signerAddress = svmSigner.Address()
+		fmt.Printf("Created Solana signer for address: %s\n", signerAddress)
+
+		// Create x402-enabled HTTP client with Solana signer
+		client, err = x402http.NewClient(
+			x402http.WithSigner(svmSigner),
+		)
+		if err != nil {
+			log.Fatalf("Failed to create client: %v", err)
+		}
+	} else {
+		// Create EVM signer
+		signerOpts := []evm.SignerOption{
+			evm.WithPrivateKey(*key),
+			evm.WithNetwork(*network),
+			evm.WithToken(*tokenAddr, "USDC", 6),
+		}
+
+		if *maxAmount != "" {
+			signerOpts = append(signerOpts, evm.WithMaxAmountPerCall(*maxAmount))
+		}
+
+		evmSigner, err := evm.NewSigner(signerOpts...)
+		if err != nil {
+			log.Fatalf("Failed to create EVM signer: %v", err)
+		}
+
+		signerAddress = evmSigner.Address().Hex()
+		fmt.Printf("Created EVM signer for address: %s\n", signerAddress)
+
+		// Create x402-enabled HTTP client with EVM signer
+		client, err = x402http.NewClient(
+			x402http.WithSigner(evmSigner),
+		)
+		if err != nil {
+			log.Fatalf("Failed to create client: %v", err)
+		}
 	}
 
-	signer, err := evm.NewSigner(signerOpts...)
-	if err != nil {
-		log.Fatalf("Failed to create signer: %v", err)
-	}
-
-	fmt.Printf("Created signer for address: %s\n", signer.Address().Hex())
 	fmt.Printf("Network: %s\n", *network)
 	fmt.Printf("Token: %s\n", *tokenAddr)
-
-	// Create x402-enabled HTTP client
-	client, err := x402http.NewClient(
-		x402http.WithSigner(signer),
-	)
-	if err != nil {
-		log.Fatalf("Failed to create client: %v", err)
-	}
 
 	fmt.Printf("\nFetching: %s\n", *url)
 

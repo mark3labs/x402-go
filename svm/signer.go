@@ -1,6 +1,7 @@
 package svm
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -9,6 +10,8 @@ import (
 	"strings"
 
 	"github.com/gagliardetto/solana-go"
+	"github.com/gagliardetto/solana-go/programs/token"
+	"github.com/gagliardetto/solana-go/rpc"
 	"github.com/mark3labs/x402-go"
 )
 
@@ -205,6 +208,35 @@ func (s *Signer) Sign(requirements *x402.PaymentRequirement) (*x402.PaymentPaylo
 		return nil, fmt.Errorf("invalid recipient address: %w", err)
 	}
 
+	// Get decimals for this token
+	var decimals uint8
+	for _, token := range s.tokens {
+		if strings.EqualFold(token.Address, requirements.Asset) {
+			decimals = uint8(token.Decimals)
+			break
+		}
+	}
+
+	// Extract fee payer from requirements.Extra
+	feePayer, err := extractFeePayer(requirements)
+	if err != nil {
+		return nil, fmt.Errorf("invalid fee payer: %w", err)
+	}
+
+	// Get RPC URL for the network
+	rpcURL, err := getRPCURL(s.network)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get RPC URL: %w", err)
+	}
+
+	// Fetch recent blockhash from the network
+	client := rpc.New(rpcURL)
+	ctx := context.Background()
+	recent, err := client.GetLatestBlockhash(ctx, rpc.CommitmentFinalized)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get blockhash from %s: %w", rpcURL, err)
+	}
+
 	// Build the partially signed transaction
 	txBase64, err := BuildPartiallySignedTransfer(
 		s.privateKey,
@@ -212,6 +244,9 @@ func (s *Signer) Sign(requirements *x402.PaymentRequirement) (*x402.PaymentPaylo
 		mintAddress,
 		recipient,
 		amount.Uint64(),
+		decimals,
+		feePayer,
+		recent.Value.Blockhash,
 	)
 	if err != nil {
 		return nil, x402.NewPaymentError(x402.ErrCodeSigningFailed, "failed to build transaction", err)
@@ -228,6 +263,40 @@ func (s *Signer) Sign(requirements *x402.PaymentRequirement) (*x402.PaymentPaylo
 	}
 
 	return payload, nil
+}
+
+// getRPCURL returns the RPC URL for the given network
+func getRPCURL(network string) (string, error) {
+	switch strings.ToLower(network) {
+	case "solana", "mainnet-beta":
+		return rpc.MainNetBeta_RPC, nil
+	case "solana-devnet", "devnet":
+		return rpc.DevNet_RPC, nil
+	case "testnet":
+		return rpc.TestNet_RPC, nil
+	default:
+		return "", fmt.Errorf("unsupported network: %s", network)
+	}
+}
+
+// extractFeePayer extracts the feePayer address from the payment requirements.
+// The feePayer is specified in requirements.Extra["feePayer"] as per the exact_svm spec.
+func extractFeePayer(requirements *x402.PaymentRequirement) (solana.PublicKey, error) {
+	if requirements.Extra == nil {
+		return solana.PublicKey{}, fmt.Errorf("missing extra field in requirements")
+	}
+
+	feePayerStr, ok := requirements.Extra["feePayer"].(string)
+	if !ok {
+		return solana.PublicKey{}, fmt.Errorf("feePayer not found or not a string in extra field")
+	}
+
+	feePayer, err := solana.PublicKeyFromBase58(feePayerStr)
+	if err != nil {
+		return solana.PublicKey{}, fmt.Errorf("invalid feePayer address: %w", err)
+	}
+
+	return feePayer, nil
 }
 
 // GetPriority implements x402.Signer.
@@ -258,6 +327,9 @@ func BuildPartiallySignedTransfer(
 	mint solana.PublicKey,
 	recipient solana.PublicKey,
 	amount uint64,
+	decimals uint8,
+	feePayer solana.PublicKey,
+	blockhash solana.Hash,
 ) (string, error) {
 	// Get associated token accounts
 	sourceATA, _, err := solana.FindAssociatedTokenAddress(clientPublicKey, mint)
@@ -270,33 +342,40 @@ func BuildPartiallySignedTransfer(
 		return "", fmt.Errorf("failed to find destination ATA: %w", err)
 	}
 
-	// Build SPL token transfer instruction
-	// This uses the Token Program transfer instruction
-	transferInstruction := solana.NewInstruction(
-		solana.TokenProgramID, // program ID
-		solana.AccountMetaSlice{
-			solana.Meta(sourceATA).WRITE(),        // source account
-			solana.Meta(destATA).WRITE(),          // destination account
-			solana.Meta(clientPublicKey).SIGNER(), // authority (client)
-		},
-		buildTransferInstructionData(amount),
-	)
+	// Build instruction 3: TransferChecked using official builder
+	transferInst := token.NewTransferCheckedInstructionBuilder().
+		SetAmount(amount).
+		SetDecimals(decimals).
+		SetSourceAccount(sourceATA).
+		SetDestinationAccount(destATA).
+		SetMintAccount(mint).
+		SetOwnerAccount(clientPublicKey).
+		Build()
 
-	// Create transaction with placeholder blockhash
-	// The facilitator will update this with a recent blockhash
-	placeholderBlockhash := solana.Hash{}
+	// Build instructions according to exact_svm spec
+	instructions := []solana.Instruction{
+		// Instruction 0: SetComputeUnitLimit
+		buildSetComputeUnitLimitInstruction(200_000), // 200k compute units
+		// Instruction 1: SetComputeUnitPrice
+		buildSetComputeUnitPriceInstruction(10_000), // 10k microlamports per compute unit
+		// Instruction 2: TransferChecked (use official builder from solana-go)
+		transferInst,
+	}
 
+	// Create transaction with recent blockhash from the network
 	tx, err := solana.NewTransaction(
-		[]solana.Instruction{transferInstruction},
-		placeholderBlockhash,
+		instructions,
+		blockhash,
+		solana.TransactionPayer(feePayer), // Set fee payer from requirements
 	)
 	if err != nil {
 		return "", fmt.Errorf("failed to create transaction: %w", err)
 	}
 
-	// Sign with client private key (partial signature)
-	// The facilitator will be the fee payer and will add their signature
-	_, err = tx.Sign(func(key solana.PublicKey) *solana.PrivateKey {
+	// Create a partially signed transaction
+	// Sign only with the client key, leaving the fee payer signature empty
+	// The facilitator will add their signature later
+	_, err = tx.PartialSign(func(key solana.PublicKey) *solana.PrivateKey {
 		if key.Equals(clientPublicKey) {
 			return &clientPrivateKey
 		}
@@ -316,22 +395,48 @@ func BuildPartiallySignedTransfer(
 	return base64.StdEncoding.EncodeToString(txBytes), nil
 }
 
-// buildTransferInstructionData builds the instruction data for an SPL token transfer.
-// Format: [3, amount (u64 little-endian)]
-// Instruction discriminator 3 = Transfer
-func buildTransferInstructionData(amount uint64) []byte {
+// ComputeBudgetProgramID is the Solana Compute Budget program ID
+var ComputeBudgetProgramID = solana.MustPublicKeyFromBase58("ComputeBudget111111111111111111111111111111")
+
+// Token2022ProgramID is the SPL Token-2022 program ID
+var Token2022ProgramID = solana.MustPublicKeyFromBase58("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb")
+
+// buildSetComputeUnitLimitInstruction creates a SetComputeUnitLimit instruction.
+// Format: [2, units (u32 little-endian)]
+// Instruction discriminator 2 = SetComputeUnitLimit
+func buildSetComputeUnitLimitInstruction(units uint32) solana.Instruction {
+	data := make([]byte, 5)
+	data[0] = 2 // SetComputeUnitLimit discriminator
+	data[1] = byte(units)
+	data[2] = byte(units >> 8)
+	data[3] = byte(units >> 16)
+	data[4] = byte(units >> 24)
+
+	return solana.NewInstruction(
+		ComputeBudgetProgramID,
+		solana.AccountMetaSlice{},
+		data,
+	)
+}
+
+// buildSetComputeUnitPriceInstruction creates a SetComputeUnitPrice instruction.
+// Format: [3, microlamports (u64 little-endian)]
+// Instruction discriminator 3 = SetComputeUnitPrice
+func buildSetComputeUnitPriceInstruction(microlamports uint64) solana.Instruction {
 	data := make([]byte, 9)
-	data[0] = 3 // Transfer instruction
+	data[0] = 3 // SetComputeUnitPrice discriminator
+	data[1] = byte(microlamports)
+	data[2] = byte(microlamports >> 8)
+	data[3] = byte(microlamports >> 16)
+	data[4] = byte(microlamports >> 24)
+	data[5] = byte(microlamports >> 32)
+	data[6] = byte(microlamports >> 40)
+	data[7] = byte(microlamports >> 48)
+	data[8] = byte(microlamports >> 56)
 
-	// Encode amount as little-endian u64
-	data[1] = byte(amount)
-	data[2] = byte(amount >> 8)
-	data[3] = byte(amount >> 16)
-	data[4] = byte(amount >> 24)
-	data[5] = byte(amount >> 32)
-	data[6] = byte(amount >> 40)
-	data[7] = byte(amount >> 48)
-	data[8] = byte(amount >> 56)
-
-	return data
+	return solana.NewInstruction(
+		ComputeBudgetProgramID,
+		solana.AccountMetaSlice{},
+		data,
+	)
 }

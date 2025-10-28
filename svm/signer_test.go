@@ -272,8 +272,11 @@ func TestSign_Validation(t *testing.T) {
 				MaxAmountRequired: "500000",
 				PayTo:             "9B5XszUGdMaxCZ7uSQhPzdks5ZQSmWxrmzCSvtJ6Ns6g",
 				MaxTimeoutSeconds: 60,
+				Extra: map[string]interface{}{
+					"feePayer": "EwWqGE4ZFKLofuestmU4LDdK7XM1N4ALgdZccwYugwGd",
+				},
 			},
-			skipReason: "transaction building not implemented",
+			wantErr: nil,
 		},
 		{
 			name: "amount exceeds max",
@@ -284,6 +287,9 @@ func TestSign_Validation(t *testing.T) {
 				MaxAmountRequired: "2000000", // exceeds max of 1000000
 				PayTo:             "9B5XszUGdMaxCZ7uSQhPzdks5ZQSmWxrmzCSvtJ6Ns6g",
 				MaxTimeoutSeconds: 60,
+				Extra: map[string]interface{}{
+					"feePayer": "EwWqGE4ZFKLofuestmU4LDdK7XM1N4ALgdZccwYugwGd",
+				},
 			},
 			wantErr: x402.ErrAmountExceeded,
 		},
@@ -296,6 +302,9 @@ func TestSign_Validation(t *testing.T) {
 				MaxAmountRequired: "500000",
 				PayTo:             "9B5XszUGdMaxCZ7uSQhPzdks5ZQSmWxrmzCSvtJ6Ns6g",
 				MaxTimeoutSeconds: 60,
+				Extra: map[string]interface{}{
+					"feePayer": "EwWqGE4ZFKLofuestmU4LDdK7XM1N4ALgdZccwYugwGd",
+				},
 			},
 			wantErr: x402.ErrNoValidSigner,
 		},
@@ -308,8 +317,24 @@ func TestSign_Validation(t *testing.T) {
 				MaxAmountRequired: "invalid",
 				PayTo:             "9B5XszUGdMaxCZ7uSQhPzdks5ZQSmWxrmzCSvtJ6Ns6g",
 				MaxTimeoutSeconds: 60,
+				Extra: map[string]interface{}{
+					"feePayer": "EwWqGE4ZFKLofuestmU4LDdK7XM1N4ALgdZccwYugwGd",
+				},
 			},
 			wantErr: x402.ErrInvalidAmount,
+		},
+		{
+			name: "missing feePayer in extra",
+			requirements: &x402.PaymentRequirement{
+				Scheme:            "exact",
+				Network:           "solana",
+				Asset:             "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+				MaxAmountRequired: "500000",
+				PayTo:             "9B5XszUGdMaxCZ7uSQhPzdks5ZQSmWxrmzCSvtJ6Ns6g",
+				MaxTimeoutSeconds: 60,
+				Extra:             map[string]interface{}{},
+			},
+			wantErr: nil, // Will check error message contains "feePayer"
 		},
 	}
 
@@ -319,7 +344,18 @@ func TestSign_Validation(t *testing.T) {
 				t.Skip(tt.skipReason)
 			}
 
-			_, err := signer.Sign(tt.requirements)
+			payload, err := signer.Sign(tt.requirements)
+
+			// Special handling for missing feePayer test
+			if tt.name == "missing feePayer in extra" {
+				if err == nil {
+					t.Fatal("expected error for missing feePayer, got nil")
+				}
+				if !errorContains(err, "feePayer") {
+					t.Fatalf("expected error to contain 'feePayer', got: %v", err)
+				}
+				return
+			}
 
 			if tt.wantErr != nil {
 				if err == nil {
@@ -328,6 +364,34 @@ func TestSign_Validation(t *testing.T) {
 				if err != tt.wantErr && !errorContains(err, tt.wantErr.Error()) {
 					t.Fatalf("expected error %v, got %v", tt.wantErr, err)
 				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			// Validate payload structure
+			if payload == nil {
+				t.Fatal("expected non-nil payload")
+			}
+			if payload.X402Version != 1 {
+				t.Errorf("expected x402Version 1, got %d", payload.X402Version)
+			}
+			if payload.Scheme != "exact" {
+				t.Errorf("expected scheme 'exact', got '%s'", payload.Scheme)
+			}
+			if payload.Network != "solana" {
+				t.Errorf("expected network 'solana', got '%s'", payload.Network)
+			}
+
+			// Validate SVM payload
+			svmPayload, ok := payload.Payload.(x402.SVMPayload)
+			if !ok {
+				t.Fatal("expected SVMPayload type")
+			}
+			if svmPayload.Transaction == "" {
+				t.Error("expected non-empty transaction")
 			}
 		})
 	}
@@ -513,4 +577,122 @@ func indexOfSubstring(s, substr string) int {
 		}
 	}
 	return -1
+}
+
+func TestTransactionStructure(t *testing.T) {
+	signer, err := NewSigner(
+		WithPrivateKey(testPrivateKeyBase58),
+		WithNetwork("solana"),
+		WithToken("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", "USDC", 6),
+	)
+	if err != nil {
+		t.Fatalf("failed to create signer: %v", err)
+	}
+
+	requirements := &x402.PaymentRequirement{
+		Scheme:            "exact",
+		Network:           "solana",
+		Asset:             "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+		MaxAmountRequired: "1000000", // 1 USDC
+		PayTo:             "9B5XszUGdMaxCZ7uSQhPzdks5ZQSmWxrmzCSvtJ6Ns6g",
+		MaxTimeoutSeconds: 60,
+		Extra: map[string]interface{}{
+			"feePayer": "EwWqGE4ZFKLofuestmU4LDdK7XM1N4ALgdZccwYugwGd",
+		},
+	}
+
+	payload, err := signer.Sign(requirements)
+	if err != nil {
+		t.Fatalf("failed to sign: %v", err)
+	}
+
+	svmPayload, ok := payload.Payload.(x402.SVMPayload)
+	if !ok {
+		t.Fatal("expected SVMPayload type")
+	}
+
+	// Deserialize the transaction from base64
+	var tx solana.Transaction
+	err = tx.UnmarshalBase64(svmPayload.Transaction)
+	if err != nil {
+		t.Fatalf("failed to unmarshal transaction: %v", err)
+	}
+
+	// Verify transaction structure
+	if len(tx.Message.Instructions) != 3 {
+		t.Fatalf("expected 3 instructions, got %d", len(tx.Message.Instructions))
+	}
+
+	// Verify instruction 0: SetComputeUnitLimit
+	inst0 := tx.Message.Instructions[0]
+	programID0, err := tx.Message.Program(inst0.ProgramIDIndex)
+	if err != nil {
+		t.Fatalf("failed to get program ID for instruction 0: %v", err)
+	}
+	if !programID0.Equals(ComputeBudgetProgramID) {
+		t.Errorf("instruction 0: expected ComputeBudget program, got %s", programID0)
+	}
+	if len(inst0.Data) != 5 {
+		t.Errorf("instruction 0: expected 5 bytes of data, got %d", len(inst0.Data))
+	}
+	if inst0.Data[0] != 2 {
+		t.Errorf("instruction 0: expected discriminator 2 (SetComputeUnitLimit), got %d", inst0.Data[0])
+	}
+
+	// Verify instruction 1: SetComputeUnitPrice
+	inst1 := tx.Message.Instructions[1]
+	programID1, err := tx.Message.Program(inst1.ProgramIDIndex)
+	if err != nil {
+		t.Fatalf("failed to get program ID for instruction 1: %v", err)
+	}
+	if !programID1.Equals(ComputeBudgetProgramID) {
+		t.Errorf("instruction 1: expected ComputeBudget program, got %s", programID1)
+	}
+	if len(inst1.Data) != 9 {
+		t.Errorf("instruction 1: expected 9 bytes of data, got %d", len(inst1.Data))
+	}
+	if inst1.Data[0] != 3 {
+		t.Errorf("instruction 1: expected discriminator 3 (SetComputeUnitPrice), got %d", inst1.Data[0])
+	}
+
+	// Verify instruction 2: TransferChecked
+	inst2 := tx.Message.Instructions[2]
+	programID2, err := tx.Message.Program(inst2.ProgramIDIndex)
+	if err != nil {
+		t.Fatalf("failed to get program ID for instruction 2: %v", err)
+	}
+	if !programID2.Equals(solana.TokenProgramID) {
+		t.Errorf("instruction 2: expected Token program, got %s", programID2)
+	}
+	if len(inst2.Data) != 10 {
+		t.Errorf("instruction 2: expected 10 bytes of data, got %d", len(inst2.Data))
+	}
+	if inst2.Data[0] != 12 {
+		t.Errorf("instruction 2: expected discriminator 12 (TransferChecked), got %d", inst2.Data[0])
+	}
+	// Verify decimals (last byte)
+	if inst2.Data[9] != 6 {
+		t.Errorf("instruction 2: expected decimals 6, got %d", inst2.Data[9])
+	}
+
+	// Verify amount (bytes 1-8, little-endian u64)
+	amount := uint64(inst2.Data[1]) |
+		uint64(inst2.Data[2])<<8 |
+		uint64(inst2.Data[3])<<16 |
+		uint64(inst2.Data[4])<<24 |
+		uint64(inst2.Data[5])<<32 |
+		uint64(inst2.Data[6])<<40 |
+		uint64(inst2.Data[7])<<48 |
+		uint64(inst2.Data[8])<<56
+	if amount != 1000000 {
+		t.Errorf("instruction 2: expected amount 1000000, got %d", amount)
+	}
+
+	// Verify TransferChecked has 4 accounts (source, mint, destination, authority)
+	if len(inst2.Accounts) != 4 {
+		t.Errorf("instruction 2: expected 4 accounts, got %d", len(inst2.Accounts))
+	}
+
+	t.Logf("Transaction structure validated successfully")
+	t.Logf("Transaction base64: %s", svmPayload.Transaction[:50]+"...")
 }
