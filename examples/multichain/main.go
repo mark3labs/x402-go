@@ -78,7 +78,7 @@ func main() {
 	// Premium data handler (high price)
 	premiumHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{
+		if _, err := w.Write([]byte(`{
 			"message": "Premium data access granted",
 			"tier": "premium",
 			"price": "1 USDC",
@@ -88,13 +88,15 @@ func main() {
 				"value": 42.5,
 				"details": "Full details with premium insights"
 			}
-		}`))
+		}`)); err != nil {
+			log.Printf("Failed to write premium response: %v", err)
+		}
 	})
 
 	// Basic data handler (low price)
 	basicHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{
+		if _, err := w.Write([]byte(`{
 			"message": "Basic data access granted",
 			"tier": "basic",
 			"price": "0.001 USDC",
@@ -103,7 +105,9 @@ func main() {
 				"metric": "basic_metric",
 				"value": 42.5
 			}
-		}`))
+		}`)); err != nil {
+			log.Printf("Failed to write basic response: %v", err)
+		}
 	})
 
 	// Apply different middleware to different routes
@@ -113,13 +117,15 @@ func main() {
 	// Health check endpoint
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+		if _, err := w.Write([]byte("OK")); err != nil {
+			log.Printf("Failed to write health response: %v", err)
+		}
 	})
 
 	// Info endpoint showing pricing tiers
 	http.HandleFunc("/info", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{
+		if _, err := w.Write([]byte(`{
 			"service": "Multi-Chain Payment API",
 			"tiers": [
 				{
@@ -141,7 +147,9 @@ func main() {
 				{"network": "base-sepolia", "chain_type": "EVM (testnet)"}
 			],
 			"note": "Make a request without payment to any endpoint to see full requirements"
-		}`))
+		}`)); err != nil {
+			log.Printf("Failed to write info response: %v", err)
+		}
 	})
 
 	// Start server

@@ -32,7 +32,9 @@ func TestMiddleware_NoPaymentReturns402(t *testing.T) {
 	// Create a test handler
 	handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("success"))
+		if _, err := w.Write([]byte("success")); err != nil {
+			t.Errorf("Failed to write response: %v", err)
+		}
 	}))
 
 	// Make request without payment
@@ -91,7 +93,9 @@ func TestMiddleware_VerifyOnlyMode(t *testing.T) {
 	// Create a test handler
 	handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("success"))
+		if _, err := w.Write([]byte("success")); err != nil {
+			t.Errorf("Failed to write response: %v", err)
+		}
 	}))
 
 	// Make request without payment - should return 402

@@ -57,13 +57,15 @@ func main() {
 		// Simulate custom logic
 		if shouldGrantAccess(payer) {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(fmt.Sprintf(`{
+			if _, err := fmt.Fprintf(w, `{
 				"message": "Access granted after verification",
 				"payer": "%s",
 				"status": "verified_not_settled",
 				"note": "Payment verified but not yet settled on-chain. You can settle it manually based on your business logic.",
 				"data": "Custom business data here"
-			}`, payer)))
+			}`, payer); err != nil {
+				http.Error(w, "Failed to write response", http.StatusInternalServerError)
+			}
 		} else {
 			http.Error(w, "Access denied based on custom logic", http.StatusForbidden)
 		}
@@ -75,7 +77,7 @@ func main() {
 	// Info endpoint
 	http.HandleFunc("/info", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{
+		if _, err := w.Write([]byte(`{
 			"service": "Verification-Only Mode Example",
 			"mode": "verify_only",
 			"description": "Payment authorizations are verified but not automatically settled",
@@ -86,13 +88,17 @@ func main() {
 				"Testing payment flows without on-chain transactions"
 			],
 			"endpoint": "/custom"
-		}`))
+		}`)); err != nil {
+			log.Printf("Failed to write info response: %v", err)
+		}
 	})
 
 	// Health check
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+		if _, err := w.Write([]byte("OK")); err != nil {
+			log.Printf("Failed to write health response: %v", err)
+		}
 	})
 
 	// Start server

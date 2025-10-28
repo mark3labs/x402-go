@@ -34,13 +34,17 @@ func main() {
 	// Protected handler
 	premiumHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"message": "Welcome to premium content!", "status": "success"}`))
+		if _, err := w.Write([]byte(`{"message": "Welcome to premium content!", "status": "success"}`)); err != nil {
+			log.Printf("Failed to write premium response: %v", err)
+		}
 	})
 
 	// Public handler (no payment required)
 	publicHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"message": "This is free content", "status": "success"}`))
+		if _, err := w.Write([]byte(`{"message": "This is free content", "status": "success"}`)); err != nil {
+			log.Printf("Failed to write public response: %v", err)
+		}
 	})
 
 	// Apply middleware to protected route
@@ -50,7 +54,9 @@ func main() {
 	// Health check endpoint
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+		if _, err := w.Write([]byte("OK")); err != nil {
+			log.Printf("Failed to write health response: %v", err)
+		}
 	})
 
 	// Start server
