@@ -1,50 +1,77 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+<!-- 
+Sync Impact Report
+==================
+Version Change: 0.0.0 → 1.0.0 (Initial adoption)
+Added Sections: All principles newly defined
+Templates Requiring Updates: 
+  ✅ Updated - constitution.md
+  ⚠ Pending - plan-template.md (review for test coverage requirements)
+  ⚠ Pending - spec-template.md (review for testing requirements)
+  ⚠ Pending - tasks-template.md (review for test task categories)
+Follow-up TODOs: 
+  - RATIFICATION_DATE needs to be confirmed (currently set to today)
+-->
+
+# x402-go Constitution
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. No Unnecessary Documentation
+No markdown files or documentation shall be created unless explicitly 
+prompted by the user. Documentation must serve a clear, requested purpose.
+Every piece of documentation must be justified by explicit user need, not 
+preemptive assumption.
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+### II. Test Coverage Preservation
+Test coverage must never decrease. Every change to the codebase must maintain
+or improve the existing test coverage percentage. This is measured and 
+enforced through automated tooling (`go test -cover`). Coverage regressions
+block merges without exception.
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+### III. Test-First Development
+All new features must have tests written before implementation. The 
+development cycle follows: write test → verify test fails → implement feature
+→ verify test passes. This ensures features are testable by design and 
+requirements are clearly understood before coding begins.
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+### IV. Stdlib-First Approach
+Prefer Go standard library packages when they reasonably solve the problem.
+External dependencies should only be introduced when the stdlib solution would
+be significantly more complex or less performant. Each external dependency 
+must be justified with clear rationale documenting why stdlib is insufficient.
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+### V. Code Conciseness
+Keep code concise and readable. Avoid unnecessary abstractions, verbose 
+naming, or complex hierarchies. Code should be as simple as possible but no
+simpler. Favor clarity and directness over clever solutions. Every line should
+earn its place through clear value addition.
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+## Development Standards
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+### Testing Requirements
+- Unit tests required for all packages
+- Integration tests required for inter-package communication
+- Table-driven tests preferred for comprehensive coverage
+- Mock external dependencies to ensure test isolation
+- Minimum coverage threshold: maintain or exceed existing levels
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
-
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+### Code Quality Gates
+- All code must pass `go fmt` formatting
+- All code must pass `go vet` static analysis
+- All tests must pass before merge
+- Coverage reports reviewed on every PR
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+The Constitution supersedes all other development practices and guidelines.
+Any amendments to these principles require:
+1. Clear documentation of the change and rationale
+2. Review and approval through standard PR process
+3. Version increment following semantic versioning
+4. Update of Last Amended date
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+All pull requests and code reviews must verify compliance with these 
+principles. Violations must be corrected before merge. Use AGENTS.md for
+Go-specific development guidance and tooling commands.
+
+**Version**: 1.0.0 | **Ratified**: 2025-10-28 | **Last Amended**: 2025-10-28
