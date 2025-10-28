@@ -104,12 +104,24 @@
 
 <!--
   ACTION REQUIRED: Define measurable success criteria.
-  These must be technology-agnostic and measurable.
+  These must be technology-agnostic and CONCRETELY measurable.
+  
+  FORBIDDEN - Do NOT include vague or unmeasurable criteria like:
+  - "X% of users successfully..." (unless you have a way to measure this)
+  - "Reduce/improve by X%" (percentage improvements are vague)
+  - "Faster/better/easier" (subjective without concrete metrics)
+  - "Developer satisfaction" or similar subjective measures
+  
+  REQUIRED - Only include criteria that are:
+  - Directly observable and countable (lines of code, number of steps, time duration)
+  - Verifiable through testing (can handle N concurrent requests, completes in X seconds)
+  - Binary pass/fail (100% coverage, zero errors, all chains supported)
+  - Specific numeric thresholds (under 10 lines, within 5 seconds, supports 8 chains)
 -->
 
 ### Measurable Outcomes
 
-- **SC-001**: [Measurable metric, e.g., "Users can complete account creation in under 2 minutes"]
-- **SC-002**: [Measurable metric, e.g., "System handles 1000 concurrent users without degradation"]
-- **SC-003**: [User satisfaction metric, e.g., "90% of users successfully complete primary task on first attempt"]
-- **SC-004**: [Business metric, e.g., "Reduce support tickets related to [X] by 50%"]
+- **SC-001**: [Concrete metric, e.g., "Users complete account creation in under 2 minutes"]
+- **SC-002**: [Verifiable metric, e.g., "System handles 1000 concurrent users without errors"]
+- **SC-003**: [Binary metric, e.g., "100% of API endpoints return responses within 500ms"]
+- **SC-004**: [Countable metric, e.g., "Feature requires fewer than 5 configuration steps"]
