@@ -8,6 +8,7 @@ package x402
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 )
 
@@ -198,7 +199,7 @@ func NewUSDCPaymentRequirement(config USDCRequirementConfig) (PaymentRequirement
 	}
 
 	// Convert to atomic units (USDC always has 6 decimals)
-	atomicUnits := uint64(amount * 1e6)
+	atomicUnits := uint64(math.Round(amount * 1e6))
 	atomicString := strconv.FormatUint(atomicUnits, 10)
 
 	// Apply defaults

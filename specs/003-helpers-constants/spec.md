@@ -5,7 +5,7 @@
 **Status**: Draft  
 **Input**: User description: "Implement helper functions and constants the make creating clients and middleware easier for devs
 - Include USDC address constants for the following chains solana, solana-devnet, base, base-sepolia, polygon, polygon-amoy, avalanche, avalanche-fuji
-- Include helpers for quickly contructing payment requirements for a given chain"
+- Include helpers for quickly constructing payment requirements for a given chain"
 
 **Supported Chains** (8 total):
 - **Mainnet** (4): Solana, Base, Polygon, Avalanche

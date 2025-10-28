@@ -402,10 +402,10 @@ func TestNewUSDCPaymentRequirementRounding(t *testing.T) {
 		amount     string
 		wantAtomic string
 	}{
-		{"1.1234567", "1.1234567", "1123456"}, // rounds down
-		{"1.1234565", "1.1234565", "1123456"}, // rounds to even (down)
-		{"1.1234575", "1.1234575", "1123457"}, // rounds to even (up)
-		{"2.5555555", "2.5555555", "2555555"}, // rounds down
+		{"1.1234567", "1.1234567", "1123457"}, // rounds up (0.7 > 0.5)
+		{"1.1234565", "1.1234565", "1123457"}, // rounds to even (up from 0.5)
+		{"1.1234575", "1.1234575", "1123458"}, // rounds to even (up from 0.5)
+		{"2.5555555", "2.5555555", "2555556"}, // rounds to even (up from 0.5)
 	}
 
 	for _, tt := range tests {
