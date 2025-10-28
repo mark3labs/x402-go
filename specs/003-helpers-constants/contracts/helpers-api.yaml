@@ -1,0 +1,285 @@
+openapi: 3.0.0
+info:
+  title: x402-go Helper Functions API
+  description: Go API contract for helper functions and constants
+  version: 1.0.0
+
+components:
+  schemas:
+    ChainConfig:
+      type: object
+      description: Chain-specific configuration for USDC tokens
+      required:
+        - NetworkID
+        - USDCAddress
+        - Decimals
+      properties:
+        NetworkID:
+          type: string
+          description: x402 protocol network identifier
+          example: "base"
+        USDCAddress:
+          type: string
+          description: Official Circle USDC contract address or mint address
+          example: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+        Decimals:
+          type: integer
+          format: uint8
+          description: Token decimals (always 6 for USDC)
+          example: 6
+        EIP3009Name:
+          type: string
+          description: EIP-3009 domain parameter name (empty for non-EVM chains)
+          example: "USD Coin"
+        EIP3009Version:
+          type: string
+          description: EIP-3009 domain parameter version (empty for non-EVM chains)
+          example: "2"
+
+    PaymentRequirementConfig:
+      type: object
+      description: Configuration for creating PaymentRequirement
+      required:
+        - Chain
+        - Amount
+        - RecipientAddress
+      properties:
+        Chain:
+          $ref: '#/components/schemas/ChainConfig'
+        Amount:
+          type: string
+          description: Human-readable payment amount (e.g., "1.5" for 1.5 USDC)
+          example: "10.50"
+        RecipientAddress:
+          type: string
+          description: Payment recipient address
+          example: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0"
+        Scheme:
+          type: string
+          description: Payment scheme (defaults to "exact")
+          enum: ["exact", "estimate"]
+          default: "exact"
+        MaxTimeoutSeconds:
+          type: integer
+          format: uint32
+          description: Maximum payment timeout in seconds (defaults to 300)
+          default: 300
+        MimeType:
+          type: string
+          description: Response MIME type (defaults to "application/json")
+          default: "application/json"
+
+    NetworkType:
+      type: string
+      description: Network category
+      enum:
+        - EVM
+        - SVM
+        - Unknown
+
+    ErrorResponse:
+      type: object
+      description: Structured error with parameter name and reason
+      required:
+        - parameter
+        - reason
+      properties:
+        parameter:
+          type: string
+          description: Parameter name that caused the error
+          example: "amount"
+        reason:
+          type: string
+          description: Error reason
+          example: "must be positive"
+
+paths:
+  # Go packages don't have HTTP endpoints, but this defines the function signatures
+
+  /helpers/payment-requirement:
+    post:
+      summary: NewPaymentRequirement
+      description: |
+        Creates a PaymentRequirement struct from configuration.
+        
+        Go signature:
+        ```go
+        func NewPaymentRequirement(config PaymentRequirementConfig) (PaymentRequirement, error)
+        ```
+      operationId: newPaymentRequirement
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentRequirementConfig'
+      responses:
+        '200':
+          description: Successfully created PaymentRequirement
+          content:
+            application/json:
+              schema:
+                type: object
+                description: PaymentRequirement struct (from existing x402 types)
+                properties:
+                  Network:
+                    type: string
+                    example: "base"
+                  Address:
+                    type: string
+                    example: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+                  Amount:
+                    type: integer
+                    format: uint64
+                    description: Amount in atomic units
+                    example: 10500000
+                  Scheme:
+                    type: string
+                    example: "exact"
+                  MaxTimeoutSeconds:
+                    type: integer
+                    format: uint32
+                    example: 300
+                  MimeType:
+                    type: string
+                    example: "application/json"
+                  Extra:
+                    type: object
+                    description: Chain-specific extra data (EIP-3009 for EVM chains)
+                    example:
+                      name: "USD Coin"
+                      version: "2"
+        '400':
+          description: Invalid configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /helpers/token-config:
+    post:
+      summary: NewTokenConfig
+      description: |
+        Creates a TokenConfig struct from ChainConfig.
+        
+        Go signature:
+        ```go
+        func NewTokenConfig(chain ChainConfig, priority int) TokenConfig
+        ```
+      operationId: newTokenConfig
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - chain
+                - priority
+              properties:
+                chain:
+                  $ref: '#/components/schemas/ChainConfig'
+                priority:
+                  type: integer
+                  description: Token priority for selection
+                  example: 1
+      responses:
+        '200':
+          description: Successfully created TokenConfig
+          content:
+            application/json:
+              schema:
+                type: object
+                description: TokenConfig struct (from existing x402 types)
+                properties:
+                  Address:
+                    type: string
+                    example: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+                  Symbol:
+                    type: string
+                    example: "USDC"
+                  Decimals:
+                    type: integer
+                    format: uint8
+                    example: 6
+                  Priority:
+                    type: integer
+                    example: 1
+
+  /helpers/validate-network:
+    post:
+      summary: ValidateNetwork
+      description: |
+        Validates network identifier and returns network type.
+        
+        Go signature:
+        ```go
+        func ValidateNetwork(networkID string) (NetworkType, error)
+        ```
+      operationId: validateNetwork
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - networkID
+              properties:
+                networkID:
+                  type: string
+                  description: Network identifier to validate
+                  example: "base"
+      responses:
+        '200':
+          description: Valid network
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  networkType:
+                    $ref: '#/components/schemas/NetworkType'
+        '400':
+          description: Unknown network
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /constants:
+    get:
+      summary: Chain Constants
+      description: |
+        Exported ChainConfig constants available in the x402 package.
+        
+        Constants:
+        - SolanaMainnet
+        - SolanaDevnet
+        - BaseMainnet
+        - BaseSepolia
+        - PolygonMainnet
+        - PolygonAmoy
+        - AvalancheMainnet
+        - AvalancheFuji
+      operationId: getChainConstants
+      responses:
+        '200':
+          description: List of available chain constants
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ChainConfig'
+                example:
+                  - NetworkID: "solana"
+                    USDCAddress: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+                    Decimals: 6
+                    EIP3009Name: ""
+                    EIP3009Version: ""
+                  - NetworkID: "base"
+                    USDCAddress: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+                    Decimals: 6
+                    EIP3009Name: "USD Coin"
+                    EIP3009Version: "2"

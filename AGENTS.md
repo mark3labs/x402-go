@@ -125,6 +125,8 @@ For more details, see README.md and QUICKSTART.md.
 - Go 1.25.1 + Go standard library (net/http, encoding/json, encoding/base64, context) (001-x402-payment-middleware)
 - N/A (stateless middleware, nonce tracking delegated to facilitator) (001-x402-payment-middleware)
 - File-based persistence for budget tracking (JSON files in user config directory) (002-x402-client)
+- Go 1.25.1 + Go standard library (strconv, fmt, encoding/json) (003-helpers-constants)
+- N/A (constants and pure functions) (003-helpers-constants)
 
 ## Recent Changes
 - 001-x402-payment-middleware: Added Go 1.25.1 + Go standard library (net/http, encoding/json, encoding/base64, context)
