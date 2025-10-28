@@ -40,8 +40,8 @@ func TestChainConfigConstants(t *testing.T) {
 	}
 }
 
-// TestNewTokenConfig verifies NewTokenConfig creates correct TokenConfig for all chains
-func TestNewTokenConfig(t *testing.T) {
+// TestNewUSDCTokenConfig verifies NewUSDCTokenConfig creates correct TokenConfig for all chains
+func TestNewUSDCTokenConfig(t *testing.T) {
 	tests := []struct {
 		name     string
 		chain    ChainConfig
@@ -59,7 +59,7 @@ func TestNewTokenConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			token := NewTokenConfig(tt.chain, tt.priority)
+			token := NewUSDCTokenConfig(tt.chain, tt.priority)
 
 			// Verify Address matches chain's USDC address
 			if token.Address != tt.chain.USDCAddress {
@@ -87,7 +87,7 @@ func TestNewTokenConfig(t *testing.T) {
 // TestTokenConfigFields verifies TokenConfig has correct fields from ChainConfig
 func TestTokenConfigFields(t *testing.T) {
 	// Test with BaseMainnet
-	token := NewTokenConfig(BaseMainnet, 1)
+	token := NewUSDCTokenConfig(BaseMainnet, 1)
 
 	// Verify Address is from ChainConfig.USDCAddress
 	if token.Address != BaseMainnet.USDCAddress {
@@ -110,11 +110,11 @@ func TestTokenConfigFields(t *testing.T) {
 	}
 }
 
-// TestNewPaymentRequirementValidInputs tests NewPaymentRequirement with valid inputs across all chains
-func TestNewPaymentRequirementValidInputs(t *testing.T) {
+// TestNewUSDCPaymentRequirementValidInputs tests NewUSDCPaymentRequirement with valid inputs across all chains
+func TestNewUSDCPaymentRequirementValidInputs(t *testing.T) {
 	tests := []struct {
 		name              string
-		config            PaymentRequirementConfig
+		config            USDCRequirementConfig
 		wantNetwork       string
 		wantAsset         string
 		wantMaxAmount     string
@@ -125,7 +125,7 @@ func TestNewPaymentRequirementValidInputs(t *testing.T) {
 	}{
 		{
 			name: "BaseMainnet_1USDC",
-			config: PaymentRequirementConfig{
+			config: USDCRequirementConfig{
 				Chain:            BaseMainnet,
 				Amount:           "1.0",
 				RecipientAddress: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
@@ -140,7 +140,7 @@ func TestNewPaymentRequirementValidInputs(t *testing.T) {
 		},
 		{
 			name: "SolanaMainnet_10.5USDC",
-			config: PaymentRequirementConfig{
+			config: USDCRequirementConfig{
 				Chain:            SolanaMainnet,
 				Amount:           "10.5",
 				RecipientAddress: "DYw8jCTfwHNRJhhmFcbXvVDTqWMEVFBX6ZKUmG5CNSKK",
@@ -155,7 +155,7 @@ func TestNewPaymentRequirementValidInputs(t *testing.T) {
 		},
 		{
 			name: "PolygonMainnet_2.5USDC",
-			config: PaymentRequirementConfig{
+			config: USDCRequirementConfig{
 				Chain:            PolygonMainnet,
 				Amount:           "2.5",
 				RecipientAddress: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
@@ -170,7 +170,7 @@ func TestNewPaymentRequirementValidInputs(t *testing.T) {
 		},
 		{
 			name: "BaseSepolia_0.1USDC",
-			config: PaymentRequirementConfig{
+			config: USDCRequirementConfig{
 				Chain:            BaseSepolia,
 				Amount:           "0.1",
 				RecipientAddress: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
@@ -185,7 +185,7 @@ func TestNewPaymentRequirementValidInputs(t *testing.T) {
 		},
 		{
 			name: "AvalancheMainnet_100USDC",
-			config: PaymentRequirementConfig{
+			config: USDCRequirementConfig{
 				Chain:            AvalancheMainnet,
 				Amount:           "100",
 				RecipientAddress: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
@@ -200,7 +200,7 @@ func TestNewPaymentRequirementValidInputs(t *testing.T) {
 		},
 		{
 			name: "SolanaDevnet_5.123456USDC",
-			config: PaymentRequirementConfig{
+			config: USDCRequirementConfig{
 				Chain:            SolanaDevnet,
 				Amount:           "5.123456",
 				RecipientAddress: "DYw8jCTfwHNRJhhmFcbXvVDTqWMEVFBX6ZKUmG5CNSKK",
@@ -215,7 +215,7 @@ func TestNewPaymentRequirementValidInputs(t *testing.T) {
 		},
 		{
 			name: "PolygonAmoy_0.000001USDC",
-			config: PaymentRequirementConfig{
+			config: USDCRequirementConfig{
 				Chain:            PolygonAmoy,
 				Amount:           "0.000001",
 				RecipientAddress: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
@@ -230,7 +230,7 @@ func TestNewPaymentRequirementValidInputs(t *testing.T) {
 		},
 		{
 			name: "AvalancheFuji_999.999999USDC",
-			config: PaymentRequirementConfig{
+			config: USDCRequirementConfig{
 				Chain:            AvalancheFuji,
 				Amount:           "999.999999",
 				RecipientAddress: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
@@ -247,9 +247,9 @@ func TestNewPaymentRequirementValidInputs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req, err := NewPaymentRequirement(tt.config)
+			req, err := NewUSDCPaymentRequirement(tt.config)
 			if err != nil {
-				t.Fatalf("NewPaymentRequirement() error = %v", err)
+				t.Fatalf("NewUSDCPaymentRequirement() error = %v", err)
 			}
 
 			if req.Network != tt.wantNetwork {
@@ -287,8 +287,8 @@ func TestNewPaymentRequirementValidInputs(t *testing.T) {
 	}
 }
 
-// TestNewPaymentRequirementEVMExtra tests EIP-3009 extra field for EVM chains
-func TestNewPaymentRequirementEVMExtra(t *testing.T) {
+// TestNewUSDCPaymentRequirementEVMExtra tests EIP-3009 extra field for EVM chains
+func TestNewUSDCPaymentRequirementEVMExtra(t *testing.T) {
 	tests := []struct {
 		name        string
 		chain       ChainConfig
@@ -305,13 +305,13 @@ func TestNewPaymentRequirementEVMExtra(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req, err := NewPaymentRequirement(PaymentRequirementConfig{
+			req, err := NewUSDCPaymentRequirement(USDCRequirementConfig{
 				Chain:            tt.chain,
 				Amount:           "1.0",
 				RecipientAddress: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
 			})
 			if err != nil {
-				t.Fatalf("NewPaymentRequirement() error = %v", err)
+				t.Fatalf("NewUSDCPaymentRequirement() error = %v", err)
 			}
 
 			if req.Extra == nil {
@@ -337,8 +337,8 @@ func TestNewPaymentRequirementEVMExtra(t *testing.T) {
 	}
 }
 
-// TestNewPaymentRequirementSVMExtra tests that SVM chains have empty Extra field
-func TestNewPaymentRequirementSVMExtra(t *testing.T) {
+// TestNewUSDCPaymentRequirementSVMExtra tests that SVM chains have empty Extra field
+func TestNewUSDCPaymentRequirementSVMExtra(t *testing.T) {
 	tests := []struct {
 		name  string
 		chain ChainConfig
@@ -349,13 +349,13 @@ func TestNewPaymentRequirementSVMExtra(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req, err := NewPaymentRequirement(PaymentRequirementConfig{
+			req, err := NewUSDCPaymentRequirement(USDCRequirementConfig{
 				Chain:            tt.chain,
 				Amount:           "1.0",
 				RecipientAddress: "DYw8jCTfwHNRJhhmFcbXvVDTqWMEVFBX6ZKUmG5CNSKK",
 			})
 			if err != nil {
-				t.Fatalf("NewPaymentRequirement() error = %v", err)
+				t.Fatalf("NewUSDCPaymentRequirement() error = %v", err)
 			}
 
 			if len(req.Extra) != 0 {
@@ -365,8 +365,8 @@ func TestNewPaymentRequirementSVMExtra(t *testing.T) {
 	}
 }
 
-// TestNewPaymentRequirementAmountConversion tests amount conversion to atomic units
-func TestNewPaymentRequirementAmountConversion(t *testing.T) {
+// TestNewUSDCPaymentRequirementAmountConversion tests amount conversion to atomic units
+func TestNewUSDCPaymentRequirementAmountConversion(t *testing.T) {
 	tests := []struct {
 		name       string
 		amount     string
@@ -379,13 +379,13 @@ func TestNewPaymentRequirementAmountConversion(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req, err := NewPaymentRequirement(PaymentRequirementConfig{
+			req, err := NewUSDCPaymentRequirement(USDCRequirementConfig{
 				Chain:            BaseMainnet,
 				Amount:           tt.amount,
 				RecipientAddress: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
 			})
 			if err != nil {
-				t.Fatalf("NewPaymentRequirement() error = %v", err)
+				t.Fatalf("NewUSDCPaymentRequirement() error = %v", err)
 			}
 
 			if req.MaxAmountRequired != tt.wantAtomic {
@@ -395,8 +395,8 @@ func TestNewPaymentRequirementAmountConversion(t *testing.T) {
 	}
 }
 
-// TestNewPaymentRequirementRounding tests float64 banker's rounding behavior
-func TestNewPaymentRequirementRounding(t *testing.T) {
+// TestNewUSDCPaymentRequirementRounding tests float64 banker's rounding behavior
+func TestNewUSDCPaymentRequirementRounding(t *testing.T) {
 	tests := []struct {
 		name       string
 		amount     string
@@ -410,13 +410,13 @@ func TestNewPaymentRequirementRounding(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req, err := NewPaymentRequirement(PaymentRequirementConfig{
+			req, err := NewUSDCPaymentRequirement(USDCRequirementConfig{
 				Chain:            BaseMainnet,
 				Amount:           tt.amount,
 				RecipientAddress: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
 			})
 			if err != nil {
-				t.Fatalf("NewPaymentRequirement() error = %v", err)
+				t.Fatalf("NewUSDCPaymentRequirement() error = %v", err)
 			}
 
 			if req.MaxAmountRequired != tt.wantAtomic {
@@ -426,8 +426,8 @@ func TestNewPaymentRequirementRounding(t *testing.T) {
 	}
 }
 
-// TestNewPaymentRequirementZeroAmounts tests that zero amounts are allowed
-func TestNewPaymentRequirementZeroAmounts(t *testing.T) {
+// TestNewUSDCPaymentRequirementZeroAmounts tests that zero amounts are allowed
+func TestNewUSDCPaymentRequirementZeroAmounts(t *testing.T) {
 	tests := []struct {
 		name   string
 		amount string
@@ -439,13 +439,13 @@ func TestNewPaymentRequirementZeroAmounts(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req, err := NewPaymentRequirement(PaymentRequirementConfig{
+			req, err := NewUSDCPaymentRequirement(USDCRequirementConfig{
 				Chain:            BaseMainnet,
 				Amount:           tt.amount,
 				RecipientAddress: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
 			})
 			if err != nil {
-				t.Fatalf("NewPaymentRequirement() error = %v, want nil", err)
+				t.Fatalf("NewUSDCPaymentRequirement() error = %v, want nil", err)
 			}
 
 			if req.MaxAmountRequired != "0" {
@@ -455,16 +455,16 @@ func TestNewPaymentRequirementZeroAmounts(t *testing.T) {
 	}
 }
 
-// TestNewPaymentRequirementErrors tests error cases
-func TestNewPaymentRequirementErrors(t *testing.T) {
+// TestNewUSDCPaymentRequirementErrors tests error cases
+func TestNewUSDCPaymentRequirementErrors(t *testing.T) {
 	tests := []struct {
 		name      string
-		config    PaymentRequirementConfig
+		config    USDCRequirementConfig
 		wantError string
 	}{
 		{
 			name: "NegativeAmount",
-			config: PaymentRequirementConfig{
+			config: USDCRequirementConfig{
 				Chain:            BaseMainnet,
 				Amount:           "-5",
 				RecipientAddress: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
@@ -473,7 +473,7 @@ func TestNewPaymentRequirementErrors(t *testing.T) {
 		},
 		{
 			name: "EmptyRecipient",
-			config: PaymentRequirementConfig{
+			config: USDCRequirementConfig{
 				Chain:            BaseMainnet,
 				Amount:           "1.0",
 				RecipientAddress: "",
@@ -482,7 +482,7 @@ func TestNewPaymentRequirementErrors(t *testing.T) {
 		},
 		{
 			name: "InvalidAmount",
-			config: PaymentRequirementConfig{
+			config: USDCRequirementConfig{
 				Chain:            BaseMainnet,
 				Amount:           "abc",
 				RecipientAddress: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
@@ -493,9 +493,9 @@ func TestNewPaymentRequirementErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := NewPaymentRequirement(tt.config)
+			_, err := NewUSDCPaymentRequirement(tt.config)
 			if err == nil {
-				t.Fatal("NewPaymentRequirement() error = nil, want error")
+				t.Fatal("NewUSDCPaymentRequirement() error = nil, want error")
 			}
 
 			if err.Error() != tt.wantError {
@@ -505,9 +505,9 @@ func TestNewPaymentRequirementErrors(t *testing.T) {
 	}
 }
 
-// TestNewPaymentRequirementCustomConfig tests custom config overrides
-func TestNewPaymentRequirementCustomConfig(t *testing.T) {
-	req, err := NewPaymentRequirement(PaymentRequirementConfig{
+// TestNewUSDCPaymentRequirementCustomConfig tests custom config overrides
+func TestNewUSDCPaymentRequirementCustomConfig(t *testing.T) {
+	req, err := NewUSDCPaymentRequirement(USDCRequirementConfig{
 		Chain:             BaseMainnet,
 		Amount:            "5.0",
 		RecipientAddress:  "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
@@ -516,7 +516,7 @@ func TestNewPaymentRequirementCustomConfig(t *testing.T) {
 		MimeType:          "text/plain",
 	})
 	if err != nil {
-		t.Fatalf("NewPaymentRequirement() error = %v", err)
+		t.Fatalf("NewUSDCPaymentRequirement() error = %v", err)
 	}
 
 	if req.Scheme != "estimate" {
@@ -535,9 +535,9 @@ func TestNewPaymentRequirementCustomConfig(t *testing.T) {
 // TestMultiChainTokenConfig tests multi-chain TokenConfig creation with different priorities
 func TestMultiChainTokenConfig(t *testing.T) {
 	// Create configs for multiple chains with different priorities
-	baseToken := NewTokenConfig(BaseMainnet, 1)
-	polygonToken := NewTokenConfig(PolygonMainnet, 2)
-	solanaToken := NewTokenConfig(SolanaMainnet, 3)
+	baseToken := NewUSDCTokenConfig(BaseMainnet, 1)
+	polygonToken := NewUSDCTokenConfig(PolygonMainnet, 2)
+	solanaToken := NewUSDCTokenConfig(SolanaMainnet, 3)
 
 	// Verify BaseMainnet has priority 1
 	if baseToken.Priority != 1 {
@@ -585,7 +585,7 @@ func TestTestnetTokenConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			token := NewTokenConfig(tt.chain, tt.priority)
+			token := NewUSDCTokenConfig(tt.chain, tt.priority)
 
 			// Verify correct testnet address used
 			if token.Address != tt.chain.USDCAddress {
@@ -620,7 +620,7 @@ func TestTokenConfigSymbolAndDecimals(t *testing.T) {
 	}
 
 	for _, chain := range chains {
-		token := NewTokenConfig(chain, 1)
+		token := NewUSDCTokenConfig(chain, 1)
 
 		// Verify Symbol is always USDC
 		if token.Symbol != "USDC" {

@@ -4,20 +4,20 @@ Go implementation of the x402 payment standard for paywalled HTTP endpoints.
 
 ## Quick Start with Chain Helpers
 
-The library provides chain constants and helper functions to quickly set up x402 payments:
+The library provides USDC chain constants and helper functions to quickly set up x402 payments:
 
 ```go
 import "github.com/mark3labs/x402-go"
 
-// Create payment requirement using chain constants
-req, err := x402.NewPaymentRequirement(x402.PaymentRequirementConfig{
-    Chain:            x402.BaseMainnet,  // Built-in chain constant
-    Amount:           "1.50",             // Human-readable amount
+// Create USDC payment requirement using chain constants
+req, err := x402.NewUSDCPaymentRequirement(x402.USDCRequirementConfig{
+    Chain:            x402.BaseMainnet,  // Built-in USDC chain constant
+    Amount:           "1.50",             // Human-readable USDC amount
     RecipientAddress: "0xYourAddress",
 })
 
-// Create token config for client
-token := x402.NewTokenConfig(x402.BaseMainnet, 1)  // Priority 1
+// Create USDC token config for client
+token := x402.NewUSDCTokenConfig(x402.BaseMainnet, 1)  // Priority 1
 ```
 
 **Available chain constants:** `BaseMainnet`, `BaseSepolia`, `PolygonMainnet`, `PolygonAmoy`, `AvalancheMainnet`, `AvalancheFuji`, `SolanaMainnet`, `SolanaDevnet`

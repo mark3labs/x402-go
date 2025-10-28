@@ -9,12 +9,12 @@ import (
 )
 
 func main() {
-	fmt.Println("=== x402 Chain Helpers Demo ===\n")
+	fmt.Println("=== x402 Chain Helpers Demo ===")
 
 	// Example 1: User Story 1 - Client Setup with Chain Constants
 	fmt.Println("1. Client Setup with Chain Constants (User Story 1)")
 	fmt.Println("   Creating token config for Base mainnet...")
-	baseToken := x402.NewTokenConfig(x402.BaseMainnet, 1)
+	baseToken := x402.NewUSDCTokenConfig(x402.BaseMainnet, 1)
 	fmt.Printf("   ✓ Token Address: %s\n", baseToken.Address)
 	fmt.Printf("   ✓ Symbol: %s\n", baseToken.Symbol)
 	fmt.Printf("   ✓ Decimals: %d\n", baseToken.Decimals)
@@ -23,7 +23,7 @@ func main() {
 	// Example 2: User Story 2 - Middleware Setup with Payment Requirements
 	fmt.Println("2. Middleware Payment Requirement (User Story 2)")
 	fmt.Println("   Creating payment requirement for Base mainnet: 1.50 USDC...")
-	req, err := x402.NewPaymentRequirement(x402.PaymentRequirementConfig{
+	req, err := x402.NewUSDCPaymentRequirement(x402.USDCRequirementConfig{
 		Chain:            x402.BaseMainnet,
 		Amount:           "1.50",
 		RecipientAddress: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
@@ -45,9 +45,9 @@ func main() {
 	fmt.Println("3. Multi-Chain Token Configuration (User Story 3)")
 	fmt.Println("   Creating token configs for 3 chains with different priorities...")
 	tokens := []x402.TokenConfig{
-		x402.NewTokenConfig(x402.BaseMainnet, 1),    // Priority 1 (highest)
-		x402.NewTokenConfig(x402.PolygonMainnet, 2), // Priority 2
-		x402.NewTokenConfig(x402.SolanaMainnet, 3),  // Priority 3
+		x402.NewUSDCTokenConfig(x402.BaseMainnet, 1),    // Priority 1 (highest)
+		x402.NewUSDCTokenConfig(x402.PolygonMainnet, 2), // Priority 2
+		x402.NewUSDCTokenConfig(x402.SolanaMainnet, 3),  // Priority 3
 	}
 	for _, token := range tokens {
 		fmt.Printf("   ✓ %s: Address=%s, Priority=%d\n",
@@ -78,7 +78,7 @@ func main() {
 	// Example 5: Zero Amount (Free-with-Signature)
 	fmt.Println("5. Zero Amount Authorization (Free-with-Signature)")
 	fmt.Println("   Creating payment requirement with zero amount...")
-	freeReq, err := x402.NewPaymentRequirement(x402.PaymentRequirementConfig{
+	freeReq, err := x402.NewUSDCPaymentRequirement(x402.USDCRequirementConfig{
 		Chain:            x402.BaseSepolia,
 		Amount:           "0",
 		RecipientAddress: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
@@ -92,7 +92,7 @@ func main() {
 	// Example 6: Custom Configuration
 	fmt.Println("6. Custom Payment Configuration")
 	fmt.Println("   Creating payment requirement with custom settings...")
-	customReq, err := x402.NewPaymentRequirement(x402.PaymentRequirementConfig{
+	customReq, err := x402.NewUSDCPaymentRequirement(x402.USDCRequirementConfig{
 		Chain:             x402.PolygonMainnet,
 		Amount:            "5.0",
 		RecipientAddress:  "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",

@@ -42,12 +42,14 @@ type ChainConfig struct {
 	EIP3009Version string
 }
 
-// PaymentRequirementConfig is the configuration for creating a PaymentRequirement.
-type PaymentRequirementConfig struct {
-	// Chain is the chain configuration (required).
+// USDCRequirementConfig is the configuration for creating a USDC PaymentRequirement.
+// This is a convenience helper for USDC payments. For other tokens, construct
+// PaymentRequirement directly.
+type USDCRequirementConfig struct {
+	// Chain is the chain configuration with USDC details (required).
 	Chain ChainConfig
 
-	// Amount is the human-readable payment amount (e.g., "1.5" = 1.5 USDC).
+	// Amount is the human-readable USDC amount (e.g., "1.5" = 1.5 USDC).
 	// Zero amounts ("0" or "0.0") are allowed for free-with-signature authorization flows.
 	Amount string
 
@@ -150,13 +152,14 @@ var (
 	}
 )
 
-// NewTokenConfig creates a TokenConfig for the given chain with the specified priority.
+// NewUSDCTokenConfig creates a TokenConfig for USDC on the given chain with the specified priority.
+// This is a convenience helper for USDC. For other tokens, construct TokenConfig directly.
 // The returned TokenConfig has:
 //   - Address set to the chain's USDC address
 //   - Symbol set to "USDC"
 //   - Decimals set to 6
 //   - Priority set to the provided value (lower numbers = higher priority)
-func NewTokenConfig(chain ChainConfig, priority int) TokenConfig {
+func NewUSDCTokenConfig(chain ChainConfig, priority int) TokenConfig {
 	return TokenConfig{
 		Address:  chain.USDCAddress,
 		Symbol:   "USDC",
@@ -165,9 +168,10 @@ func NewTokenConfig(chain ChainConfig, priority int) TokenConfig {
 	}
 }
 
-// NewPaymentRequirement creates a PaymentRequirement from the given configuration.
-// It validates inputs, converts the amount to atomic units, applies defaults for optional fields,
-// and populates EIP-3009 parameters for EVM chains.
+// NewUSDCPaymentRequirement creates a PaymentRequirement for USDC from the given configuration.
+// This is a convenience helper for USDC payments. For other tokens, construct PaymentRequirement directly.
+// It validates inputs, converts the amount to atomic units (assuming 6 decimals for USDC),
+// applies defaults for optional fields, and populates EIP-3009 parameters for EVM chains.
 //
 // Amount conversion uses standard float64 rounding (banker's rounding) for precision beyond 6 decimals.
 // Zero amounts ("0" or "0.0") are explicitly allowed for free-with-signature authorization flows.
@@ -178,7 +182,7 @@ func NewTokenConfig(chain ChainConfig, priority int) TokenConfig {
 //   - MimeType: "application/json"
 //
 // Returns an error if validation fails. Error format: "parameterName: reason"
-func NewPaymentRequirement(config PaymentRequirementConfig) (PaymentRequirement, error) {
+func NewUSDCPaymentRequirement(config USDCRequirementConfig) (PaymentRequirement, error) {
 	// Validate recipient address
 	if config.RecipientAddress == "" {
 		return PaymentRequirement{}, fmt.Errorf("recipientAddress: cannot be empty")
