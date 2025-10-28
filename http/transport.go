@@ -11,6 +11,13 @@ import (
 	"github.com/mark3labs/x402-go"
 )
 
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 // X402Transport is a custom RoundTripper that handles x402 payment flows.
 // It wraps an existing http.RoundTripper and automatically handles 402 Payment Required responses.
 type X402Transport struct {
@@ -61,6 +68,19 @@ func (t *X402Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	payment, err := t.Selector.SelectAndSign(requirements, t.Signers)
 	if err != nil {
 		return nil, err
+	}
+
+	// DEBUG: Log the payment payload structure
+	if payloadMap, ok := payment.Payload.(map[string]any); ok {
+		if tx, ok := payloadMap["transaction"].(string); ok {
+			fmt.Printf("\n=== CLIENT CREATED TRANSACTION ===\n")
+			fmt.Printf("Transaction base64 length: %d\n", len(tx))
+			if txBytes, err := base64.StdEncoding.DecodeString(tx); err == nil {
+				fmt.Printf("Transaction bytes: %d\n", len(txBytes))
+				fmt.Printf("Transaction: %s\n", tx[:min(80, len(tx))])
+			}
+			fmt.Printf("===================================\n\n")
+		}
 	}
 
 	// Build payment header

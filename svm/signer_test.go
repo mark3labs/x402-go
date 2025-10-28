@@ -386,11 +386,15 @@ func TestSign_Validation(t *testing.T) {
 			}
 
 			// Validate SVM payload
-			svmPayload, ok := payload.Payload.(x402.SVMPayload)
+			svmPayload, ok := payload.Payload.(map[string]any)
 			if !ok {
-				t.Fatal("expected SVMPayload type")
+				t.Fatalf("expected map[string]any type, got %T", payload.Payload)
 			}
-			if svmPayload.Transaction == "" {
+			transaction, ok := svmPayload["transaction"].(string)
+			if !ok {
+				t.Fatal("expected transaction field to be a string")
+			}
+			if transaction == "" {
 				t.Error("expected non-empty transaction")
 			}
 		})
@@ -606,14 +610,19 @@ func TestTransactionStructure(t *testing.T) {
 		t.Fatalf("failed to sign: %v", err)
 	}
 
-	svmPayload, ok := payload.Payload.(x402.SVMPayload)
+	svmPayload, ok := payload.Payload.(map[string]any)
 	if !ok {
-		t.Fatal("expected SVMPayload type")
+		t.Fatalf("expected map[string]any type, got %T", payload.Payload)
+	}
+
+	transactionBase64, ok := svmPayload["transaction"].(string)
+	if !ok {
+		t.Fatal("expected transaction field to be a string")
 	}
 
 	// Deserialize the transaction from base64
 	var tx solana.Transaction
-	err = tx.UnmarshalBase64(svmPayload.Transaction)
+	err = tx.UnmarshalBase64(transactionBase64)
 	if err != nil {
 		t.Fatalf("failed to unmarshal transaction: %v", err)
 	}
@@ -694,5 +703,5 @@ func TestTransactionStructure(t *testing.T) {
 	}
 
 	t.Logf("Transaction structure validated successfully")
-	t.Logf("Transaction base64: %s", svmPayload.Transaction[:50]+"...")
+	t.Logf("Transaction base64: %s", transactionBase64[:50]+"...")
 }

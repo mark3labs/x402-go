@@ -3,8 +3,10 @@ package http
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -35,6 +37,13 @@ type VerifyResponse struct {
 
 // Verify verifies a payment authorization without executing the transaction.
 func (c *FacilitatorClient) Verify(payment x402.PaymentPayload, requirement x402.PaymentRequirement) (*VerifyResponse, error) {
+	// DEBUG: Check payment payload before marshaling
+	if payloadMap, ok := payment.Payload.(map[string]any); ok {
+		if tx, ok := payloadMap["transaction"].(string); ok {
+			fmt.Printf("\n🔍 VERIFY INPUT: tx_length=%d, tx_preview=%s\n", len(tx), tx[:min(50, len(tx))])
+		}
+	}
+
 	// Create request payload
 	req := FacilitatorRequest{
 		X402Version:         1,
@@ -47,6 +56,42 @@ func (c *FacilitatorClient) Verify(payment x402.PaymentPayload, requirement x402
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
+
+	// DEBUG: Check marshaled JSON
+	var debugCheck map[string]any
+	json.Unmarshal(data, &debugCheck)
+	if pp, ok := debugCheck["paymentPayload"].(map[string]any); ok {
+		if payload, ok := pp["payload"].(map[string]any); ok {
+			if tx, ok := payload["transaction"].(string); ok {
+				fmt.Printf("🔍 AFTER MARSHAL: tx_length=%d, tx_preview=%s\n\n", len(tx), tx[:min(50, len(tx))])
+			}
+		}
+	}
+
+	// DEBUG: Check raw JSON bytes
+	fmt.Printf("🔍 RAW JSON LENGTH: %d bytes\n", len(data))
+
+	// Extract transaction from raw JSON for debugging
+	var rawCheck map[string]any
+	json.Unmarshal(data, &rawCheck)
+	if pp, ok := rawCheck["paymentPayload"].(map[string]any); ok {
+		if payload, ok := pp["payload"].(map[string]any); ok {
+			if tx, ok := payload["transaction"].(string); ok {
+				fmt.Printf("🔍 RAW JSON TRANSACTION: length=%d, preview=%s...\n", len(tx), tx[:min(50, len(tx))])
+
+				// Decode to check actual bytes
+				if txBytes, err := base64.StdEncoding.DecodeString(tx); err == nil {
+					fmt.Printf("🔍 DECODED TRANSACTION: %d bytes, num_sigs=%d\n\n", len(txBytes), txBytes[0])
+				}
+			}
+		}
+	}
+
+	// Log the request payload for debugging (abbreviated)
+	fmt.Printf("\n=== VERIFY REQUEST TO %s ===\n", c.BaseURL+"/verify")
+	fmt.Printf("Transaction length in JSON: %d base64 chars\n", len(req.PaymentPayload.Payload.(map[string]any)["transaction"].(string)))
+	fmt.Printf("Full JSON size: %d bytes\n", len(data))
+	fmt.Printf("=== END REQUEST ===\n\n")
 
 	// Create request with timeout context
 	ctx, cancel := context.WithTimeout(context.Background(), c.VerifyTimeout)
@@ -65,15 +110,25 @@ func (c *FacilitatorClient) Verify(payment x402.PaymentPayload, requirement x402
 	}
 	defer resp.Body.Close()
 
+	// Read response body for debugging
+	var respBody bytes.Buffer
+	respReader := io.TeeReader(resp.Body, &respBody)
+
 	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(respReader)
+		fmt.Printf("\n=== VERIFY RESPONSE (STATUS %d) ===\n%s\n=== END RESPONSE ===\n\n", resp.StatusCode, string(bodyBytes))
 		return nil, fmt.Errorf("%w: status %d", x402.ErrVerificationFailed, resp.StatusCode)
 	}
 
 	// Parse response
 	var verifyResp VerifyResponse
-	if err := json.NewDecoder(resp.Body).Decode(&verifyResp); err != nil {
+	if err := json.NewDecoder(respReader).Decode(&verifyResp); err != nil {
 		return nil, fmt.Errorf("failed to decode verify response: %w", err)
 	}
+
+	// Log the response
+	respJSON, _ := json.MarshalIndent(verifyResp, "", "  ")
+	fmt.Printf("\n=== VERIFY RESPONSE (STATUS 200) ===\n%s\n=== END RESPONSE ===\n\n", string(respJSON))
 
 	return &verifyResp, nil
 }
@@ -137,6 +192,12 @@ func (c *FacilitatorClient) Settle(payment x402.PaymentPayload, requirement x402
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
+	// Log the request payload for debugging
+	var prettyJSON bytes.Buffer
+	if err := json.Indent(&prettyJSON, data, "", "  "); err == nil {
+		fmt.Printf("\n=== SETTLE REQUEST TO %s ===\n%s\n=== END REQUEST ===\n\n", c.BaseURL+"/settle", prettyJSON.String())
+	}
+
 	// Create request with timeout context (longer timeout for blockchain tx)
 	ctx, cancel := context.WithTimeout(context.Background(), c.SettleTimeout)
 	defer cancel()
@@ -154,15 +215,25 @@ func (c *FacilitatorClient) Settle(payment x402.PaymentPayload, requirement x402
 	}
 	defer resp.Body.Close()
 
+	// Read response body for debugging
+	var respBody bytes.Buffer
+	respReader := io.TeeReader(resp.Body, &respBody)
+
 	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(respReader)
+		fmt.Printf("\n=== SETTLE RESPONSE (STATUS %d) ===\n%s\n=== END RESPONSE ===\n\n", resp.StatusCode, string(bodyBytes))
 		return nil, fmt.Errorf("%w: status %d", x402.ErrSettlementFailed, resp.StatusCode)
 	}
 
 	// Parse response
 	var settlementResp x402.SettlementResponse
-	if err := json.NewDecoder(resp.Body).Decode(&settlementResp); err != nil {
+	if err := json.NewDecoder(respReader).Decode(&settlementResp); err != nil {
 		return nil, fmt.Errorf("failed to decode settlement response: %w", err)
 	}
+
+	// Log the response
+	respJSON, _ := json.MarshalIndent(settlementResp, "", "  ")
+	fmt.Printf("\n=== SETTLE RESPONSE (STATUS 200) ===\n%s\n=== END RESPONSE ===\n\n", string(respJSON))
 
 	return &settlementResp, nil
 }
