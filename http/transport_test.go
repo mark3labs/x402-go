@@ -36,7 +36,7 @@ func TestRoundTrip_NonPaymentRequest(t *testing.T) {
 	// Server returns 200 OK without requiring payment
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("success"))
+		_, _ = w.Write([]byte("success"))
 	}))
 	defer server.Close()
 
@@ -81,11 +81,11 @@ func TestRoundTrip_PaymentRequired(t *testing.T) {
 
 			body := makePaymentRequirementsResponse(requirements)
 			w.WriteHeader(http.StatusPaymentRequired)
-			w.Write(body)
+			_, _ = w.Write(body)
 		} else {
 			// Retry with payment
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("success"))
+			_, _ = w.Write([]byte("success"))
 		}
 	}))
 	defer server.Close()
@@ -128,7 +128,7 @@ func TestRoundTrip_NoValidSigner(t *testing.T) {
 
 		body := makePaymentRequirementsResponse(requirements)
 		w.WriteHeader(http.StatusPaymentRequired)
-		w.Write(body)
+		_, _ = w.Write(body)
 	}))
 	defer server.Close()
 
@@ -328,7 +328,7 @@ func TestRoundTrip_WithSettlement(t *testing.T) {
 
 			w.Header().Set("X-SETTLEMENT", settlementHeader)
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("success"))
+			_, _ = w.Write([]byte("success"))
 		} else {
 			requirements := x402.PaymentRequirement{
 				Scheme:            "exact",
@@ -340,7 +340,7 @@ func TestRoundTrip_WithSettlement(t *testing.T) {
 			}
 			body := makePaymentRequirementsResponse(requirements)
 			w.WriteHeader(http.StatusPaymentRequired)
-			w.Write(body)
+			_, _ = w.Write(body)
 		}
 	}))
 	defer server.Close()
@@ -392,13 +392,13 @@ func TestRoundTrip_MultiSignerSelection_Priority(t *testing.T) {
 			}
 			body := makePaymentRequirementsResponse(requirements)
 			w.WriteHeader(http.StatusPaymentRequired)
-			w.Write(body)
+			_, _ = w.Write(body)
 		} else {
 			// Parse payment to determine which signer was used
 			paymentHeader := r.Header.Get("X-PAYMENT")
 			decoded, _ := base64.StdEncoding.DecodeString(paymentHeader)
 			var payment x402.PaymentPayload
-			json.Unmarshal(decoded, &payment)
+			_ = json.Unmarshal(decoded, &payment)
 
 			// Mock payload includes priority for tracking
 			if payloadMap, ok := payment.Payload.(map[string]interface{}); ok {
@@ -408,7 +408,7 @@ func TestRoundTrip_MultiSignerSelection_Priority(t *testing.T) {
 			}
 
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("success"))
+			_, _ = w.Write([]byte("success"))
 		}
 	}))
 	defer server.Close()
@@ -550,16 +550,16 @@ func TestRoundTrip_MultiSignerSelection_NetworkMatch(t *testing.T) {
 					}
 					body := makePaymentRequirementsResponse(requirements)
 					w.WriteHeader(http.StatusPaymentRequired)
-					w.Write(body)
+					_, _ = w.Write(body)
 				} else {
 					paymentHeader := r.Header.Get("X-PAYMENT")
 					decoded, _ := base64.StdEncoding.DecodeString(paymentHeader)
 					var payment x402.PaymentPayload
-					json.Unmarshal(decoded, &payment)
+					_ = json.Unmarshal(decoded, &payment)
 					selectedNetwork = payment.Network
 
 					w.WriteHeader(http.StatusOK)
-					w.Write([]byte("success"))
+					_, _ = w.Write([]byte("success"))
 				}
 			}))
 			defer server.Close()
@@ -615,12 +615,12 @@ func TestRoundTrip_MultiSignerSelection_MaxAmountFiltering(t *testing.T) {
 			}
 			body := makePaymentRequirementsResponse(requirements)
 			w.WriteHeader(http.StatusPaymentRequired)
-			w.Write(body)
+			_, _ = w.Write(body)
 		} else {
 			paymentHeader := r.Header.Get("X-PAYMENT")
 			decoded, _ := base64.StdEncoding.DecodeString(paymentHeader)
 			var payment x402.PaymentPayload
-			json.Unmarshal(decoded, &payment)
+			_ = json.Unmarshal(decoded, &payment)
 
 			if payloadMap, ok := payment.Payload.(map[string]interface{}); ok {
 				if priority, ok := payloadMap["priority"].(float64); ok {
@@ -629,7 +629,7 @@ func TestRoundTrip_MultiSignerSelection_MaxAmountFiltering(t *testing.T) {
 			}
 
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("success"))
+			_, _ = w.Write([]byte("success"))
 		}
 	}))
 	defer server.Close()
@@ -688,7 +688,7 @@ func TestRoundTrip_AllSignersLackSufficientFunds(t *testing.T) {
 		}
 		body := makePaymentRequirementsResponse(requirements)
 		w.WriteHeader(http.StatusPaymentRequired)
-		w.Write(body)
+		_, _ = w.Write(body)
 	}))
 	defer server.Close()
 
@@ -763,7 +763,7 @@ func TestRoundTrip_NetworkErrorDuringPaymentSubmission(t *testing.T) {
 			}
 			body := makePaymentRequirementsResponse(requirements)
 			w.WriteHeader(http.StatusPaymentRequired)
-			w.Write(body)
+			_, _ = w.Write(body)
 		} else {
 			// Simulate network error by hijacking connection
 			hj, ok := w.(http.Hijacker)
@@ -828,7 +828,7 @@ func TestRoundTrip_PaymentAuthorizationExpiry(t *testing.T) {
 		}
 		body := makePaymentRequirementsResponse(requirements)
 		w.WriteHeader(http.StatusPaymentRequired)
-		w.Write(body)
+		_, _ = w.Write(body)
 	}))
 	defer server.Close()
 
@@ -892,10 +892,10 @@ func TestRoundTrip_ConcurrentRequestsWithMaxAmountLimits(t *testing.T) {
 			}
 			body := makePaymentRequirementsResponse(requirements)
 			w.WriteHeader(http.StatusPaymentRequired)
-			w.Write(body)
+			_, _ = w.Write(body)
 		} else {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("success"))
+			_, _ = w.Write([]byte("success"))
 		}
 	}))
 	defer server.Close()
@@ -986,10 +986,10 @@ func TestRoundTrip_100ConcurrentRequests(t *testing.T) {
 			}
 			body := makePaymentRequirementsResponse(requirements)
 			w.WriteHeader(http.StatusPaymentRequired)
-			w.Write(body)
+			_, _ = w.Write(body)
 		} else {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("success"))
+			_, _ = w.Write([]byte("success"))
 		}
 	}))
 	defer server.Close()
@@ -1083,10 +1083,10 @@ func TestRoundTrip_NoProactiveAuthRegeneration(t *testing.T) {
 			}
 			body := makePaymentRequirementsResponse(requirements)
 			w.WriteHeader(http.StatusPaymentRequired)
-			w.Write(body)
+			_, _ = w.Write(body)
 		} else {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("success"))
+			_, _ = w.Write([]byte("success"))
 		}
 	}))
 	defer server.Close()

@@ -56,7 +56,7 @@ func runServer(args []string) {
 	facilitatorURL := fs.String("facilitator", "https://facilitator.x402.rs", "Facilitator URL")
 	verbose := fs.Bool("verbose", false, "Enable verbose debug output")
 
-	fs.Parse(args)
+	_ = fs.Parse(args)
 
 	// Validate required flags
 	if *payTo == "" {
@@ -128,7 +128,7 @@ func runServer(args []string) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	})
 
 	// Create free public handler
@@ -139,7 +139,7 @@ func runServer(args []string) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	})
 
 	// Setup routes
@@ -177,7 +177,7 @@ func runClient(args []string) {
 	maxAmount := fs.String("max", "", "Maximum amount per call (optional)")
 	verbose := fs.Bool("verbose", false, "Enable verbose debug output")
 
-	fs.Parse(args)
+	_ = fs.Parse(args)
 
 	// Validate inputs
 	if *key == "" && *keyFile == "" {

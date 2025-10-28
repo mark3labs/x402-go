@@ -23,8 +23,8 @@ func NewClient(opts ...ClientOption) (*Client, error) {
 	}
 
 	// Default to an empty transport (will be wrapped)
-	if client.Client.Transport == nil {
-		client.Client.Transport = http.DefaultTransport
+	if client.Transport == nil {
+		client.Transport = http.DefaultTransport
 	}
 
 	// Apply options
@@ -41,8 +41,8 @@ func NewClient(opts ...ClientOption) (*Client, error) {
 func WithHTTPClient(httpClient *http.Client) ClientOption {
 	return func(c *Client) error {
 		c.Client = httpClient
-		if c.Client.Transport == nil {
-			c.Client.Transport = http.DefaultTransport
+		if c.Transport == nil {
+			c.Transport = http.DefaultTransport
 		}
 		return nil
 	}
@@ -53,15 +53,15 @@ func WithHTTPClient(httpClient *http.Client) ClientOption {
 func WithSigner(signer x402.Signer) ClientOption {
 	return func(c *Client) error {
 		// Get or create the X402Transport
-		transport, ok := c.Client.Transport.(*X402Transport)
+		transport, ok := c.Transport.(*X402Transport)
 		if !ok {
 			// Wrap the existing transport
 			transport = &X402Transport{
-				Base:     c.Client.Transport,
+				Base:     c.Transport,
 				Signers:  []x402.Signer{},
 				Selector: x402.NewDefaultPaymentSelector(),
 			}
-			c.Client.Transport = transport
+			c.Transport = transport
 		}
 
 		// Add the signer
@@ -74,15 +74,15 @@ func WithSigner(signer x402.Signer) ClientOption {
 func WithSelector(selector x402.PaymentSelector) ClientOption {
 	return func(c *Client) error {
 		// Get or create the X402Transport
-		transport, ok := c.Client.Transport.(*X402Transport)
+		transport, ok := c.Transport.(*X402Transport)
 		if !ok {
 			// Wrap the existing transport
 			transport = &X402Transport{
-				Base:     c.Client.Transport,
+				Base:     c.Transport,
 				Signers:  []x402.Signer{},
 				Selector: selector,
 			}
-			c.Client.Transport = transport
+			c.Transport = transport
 		} else {
 			transport.Selector = selector
 		}

@@ -235,7 +235,7 @@ func TestTokenConfigPriorityConvention(t *testing.T) {
 	}
 
 	// Test that sorting by priority works correctly
-	if !(tokens[0].Priority < tokens[1].Priority && tokens[1].Priority < tokens[2].Priority) {
+	if tokens[0].Priority >= tokens[1].Priority || tokens[1].Priority >= tokens[2].Priority {
 		t.Error("token priorities should be sortable in ascending order (1, 2, 3...)")
 	}
 }

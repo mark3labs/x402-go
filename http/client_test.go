@@ -203,7 +203,7 @@ func TestClient_NonPaymentRequest(t *testing.T) {
 	// Create a test server that returns 200 OK
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("success"))
+		_, _ = w.Write([]byte("success"))
 	}))
 	defer server.Close()
 
@@ -232,7 +232,7 @@ func TestClient_StdlibCompatibility(t *testing.T) {
 			t.Error("unexpected X-PAYMENT header on non-402 request")
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("ok"))
+		_, _ = w.Write([]byte("ok"))
 	}))
 	defer server.Close()
 
@@ -330,7 +330,7 @@ func TestClient_StdlibCompatibility_NonPaymentRequestsUnchanged(t *testing.T) {
 				}
 
 				w.WriteHeader(http.StatusOK)
-				w.Write([]byte("success"))
+				_, _ = w.Write([]byte("success"))
 			}))
 			defer server.Close()
 
@@ -394,7 +394,7 @@ func TestClient_StdlibCompatibility_VariousScenarios(t *testing.T) {
 			// Create server that returns specified status
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(tt.statusCode)
-				w.Write([]byte(tt.responseBody))
+				_, _ = w.Write([]byte(tt.responseBody))
 			}))
 			defer server.Close()
 

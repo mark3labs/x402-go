@@ -347,7 +347,7 @@ func TestPaymentError_WithDetails(t *testing.T) {
 			},
 			validateFunc: func(t *testing.T, pe *PaymentError) {
 				// Overwrite the detail
-				pe.WithDetails("reason", "updated reason")
+				_ = pe.WithDetails("reason", "updated reason")
 				if pe.Details["reason"] != "updated reason" {
 					t.Errorf("Details[reason] = %v, want updated reason", pe.Details["reason"])
 				}
