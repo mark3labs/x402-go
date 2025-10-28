@@ -181,6 +181,9 @@
 - `X402Version` (int, required): Protocol version
 - `Scheme` (string, required): Payment scheme
 - `Network` (string, required): Blockchain network
+- `Extra` (map, optional): Network-specific metadata (e.g., feePayer for SVM chains)
+
+**Note**: The middleware automatically enriches PaymentRequirements with data from this endpoint, particularly the `feePayer` field for SVM chains.
 
 ---
 

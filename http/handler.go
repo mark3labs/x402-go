@@ -11,10 +11,15 @@ import (
 
 // sendPaymentRequired sends a 402 Payment Required response with payment requirements.
 func sendPaymentRequired(w http.ResponseWriter, config *Config) {
+	sendPaymentRequiredWithRequirements(w, config.PaymentRequirements)
+}
+
+// sendPaymentRequiredWithRequirements sends a 402 Payment Required response with specific payment requirements.
+func sendPaymentRequiredWithRequirements(w http.ResponseWriter, requirements []x402.PaymentRequirement) {
 	response := x402.PaymentRequirementsResponse{
 		X402Version: 1,
 		Error:       "Payment required for this resource",
-		Accepts:     config.PaymentRequirements,
+		Accepts:     requirements,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

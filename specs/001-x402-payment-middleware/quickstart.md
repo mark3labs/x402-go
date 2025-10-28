@@ -59,6 +59,7 @@ func main() {
 
 ```go
 // Accept payments on multiple chains
+// Note: feePayer for SVM chains is automatically fetched from the facilitator
 config := &x402http.Config{
     FacilitatorURL: "https://facilitator.x402.com",
     PaymentRequirements: []x402.PaymentRequirement{
@@ -81,9 +82,7 @@ config := &x402http.Config{
             Resource:           "https://api.example.com/data",
             Description:        "Data Access - Solana",
             MaxTimeoutSeconds:  60,
-            Extra: map[string]interface{}{
-                "feePayer": "FacilitatorSolanaAddress",
-            },
+            // No need to specify Extra.feePayer - automatically populated from facilitator
         },
     },
 }

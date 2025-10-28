@@ -33,6 +33,8 @@ const PaymentContextKey = contextKey("x402_payment")
 
 // NewX402Middleware creates a new x402 payment middleware.
 // It returns a middleware function that wraps HTTP handlers with payment gating.
+// The middleware automatically fetches network-specific configuration (like feePayer for SVM chains)
+// from the facilitator's /supported endpoint.
 func NewX402Middleware(config *Config) func(http.Handler) http.Handler {
 	// Create facilitator client
 	facilitator := &FacilitatorClient{
@@ -53,6 +55,16 @@ func NewX402Middleware(config *Config) func(http.Handler) http.Handler {
 		}
 	}
 
+	// Enrich payment requirements with facilitator-specific data (like feePayer)
+	enrichedRequirements, err := facilitator.EnrichRequirements(config.PaymentRequirements)
+	if err != nil {
+		// Log warning but continue with original requirements
+		slog.Default().Warn("failed to enrich payment requirements from facilitator", "error", err)
+		enrichedRequirements = config.PaymentRequirements
+	} else {
+		slog.Default().Info("payment requirements enriched from facilitator", "count", len(enrichedRequirements))
+	}
+
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			logger := slog.Default()
@@ -62,7 +74,7 @@ func NewX402Middleware(config *Config) func(http.Handler) http.Handler {
 			if paymentHeader == "" {
 				// No payment provided - return 402 with requirements
 				logger.Info("no payment header provided", "path", r.URL.Path)
-				sendPaymentRequired(w, config)
+				sendPaymentRequiredWithRequirements(w, enrichedRequirements)
 				return
 			}
 
@@ -75,10 +87,10 @@ func NewX402Middleware(config *Config) func(http.Handler) http.Handler {
 			}
 
 			// Find matching requirement
-			requirement, err := findMatchingRequirement(payment, config.PaymentRequirements)
+			requirement, err := findMatchingRequirement(payment, enrichedRequirements)
 			if err != nil {
 				logger.Warn("no matching requirement", "error", err)
-				sendPaymentRequired(w, config)
+				sendPaymentRequiredWithRequirements(w, enrichedRequirements)
 				return
 			}
 
@@ -97,7 +109,7 @@ func NewX402Middleware(config *Config) func(http.Handler) http.Handler {
 
 			if !verifyResp.IsValid {
 				logger.Warn("payment verification failed", "reason", verifyResp.InvalidReason)
-				sendPaymentRequired(w, config)
+				sendPaymentRequiredWithRequirements(w, enrichedRequirements)
 				return
 			}
 
@@ -121,7 +133,7 @@ func NewX402Middleware(config *Config) func(http.Handler) http.Handler {
 
 				if !settlementResp.Success {
 					logger.Warn("settlement unsuccessful", "reason", settlementResp.ErrorReason)
-					sendPaymentRequired(w, config)
+					sendPaymentRequiredWithRequirements(w, enrichedRequirements)
 					return
 				}
 

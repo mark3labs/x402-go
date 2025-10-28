@@ -27,6 +27,7 @@ func main() {
 				MaxTimeoutSeconds: 60,
 			},
 			// Option 2: Solana (SVM chain)
+			// Note: feePayer will be automatically fetched from the facilitator
 			{
 				Scheme:            "exact",
 				Network:           "solana",
@@ -36,9 +37,6 @@ func main() {
 				Resource:          "https://api.example.com/data",
 				Description:       "Premium Data Access (Solana)",
 				MaxTimeoutSeconds: 60,
-				Extra: map[string]any{
-					"feePayer": "FacilitatorSolanaAddress",
-				},
 			},
 			// Option 3: Base Sepolia testnet (EVM chain)
 			{

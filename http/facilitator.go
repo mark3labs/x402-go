@@ -64,9 +64,10 @@ func (c *FacilitatorClient) Verify(payment x402.PaymentPayload, requirement x402
 
 // SupportedKind represents a supported payment type.
 type SupportedKind struct {
-	X402Version int    `json:"x402Version"`
-	Scheme      string `json:"scheme"`
-	Network     string `json:"network"`
+	X402Version int            `json:"x402Version"`
+	Scheme      string         `json:"scheme"`
+	Network     string         `json:"network"`
+	Extra       map[string]any `json:"extra,omitempty"`
 }
 
 // SupportedResponse is the response from the facilitator /supported endpoint.
@@ -128,4 +129,44 @@ func (c *FacilitatorClient) Settle(payment x402.PaymentPayload, requirement x402
 	}
 
 	return &settlementResp, nil
+}
+
+// EnrichRequirements fetches supported payment types from the facilitator and
+// enriches the provided payment requirements with network-specific data like feePayer.
+// This is particularly useful for SVM chains where the feePayer must be specified.
+func (c *FacilitatorClient) EnrichRequirements(requirements []x402.PaymentRequirement) ([]x402.PaymentRequirement, error) {
+	// Fetch supported payment types
+	supported, err := c.Supported()
+	if err != nil {
+		return requirements, fmt.Errorf("failed to fetch supported payment types: %w", err)
+	}
+
+	// Create a lookup map for supported kinds by network
+	supportedMap := make(map[string]SupportedKind)
+	for _, kind := range supported.Kinds {
+		key := kind.Network + "-" + kind.Scheme
+		supportedMap[key] = kind
+	}
+
+	// Enrich each requirement with extra data from the facilitator
+	enriched := make([]x402.PaymentRequirement, len(requirements))
+	for i, req := range requirements {
+		enriched[i] = req
+		key := req.Network + "-" + req.Scheme
+		if kind, ok := supportedMap[key]; ok && kind.Extra != nil {
+			// Initialize Extra map if it doesn't exist
+			if enriched[i].Extra == nil {
+				enriched[i].Extra = make(map[string]any)
+			}
+			// Merge facilitator's extra data into requirement
+			for k, v := range kind.Extra {
+				// Only set if not already present (user-specified values take precedence)
+				if _, exists := enriched[i].Extra[k]; !exists {
+					enriched[i].Extra[k] = v
+				}
+			}
+		}
+	}
+
+	return enriched, nil
 }

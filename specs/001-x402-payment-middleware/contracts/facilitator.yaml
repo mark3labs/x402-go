@@ -290,6 +290,12 @@ components:
               network:
                 type: string
                 example: "base-sepolia"
+              extra:
+                type: object
+                additionalProperties: true
+                description: Network-specific metadata (e.g., feePayer for SVM chains)
+                example:
+                  feePayer: "C7ckEzH4varMpBQsaD9bJZSCnWVyk4zAKYA85spuuNbR"
 
     ErrorResponse:
       type: object
