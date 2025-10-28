@@ -20,3 +20,10 @@
 - **Project Scripts**: Use `.specify/scripts/bash/` for automation scripts (check-prerequisites.sh, create-new-feature.sh, etc.)
 
 ## Module: github.com/mark3labs/x402-go | Go Version: 1.25.1
+
+## Active Technologies
+- Go 1.25.1 + Go standard library (net/http, encoding/json, encoding/base64, context) (001-x402-payment-middleware)
+- N/A (stateless middleware, nonce tracking delegated to facilitator) (001-x402-payment-middleware)
+
+## Recent Changes
+- 001-x402-payment-middleware: Added Go 1.25.1 + Go standard library (net/http, encoding/json, encoding/base64, context)
