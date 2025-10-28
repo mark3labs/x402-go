@@ -38,20 +38,20 @@ const PaymentContextKey = contextKey("x402_payment")
 func NewX402Middleware(config *Config) func(http.Handler) http.Handler {
 	// Create facilitator client
 	facilitator := &FacilitatorClient{
-		BaseURL: config.FacilitatorURL,
-		Client: &http.Client{
-			Timeout: 2 * time.Second, // 2s timeout per SC-002
-		},
+		BaseURL:       config.FacilitatorURL,
+		Client:        &http.Client{},
+		VerifyTimeout: 5 * time.Second,  // Quick verification
+		SettleTimeout: 60 * time.Second, // Longer for blockchain tx execution
 	}
 
 	// Create fallback facilitator client if configured
 	var fallbackFacilitator *FacilitatorClient
 	if config.FallbackFacilitatorURL != "" {
 		fallbackFacilitator = &FacilitatorClient{
-			BaseURL: config.FallbackFacilitatorURL,
-			Client: &http.Client{
-				Timeout: 2 * time.Second,
-			},
+			BaseURL:       config.FallbackFacilitatorURL,
+			Client:        &http.Client{},
+			VerifyTimeout: 5 * time.Second,
+			SettleTimeout: 60 * time.Second,
 		}
 	}
 
@@ -69,12 +69,29 @@ func NewX402Middleware(config *Config) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			logger := slog.Default()
 
+			// Build absolute URL for the resource
+			scheme := "http"
+			if r.TLS != nil {
+				scheme = "https"
+			}
+			resourceURL := scheme + "://" + r.Host + r.RequestURI
+
+			// Populate resource field in requirements with the actual request URL
+			requirementsWithResource := make([]x402.PaymentRequirement, len(enrichedRequirements))
+			for i, req := range enrichedRequirements {
+				requirementsWithResource[i] = req
+				requirementsWithResource[i].Resource = resourceURL
+				if requirementsWithResource[i].Description == "" {
+					requirementsWithResource[i].Description = "Payment required for " + r.URL.Path
+				}
+			}
+
 			// Check for X-PAYMENT header
 			paymentHeader := r.Header.Get("X-PAYMENT")
 			if paymentHeader == "" {
 				// No payment provided - return 402 with requirements
 				logger.Info("no payment header provided", "path", r.URL.Path)
-				sendPaymentRequiredWithRequirements(w, enrichedRequirements)
+				sendPaymentRequiredWithRequirements(w, requirementsWithResource)
 				return
 			}
 
@@ -86,11 +103,22 @@ func NewX402Middleware(config *Config) func(http.Handler) http.Handler {
 				return
 			}
 
+			// DEBUG: Log parsed payment
+			if payloadMap, ok := payment.Payload.(map[string]any); ok {
+				if tx, ok := payloadMap["transaction"].(string); ok {
+					logger.Info("📥 MIDDLEWARE RECEIVED PAYMENT",
+						"network", payment.Network,
+						"scheme", payment.Scheme,
+						"tx_length", len(tx),
+						"tx_preview", tx[:min(50, len(tx))])
+				}
+			}
+
 			// Find matching requirement
-			requirement, err := findMatchingRequirement(payment, enrichedRequirements)
+			requirement, err := findMatchingRequirement(payment, requirementsWithResource)
 			if err != nil {
 				logger.Warn("no matching requirement", "error", err)
-				sendPaymentRequiredWithRequirements(w, enrichedRequirements)
+				sendPaymentRequiredWithRequirements(w, requirementsWithResource)
 				return
 			}
 
@@ -109,7 +137,7 @@ func NewX402Middleware(config *Config) func(http.Handler) http.Handler {
 
 			if !verifyResp.IsValid {
 				logger.Warn("payment verification failed", "reason", verifyResp.InvalidReason)
-				sendPaymentRequiredWithRequirements(w, enrichedRequirements)
+				sendPaymentRequiredWithRequirements(w, requirementsWithResource)
 				return
 			}
 
@@ -133,7 +161,7 @@ func NewX402Middleware(config *Config) func(http.Handler) http.Handler {
 
 				if !settlementResp.Success {
 					logger.Warn("settlement unsuccessful", "reason", settlementResp.ErrorReason)
-					sendPaymentRequiredWithRequirements(w, enrichedRequirements)
+					sendPaymentRequiredWithRequirements(w, requirementsWithResource)
 					return
 				}
 

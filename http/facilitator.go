@@ -2,21 +2,26 @@ package http
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/mark3labs/x402-go"
 )
 
 // FacilitatorClient is a client for communicating with x402 facilitator services.
 type FacilitatorClient struct {
-	BaseURL string
-	Client  *http.Client
+	BaseURL       string
+	Client        *http.Client
+	VerifyTimeout time.Duration // Timeout for verify operations
+	SettleTimeout time.Duration // Timeout for settle operations (longer due to blockchain tx)
 }
 
 // FacilitatorRequest is the request payload sent to the facilitator.
 type FacilitatorRequest struct {
+	X402Version         int                     `json:"x402Version"`
 	PaymentPayload      x402.PaymentPayload     `json:"paymentPayload"`
 	PaymentRequirements x402.PaymentRequirement `json:"paymentRequirements"`
 }
@@ -32,6 +37,7 @@ type VerifyResponse struct {
 func (c *FacilitatorClient) Verify(payment x402.PaymentPayload, requirement x402.PaymentRequirement) (*VerifyResponse, error) {
 	// Create request payload
 	req := FacilitatorRequest{
+		X402Version:         1,
 		PaymentPayload:      payment,
 		PaymentRequirements: requirement,
 	}
@@ -42,8 +48,18 @@ func (c *FacilitatorClient) Verify(payment x402.PaymentPayload, requirement x402
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	// Send POST request to /verify
-	resp, err := c.Client.Post(c.BaseURL+"/verify", "application/json", bytes.NewReader(data))
+	// Create request with timeout context
+	ctx, cancel := context.WithTimeout(context.Background(), c.VerifyTimeout)
+	defer cancel()
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.BaseURL+"/verify", bytes.NewReader(data))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	// Send request
+	resp, err := c.Client.Do(httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", x402.ErrFacilitatorUnavailable, err)
 	}
@@ -77,8 +93,17 @@ type SupportedResponse struct {
 
 // Supported queries the facilitator for supported payment types.
 func (c *FacilitatorClient) Supported() (*SupportedResponse, error) {
-	// Send GET request to /supported
-	resp, err := c.Client.Get(c.BaseURL + "/supported")
+	// Create request with timeout context
+	ctx, cancel := context.WithTimeout(context.Background(), c.VerifyTimeout)
+	defer cancel()
+
+	httpReq, err := http.NewRequestWithContext(ctx, "GET", c.BaseURL+"/supported", nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Send request
+	resp, err := c.Client.Do(httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", x402.ErrFacilitatorUnavailable, err)
 	}
@@ -101,6 +126,7 @@ func (c *FacilitatorClient) Supported() (*SupportedResponse, error) {
 func (c *FacilitatorClient) Settle(payment x402.PaymentPayload, requirement x402.PaymentRequirement) (*x402.SettlementResponse, error) {
 	// Create request payload
 	req := FacilitatorRequest{
+		X402Version:         1,
 		PaymentPayload:      payment,
 		PaymentRequirements: requirement,
 	}
@@ -111,8 +137,18 @@ func (c *FacilitatorClient) Settle(payment x402.PaymentPayload, requirement x402
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	// Send POST request to /settle
-	resp, err := c.Client.Post(c.BaseURL+"/settle", "application/json", bytes.NewReader(data))
+	// Create request with timeout context (longer timeout for blockchain tx)
+	ctx, cancel := context.WithTimeout(context.Background(), c.SettleTimeout)
+	defer cancel()
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.BaseURL+"/settle", bytes.NewReader(data))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	// Send request
+	resp, err := c.Client.Do(httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", x402.ErrFacilitatorUnavailable, err)
 	}

@@ -44,7 +44,8 @@ must be justified with clear rationale documenting why stdlib is insufficient.
 Keep code concise and readable. Avoid unnecessary abstractions, verbose 
 naming, or complex hierarchies. Code should be as simple as possible but no
 simpler. Favor clarity and directness over clever solutions. Every line should
-earn its place through clear value addition.
+earn its place through clear value addition. Comments should only explain why,
+not what. Obvious comments that restate the code must be avoided.
 
 ### VI. Binary Cleanup
 Build artifacts and compiled binaries must never be committed to the repository.
@@ -90,9 +91,14 @@ All pull requests and code reviews must verify compliance with these
 principles. Violations must be corrected before merge. Use AGENTS.md for
 Go-specific development guidance and tooling commands.
 
-**Version**: 1.3.0 | **Ratified**: 2025-10-28 | **Last Amended**: 2025-10-28
+**Version**: 1.4.0 | **Ratified**: 2025-10-28 | **Last Amended**: 2025-10-28
 
 ## Amendment History
+
+### Version 1.4.0 (2025-10-28)
+- Enhanced Principle V: Code Conciseness
+- Mandates comments explain why, not what
+- Prohibits obvious comments that restate code
 
 ### Version 1.3.0 (2025-10-28)
 - Added `-race` flag requirement to Testing Requirements

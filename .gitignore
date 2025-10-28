@@ -48,3 +48,6 @@ tmp/
 dist/
 build/
 bin/
+
+# Example binaries
+examples/x402demo/x402demo

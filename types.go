@@ -1,183 +1,173 @@
-// Package x402 provides types and utilities for implementing the x402 payment protocol.
 package x402
 
-import (
-	"encoding/json"
-	"fmt"
-	"regexp"
-	"strconv"
-)
+import "math/big"
 
-// PaymentRequirement defines a single acceptable payment method for a protected resource.
+// PaymentRequirement represents a single payment option from a 402 response.
 type PaymentRequirement struct {
-	Scheme            string         `json:"scheme"`
-	Network           string         `json:"network"`
-	MaxAmountRequired string         `json:"maxAmountRequired"`
-	Asset             string         `json:"asset"`
-	PayTo             string         `json:"payTo"`
-	Resource          string         `json:"resource"`
-	Description       string         `json:"description"`
-	MimeType          string         `json:"mimeType,omitempty"`
-	OutputSchema      map[string]any `json:"outputSchema,omitempty"`
-	MaxTimeoutSeconds int            `json:"maxTimeoutSeconds"`
-	Extra             map[string]any `json:"extra,omitempty"`
+	// Scheme is the payment scheme identifier (e.g., "exact").
+	Scheme string `json:"scheme"`
+
+	// Network is the blockchain network identifier (e.g., "base", "solana").
+	Network string `json:"network"`
+
+	// MaxAmountRequired is the payment amount in atomic units (e.g., wei, lamports).
+	MaxAmountRequired string `json:"maxAmountRequired"`
+
+	// Asset is the token contract address (EVM) or mint address (Solana).
+	Asset string `json:"asset"`
+
+	// PayTo is the recipient address for the payment.
+	PayTo string `json:"payTo"`
+
+	// Resource is the URL of the protected resource.
+	Resource string `json:"resource"`
+
+	// Description is an optional human-readable payment description.
+	Description string `json:"description"`
+
+	// MimeType is the content type of the protected resource.
+	MimeType string `json:"mimeType"`
+
+	// MaxTimeoutSeconds is the validity period for the payment authorization.
+	MaxTimeoutSeconds int `json:"maxTimeoutSeconds"`
+
+	// Extra contains scheme-specific additional data.
+	Extra map[string]interface{} `json:"extra"`
 }
 
-// PaymentRequirementsResponse is the complete response body for 402 Payment Required status.
+// PaymentRequirementsResponse represents the complete 402 response body.
 type PaymentRequirementsResponse struct {
-	X402Version int                  `json:"x402Version"`
-	Error       string               `json:"error"`
-	Accepts     []PaymentRequirement `json:"accepts"`
+	// X402Version is the protocol version (currently 1).
+	X402Version int `json:"x402Version"`
+
+	// Error is a human-readable error message.
+	Error string `json:"error"`
+
+	// Accepts is an array of payment options the server will accept.
+	Accepts []PaymentRequirement `json:"accepts"`
 }
 
-// PaymentPayload is the payment authorization data sent by the client.
+// PaymentPayload represents a signed payment that will be sent to the server.
 type PaymentPayload struct {
-	X402Version int             `json:"x402Version"`
-	Scheme      string          `json:"scheme"`
-	Network     string          `json:"network"`
-	Payload     json.RawMessage `json:"payload"`
+	// X402Version is the protocol version (currently 1).
+	X402Version int `json:"x402Version"`
+
+	// Scheme is the payment scheme identifier (e.g., "exact").
+	Scheme string `json:"scheme"`
+
+	// Network is the blockchain network identifier.
+	Network string `json:"network"`
+
+	// Payload contains the blockchain-specific signed payment data.
+	// For EVM: EVMPayload with signature and authorization
+	// For Solana: SVMPayload with partially signed transaction
+	Payload interface{} `json:"payload"`
 }
 
-// SchemePayload is an interface for scheme-specific payment data.
-type SchemePayload interface {
-	Validate() error
+// TokenConfig represents configuration for a supported token.
+type TokenConfig struct {
+	// Address is the token contract address (EVM) or mint address (Solana).
+	Address string
+
+	// Symbol is the token symbol (e.g., "USDC", "SOL").
+	Symbol string
+
+	// Decimals is the number of decimal places for the token.
+	Decimals int
+
+	// Priority is the token's priority level within the signer.
+	// Lower numbers indicate higher priority (1 > 2 > 3).
+	// Default is 0 if not set.
+	Priority int
+
+	// Name is an optional human-readable token name.
+	Name string
 }
 
-// EVMPayload contains EIP-3009 authorization for EVM-based chains.
+// EVMPayload represents an EVM payment with EIP-3009 authorization.
 type EVMPayload struct {
-	Signature     string        `json:"signature"`
-	Authorization Authorization `json:"authorization"`
+	// Signature is the hex-encoded ECDSA signature.
+	Signature string `json:"signature"`
+
+	// Authorization contains the EIP-3009 transferWithAuthorization parameters.
+	Authorization EVMAuthorization `json:"authorization"`
 }
 
-// Authorization contains the EIP-3009 authorization fields.
-type Authorization struct {
-	From        string `json:"from"`
-	To          string `json:"to"`
-	Value       string `json:"value"`
-	ValidAfter  string `json:"validAfter"`
+// EVMAuthorization represents EIP-3009 transferWithAuthorization parameters.
+type EVMAuthorization struct {
+	// From is the payer's address.
+	From string `json:"from"`
+
+	// To is the recipient's address.
+	To string `json:"to"`
+
+	// Value is the payment amount in atomic units (wei).
+	Value string `json:"value"`
+
+	// ValidAfter is the unix timestamp after which the authorization is valid.
+	ValidAfter string `json:"validAfter"`
+
+	// ValidBefore is the unix timestamp before which the authorization is valid.
 	ValidBefore string `json:"validBefore"`
-	Nonce       string `json:"nonce"`
+
+	// Nonce is a unique 32-byte hex string to prevent replay attacks.
+	Nonce string `json:"nonce"`
 }
 
-// SVMPayload contains a serialized transaction for Solana-based chains.
+// SVMPayload represents a Solana payment with a partially signed transaction.
 type SVMPayload struct {
+	// Transaction is the base64-encoded partially signed Solana transaction.
+	// The client signs with their private key, and the facilitator adds the fee payer signature.
 	Transaction string `json:"transaction"`
 }
 
-// SettlementResponse contains payment settlement result information.
+// SettlementResponse represents the server's response after payment settlement.
 type SettlementResponse struct {
-	Success     bool   `json:"success"`
+	// Success indicates whether the payment was successfully settled.
+	Success bool `json:"success"`
+
+	// ErrorReason provides details if the payment failed.
 	ErrorReason string `json:"errorReason,omitempty"`
-	Transaction string `json:"transaction"`
-	Network     string `json:"network"`
-	Payer       string `json:"payer"`
+
+	// Transaction is the blockchain transaction hash.
+	Transaction string `json:"transaction,omitempty"`
+
+	// Network is the blockchain network where the payment was settled.
+	Network string `json:"network"`
+
+	// Payer is the address that made the payment.
+	Payer string `json:"payer"`
 }
 
-// EVM address pattern (0x + 40 hex characters)
-var evmAddressPattern = regexp.MustCompile(`^0x[a-fA-F0-9]{40}$`)
+// AmountToBigInt converts a decimal amount string to *big.Int in atomic units.
+// For example, "1.5" with 6 decimals becomes 1500000.
+func AmountToBigInt(amount string, decimals int) (*big.Int, error) {
+	// Parse decimal string and convert to atomic units
+	value := new(big.Float)
+	if _, ok := value.SetString(amount); !ok {
+		return nil, ErrInvalidAmount
+	}
 
-// EVM signature pattern (0x + hex characters)
-var evmSignaturePattern = regexp.MustCompile(`^0x[a-fA-F0-9]+$`)
+	// Multiply by 10^decimals
+	multiplier := new(big.Float).SetInt(new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(decimals)), nil))
+	value.Mul(value, multiplier)
 
-// EVM nonce pattern (0x + 64 hex characters for 32 bytes)
-var evmNoncePattern = regexp.MustCompile(`^0x[a-fA-F0-9]{64}$`)
-
-// Validate validates a PaymentRequirement.
-func (pr *PaymentRequirement) Validate() error {
-	if pr.Scheme == "" {
-		return fmt.Errorf("scheme is required")
-	}
-	if pr.Network == "" {
-		return fmt.Errorf("network is required")
-	}
-	if pr.MaxAmountRequired == "" {
-		return fmt.Errorf("maxAmountRequired is required")
-	}
-	if err := validateAmount(pr.MaxAmountRequired); err != nil {
-		return fmt.Errorf("invalid maxAmountRequired: %w", err)
-	}
-	if pr.Asset == "" {
-		return fmt.Errorf("asset is required")
-	}
-	if pr.PayTo == "" {
-		return fmt.Errorf("payTo is required")
-	}
-	if pr.Resource == "" {
-		return fmt.Errorf("resource is required")
-	}
-	if pr.Description == "" {
-		return fmt.Errorf("description is required")
-	}
-	if pr.MaxTimeoutSeconds <= 0 {
-		return fmt.Errorf("maxTimeoutSeconds must be positive")
-	}
-	return nil
+	// Convert to integer
+	result, _ := value.Int(nil)
+	return result, nil
 }
 
-// Validate validates an EVMPayload.
-func (p *EVMPayload) Validate() error {
-	if !evmSignaturePattern.MatchString(p.Signature) {
-		return fmt.Errorf("invalid signature format")
-	}
-	if !evmAddressPattern.MatchString(p.Authorization.From) {
-		return fmt.Errorf("invalid from address")
-	}
-	if !evmAddressPattern.MatchString(p.Authorization.To) {
-		return fmt.Errorf("invalid to address")
-	}
-	if err := validateAmount(p.Authorization.Value); err != nil {
-		return fmt.Errorf("invalid value: %w", err)
-	}
-	if !evmNoncePattern.MatchString(p.Authorization.Nonce) {
-		return fmt.Errorf("invalid nonce format (must be 32 bytes)")
+// BigIntToAmount converts a *big.Int in atomic units to a decimal string.
+// For example, 1500000 with 6 decimals becomes "1.5".
+func BigIntToAmount(value *big.Int, decimals int) string {
+	if value == nil {
+		return "0"
 	}
 
-	// Validate timestamps
-	validAfter, err := strconv.ParseInt(p.Authorization.ValidAfter, 10, 64)
-	if err != nil {
-		return fmt.Errorf("invalid validAfter timestamp: %w", err)
-	}
-	validBefore, err := strconv.ParseInt(p.Authorization.ValidBefore, 10, 64)
-	if err != nil {
-		return fmt.Errorf("invalid validBefore timestamp: %w", err)
-	}
-	if validBefore <= validAfter {
-		return fmt.Errorf("validBefore must be after validAfter")
-	}
+	// Convert to float and divide by 10^decimals
+	f := new(big.Float).SetInt(value)
+	divisor := new(big.Float).SetInt(new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(decimals)), nil))
+	f.Quo(f, divisor)
 
-	return nil
-}
-
-// Validate validates an SVMPayload.
-func (p *SVMPayload) Validate() error {
-	if p.Transaction == "" {
-		return fmt.Errorf("transaction is required")
-	}
-	// Note: Full base64 validation and Solana transaction deserialization
-	// would be done by the facilitator
-	return nil
-}
-
-// validateAmount validates that an amount string is a positive numeric value.
-func validateAmount(amount string) error {
-	if amount == "" {
-		return fmt.Errorf("amount cannot be empty")
-	}
-	// Parse as integer to ensure it's a valid number
-	val, err := strconv.ParseUint(amount, 10, 64)
-	if err != nil {
-		return fmt.Errorf("amount must be a valid positive integer: %w", err)
-	}
-	if val == 0 {
-		return fmt.Errorf("amount must be greater than zero")
-	}
-	return nil
-}
-
-// ValidateEVMAddress validates an EVM address format.
-func ValidateEVMAddress(address string) error {
-	if !evmAddressPattern.MatchString(address) {
-		return fmt.Errorf("invalid EVM address format (must be 0x + 40 hex characters)")
-	}
-	return nil
+	return f.Text('f', decimals)
 }
