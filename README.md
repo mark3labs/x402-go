@@ -125,7 +125,7 @@ client, err := x402http.NewClient(x402http.WithSigner(signer))
 resp, err := client.Get("https://api.example.com/data")
 ```
 
-**Supported Solana networks:** `solana`, `solana-devnet`, `testnet`, `mainnet-beta`
+**Supported Solana networks:** `solana`, `solana-devnet`
 
 ### Multi-wallet Client
 
