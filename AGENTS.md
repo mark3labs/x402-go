@@ -2,11 +2,12 @@
 
 ## Build & Test Commands
 - **Build**: `go build ./...` - Builds all packages
-- **Test All**: `go test ./...` - Runs all tests  
-- **Test Single**: `go test -run TestName ./path/to/package` - Run specific test
-- **Test Coverage**: `go test -cover ./...` - Run tests with coverage
+- **Test All**: `go test -race ./...` - Runs all tests with race detection
+- **Test Single**: `go test -race -run TestName ./path/to/package` - Run specific test with race detection
+- **Test Coverage**: `go test -race -cover ./...` - Run tests with coverage and race detection
 - **Format**: `go fmt ./...` - Format all Go files
-- **Lint**: `go vet ./...` - Run Go static analysis
+- **Lint (Go)**: `go vet ./...` - Run Go static analysis
+- **Lint (Full)**: `golangci-lint run` - Run comprehensive linting
 
 ## Code Style & Conventions
 - **Package Structure**: Use `cmd/` for executables, `internal/` for private packages, `pkg/` for public libraries
@@ -20,3 +21,10 @@
 - **Project Scripts**: Use `.specify/scripts/bash/` for automation scripts (check-prerequisites.sh, create-new-feature.sh, etc.)
 
 ## Module: github.com/mark3labs/x402-go | Go Version: 1.25.1
+
+## Active Technologies
+- Go 1.25.1 + Go standard library (net/http, encoding/json, encoding/base64, context) (001-x402-payment-middleware)
+- N/A (stateless middleware, nonce tracking delegated to facilitator) (001-x402-payment-middleware)
+
+## Recent Changes
+- 001-x402-payment-middleware: Added Go 1.25.1 + Go standard library (net/http, encoding/json, encoding/base64, context)

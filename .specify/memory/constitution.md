@@ -46,6 +46,13 @@ naming, or complex hierarchies. Code should be as simple as possible but no
 simpler. Favor clarity and directness over clever solutions. Every line should
 earn its place through clear value addition.
 
+### VI. Binary Cleanup
+Build artifacts and compiled binaries must never be committed to the repository.
+After building examples or running compilation tests, all binary files must be
+removed before committing changes. This includes executables, .exe files, .out
+files, and any other compiled artifacts. The .gitignore must properly exclude
+these files, and developers must verify no binaries exist before creating commits.
+
 ## Development Standards
 
 ### Testing Requirements
@@ -53,13 +60,22 @@ earn its place through clear value addition.
 - Integration tests required for inter-package communication
 - Table-driven tests preferred for comprehensive coverage
 - Mock external dependencies to ensure test isolation
+- All tests must run with `-race` flag to detect race conditions
 - Minimum coverage threshold: maintain or exceed existing levels
 
 ### Code Quality Gates
 - All code must pass `go fmt` formatting
 - All code must pass `go vet` static analysis
+- All code must pass `golangci-lint` linting
 - All tests must pass before merge
 - Coverage reports reviewed on every PR
+- No compiled binaries or build artifacts in commits
+
+### Binary Management
+- Remove all binaries after building examples: `find examples -type f -executable -delete`
+- Verify clean state before commits: `git status` should show no binaries
+- Use .gitignore patterns to exclude: `*.exe`, `*.out`, `*.test`, executable files
+- Build artifacts belong in `bin/`, `build/`, or `dist/` (all gitignored)
 
 ## Governance
 
@@ -74,4 +90,19 @@ All pull requests and code reviews must verify compliance with these
 principles. Violations must be corrected before merge. Use AGENTS.md for
 Go-specific development guidance and tooling commands.
 
-**Version**: 1.0.0 | **Ratified**: 2025-10-28 | **Last Amended**: 2025-10-28
+**Version**: 1.3.0 | **Ratified**: 2025-10-28 | **Last Amended**: 2025-10-28
+
+## Amendment History
+
+### Version 1.3.0 (2025-10-28)
+- Added `-race` flag requirement to Testing Requirements
+- Mandates race condition detection for all test runs
+
+### Version 1.2.0 (2025-10-28)
+- Added `golangci-lint` requirement to Code Quality Gates
+- Enforces comprehensive linting beyond basic `go vet` checks
+
+### Version 1.1.0 (2025-10-28)
+- Added Principle VI: Binary Cleanup
+- Added Binary Management section to Development Standards
+- Mandates removal of all compiled binaries before commits
