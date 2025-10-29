@@ -21,18 +21,9 @@ paths:
         Any endpoint protected by the PocketBase x402 middleware follows this request/response pattern.
         The middleware intercepts requests before they reach the handler.
       
-      parameters:
-        - name: X-PAYMENT
-          in: header
-          required: false
-          description: |
-            Base64-encoded JSON payment payload. If missing, returns 402.
-            Format: base64({"x402Version": 1, "scheme": "exact", "network": "base", "payload": {...}})
-          schema:
-            type: string
-            format: base64
-          example: eyJ4NDAyVmVyc2lvbiI6MSwic2NoZW1lIjoiZXhhY3QiLCJuZXR3b3JrIjoiYmFzZSIsInBheWxvYWQiOnsidHJhbnNhY3Rpb24iOiIuLi4ifX0=
-
+      security:
+        - X-PAYMENT: []
+      
       responses:
         '200':
           description: Payment verified and settled, protected handler executed
@@ -97,6 +88,17 @@ paths:
                     error: "Payment settlement failed"
 
 components:
+  securitySchemes:
+    X-PAYMENT:
+      type: apiKey
+      in: header
+      name: X-PAYMENT
+      description: |
+        Base64-encoded JSON payment payload for x402 protocol.
+        Format: base64({"x402Version": 1, "scheme": "exact", "network": "base", "payload": {...}})
+        
+        The payment must match one of the accepted PaymentRequirements advertised in the 402 response.
+
   schemas:
     ErrorResponse:
       type: object

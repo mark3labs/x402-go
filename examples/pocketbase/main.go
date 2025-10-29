@@ -17,13 +17,13 @@ func main() {
 
 	// Configure payment requirements
 	config := &httpx402.Config{
-		FacilitatorURL: "https://api.x402.coinbase.com",
+		FacilitatorURL: "https://api.x402.coinbase.com", // Production facilitator - replace if using your own
 		PaymentRequirements: []x402.PaymentRequirement{{
 			Scheme:            "exact",
-			Network:           "base-sepolia",                               // testnet
+			Network:           "base-sepolia",                               // TESTNET - change to "base" for production
 			MaxAmountRequired: "10000",                                      // 0.01 USDC (USDC has 6 decimals: 1 USDC = 1,000,000 atomic units)
-			Asset:             "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // USDC on base-sepolia
-			PayTo:             "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0", // your wallet
+			Asset:             "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // USDC on base-sepolia - use production USDC for mainnet
+			PayTo:             "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0", // REPLACE WITH YOUR WALLET ADDRESS
 			MaxTimeoutSeconds: 300,
 		}},
 	}
