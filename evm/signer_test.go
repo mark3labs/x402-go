@@ -374,19 +374,29 @@ func TestSign(t *testing.T) {
 
 func TestChainIDMapping(t *testing.T) {
 	tests := []struct {
-		network string
-		chainID int64
+		network   string
+		chainID   int64
+		expectErr bool
 	}{
-		{"base", 8453},
-		{"base-sepolia", 84532},
-		{"ethereum", 1},
-		{"sepolia", 11155111},
-		{"unknown", 0},
+		{"base", 8453, false},
+		{"base-sepolia", 84532, false},
+		{"ethereum", 1, false},
+		{"sepolia", 11155111, false},
+		{"unknown", 0, true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.network, func(t *testing.T) {
-			chainID := getChainID(tt.network)
+			chainID, err := getChainID(tt.network)
+			if tt.expectErr {
+				if err == nil {
+					t.Error("expected error for unknown network, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
 			if chainID.Int64() != tt.chainID {
 				t.Errorf("expected chain ID %d, got %d", tt.chainID, chainID.Int64())
 			}
