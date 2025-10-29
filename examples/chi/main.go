@@ -95,7 +95,7 @@ func main() {
 			"info":    "Try /data endpoint to test x402 payments",
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	})
 
 	// Paywalled endpoint group
@@ -121,7 +121,7 @@ func main() {
 			}
 
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(response)
+			_ = json.NewEncoder(w).Encode(response)
 		})
 	})
 
