@@ -2,109 +2,56 @@
 
 Go implementation of the x402 payment standard for paywalled HTTP endpoints.
 
-## Quick Start with Chain Helpers
+## Overview
 
-The library provides USDC chain constants and helper functions to quickly set up x402 payments:
+x402-go makes it simple to add crypto payments to HTTP APIs. This library provides:
 
-```go
-import "github.com/mark3labs/x402-go"
+- **USDC helpers** for easy payment setup across 8+ chains (Base, Polygon, Avalanche, Solana)
+- **Middleware** for standard `net/http` and Gin framework
+- **HTTP client** with automatic payment handling
+- **Multi-chain support** with automatic wallet selection
 
-// Create USDC payment requirement using chain constants
-req, err := x402.NewUSDCPaymentRequirement(x402.USDCRequirementConfig{
-    Chain:            x402.BaseMainnet,  // Built-in USDC chain constant
-    Amount:           "1.50",             // Human-readable USDC amount
-    RecipientAddress: "0xYourAddress",
-})
+## Quick Start
 
-// Create USDC token config for client
-token := x402.NewUSDCTokenConfig(x402.BaseMainnet, 1)  // Priority 1
-```
+### Server: Accept USDC Payments
 
-**Available chain constants:** `BaseMainnet`, `BaseSepolia`, `PolygonMainnet`, `PolygonAmoy`, `AvalancheMainnet`, `AvalancheFuji`, `SolanaMainnet`, `SolanaDevnet`
-
-See `examples/basic/main.go` for complete examples.
-
-## Creating a Paywalled Server
+Use the USDC helpers to create payment requirements in just a few lines:
 
 ```go
 import (
+    "net/http"
     "github.com/mark3labs/x402-go"
     x402http "github.com/mark3labs/x402-go/http"
 )
 
-// Configure payment requirements
-config := &x402http.Config{
-    FacilitatorURL: "https://facilitator.x402.rs",
-    PaymentRequirements: []x402.PaymentRequirement{
-        {
-            Scheme:            "exact",
-            Network:           "base-sepolia",
-            MaxAmountRequired: "10000",  // 0.01 USDC (6 decimals)
-            Asset:             "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-            PayTo:             "0xYourAddress",
-            Description:       "API Access",
-            MaxTimeoutSeconds: 60,
-        },
-    },
-}
+func main() {
+    // Create payment requirement using USDC helper
+    requirement, _ := x402.NewUSDCPaymentRequirement(x402.USDCRequirementConfig{
+        Chain:            x402.BaseMainnet,
+        Amount:           "0.01",           // Human-readable USDC amount
+        RecipientAddress: "0xYourAddress",
+    })
 
-// Create middleware and protect endpoints
-middleware := x402http.NewX402Middleware(config)
-http.Handle("/protected", middleware(yourHandler))
-```
-
-### Using with Gin Framework
-
-```go
-import (
-    ginx402 "github.com/mark3labs/x402-go/http/gin"
-    "github.com/gin-gonic/gin"
-)
-
-// Create Gin router
-r := gin.Default()
-
-// Apply x402 middleware
-r.Use(ginx402.NewGinX402Middleware(config))
-
-// Protected endpoint
-r.GET("/data", func(c *gin.Context) {
-    // Access payment info from context
-    if payment, exists := c.Get("x402_payment"); exists {
-        verifyResp := payment.(*x402http.VerifyResponse)
-        c.JSON(200, gin.H{"payer": verifyResp.Payer})
+    // Configure middleware
+    config := &x402http.Config{
+        FacilitatorURL: "https://facilitator.x402.rs",
+        PaymentRequirements: []x402.PaymentRequirement{requirement},
     }
-})
-```
 
-See `examples/gin/` for complete Gin examples.
-
-### Multi-chain pricing
-
-```go
-PaymentRequirements: []x402.PaymentRequirement{
-    // Accept Base USDC
-    {
-        Scheme:            "exact",
-        Network:           "base",
-        MaxAmountRequired: "1000000",  // 1 USDC
-        Asset:             "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-        PayTo:             "0xYourAddress",
-    },
-    // Or Solana USDC
-    {
-        Scheme:            "exact",
-        Network:           "solana",
-        MaxAmountRequired: "1000000",  // 1 USDC
-        Asset:             "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-        PayTo:             "YourSolanaAddress",
-    },
+    // Protect your endpoint
+    middleware := x402http.NewX402Middleware(config)
+    http.Handle("/data", middleware(yourHandler))
+    http.ListenAndServe(":8080", nil)
 }
 ```
 
-## Creating a Payment Client
+That's it! The helper automatically:
+- Converts "0.01" to atomic units (10000)
+- Sets the correct USDC contract address
+- Configures EIP-3009 domain parameters
+- Applies sensible defaults
 
-### EVM Wallet
+### Client: Pay for API Access
 
 ```go
 import (
@@ -112,56 +59,207 @@ import (
     x402http "github.com/mark3labs/x402-go/http"
 )
 
-// Create EVM signer
-signer, err := evm.NewSigner(
-    evm.WithPrivateKey("0xYourPrivateKey"),
+// Create USDC token config using helper
+token := x402.NewUSDCTokenConfig(x402.BaseMainnet, 1)
+
+// Create signer with your wallet
+signer, _ := evm.NewSigner(
+    evm.WithPrivateKey("0xYourKey"),
     evm.WithNetwork("base"),
-    evm.WithToken("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", "USDC", 6),
-    evm.WithMaxAmountPerCall("5000000"),  // Optional: 5 USDC max per call
+    evm.WithToken(token.Address, token.Symbol, token.Decimals),
 )
 
-// Create client
-client, err := x402http.NewClient(x402http.WithSigner(signer))
-
-// Make requests (payment handled automatically)
-resp, err := client.Get("https://api.example.com/data")
+// Create client - payments happen automatically
+client, _ := x402http.NewClient(x402http.WithSigner(signer))
+resp, _ := client.Get("https://api.example.com/data")
 ```
 
-**Supported EVM networks:** `base`, `base-sepolia`, `ethereum`, `sepolia`
+## USDC Chain Support
 
-### Solana Wallet
+The library includes pre-configured USDC constants for these chains:
+
+| Chain | Mainnet Constant | Testnet Constant |
+|-------|-----------------|------------------|
+| Base | `BaseMainnet` | `BaseSepolia` |
+| Polygon | `PolygonMainnet` | `PolygonAmoy` |
+| Avalanche | `AvalancheMainnet` | `AvalancheFuji` |
+| Solana | `SolanaMainnet` | `SolanaDevnet` |
+
+All USDC addresses are verified and include EIP-3009 parameters for EVM chains.
+
+## Server Examples
+
+### Accept Multiple Chains
+
+Let clients pay with USDC on any supported chain:
+
+```go
+requirements := []x402.PaymentRequirement{}
+
+// Accept Base USDC
+baseReq, _ := x402.NewUSDCPaymentRequirement(x402.USDCRequirementConfig{
+    Chain:            x402.BaseMainnet,
+    Amount:           "0.50",
+    RecipientAddress: "0xYourAddress",
+})
+requirements = append(requirements, baseReq)
+
+// Or Polygon USDC
+polygonReq, _ := x402.NewUSDCPaymentRequirement(x402.USDCRequirementConfig{
+    Chain:            x402.PolygonMainnet,
+    Amount:           "0.50",
+    RecipientAddress: "0xYourAddress",
+})
+requirements = append(requirements, polygonReq)
+
+// Or Solana USDC
+solanaReq, _ := x402.NewUSDCPaymentRequirement(x402.USDCRequirementConfig{
+    Chain:            x402.SolanaMainnet,
+    Amount:           "0.50",
+    RecipientAddress: "YourSolanaAddress",
+})
+requirements = append(requirements, solanaReq)
+
+config := &x402http.Config{
+    FacilitatorURL: "https://facilitator.x402.rs",
+    PaymentRequirements: requirements,
+}
+```
+
+### Using with Gin Framework
 
 ```go
 import (
+    "github.com/gin-gonic/gin"
+    "github.com/mark3labs/x402-go"
+    ginx402 "github.com/mark3labs/x402-go/http/gin"
+)
+
+func main() {
+    // Create payment requirement
+    requirement, _ := x402.NewUSDCPaymentRequirement(x402.USDCRequirementConfig{
+        Chain:            x402.BaseSepolia,
+        Amount:           "0.01",
+        RecipientAddress: "0xYourAddress",
+    })
+
+    config := &x402http.Config{
+        FacilitatorURL: "https://facilitator.x402.rs",
+        PaymentRequirements: []x402.PaymentRequirement{requirement},
+    }
+
+    // Setup Gin with x402 middleware
+    r := gin.Default()
+    r.Use(ginx402.NewGinX402Middleware(config))
+
+    r.GET("/data", func(c *gin.Context) {
+        // Access payment details from context
+        if payment, exists := c.Get("x402_payment"); exists {
+            verifyResp := payment.(*x402http.VerifyResponse)
+            c.JSON(200, gin.H{
+                "data": "your response",
+                "payer": verifyResp.Payer,
+            })
+            return
+        }
+        c.JSON(402, gin.H{"error": "payment required"})
+    })
+
+    r.Run(":8080")
+}
+```
+
+See `examples/gin/` for complete examples.
+
+### Custom Configuration
+
+Override defaults for specific use cases:
+
+```go
+requirement, _ := x402.NewUSDCPaymentRequirement(x402.USDCRequirementConfig{
+    Chain:             x402.BaseMainnet,
+    Amount:            "2.50",
+    RecipientAddress:  "0xYourAddress",
+    Scheme:            "estimate",        // Default: "exact"
+    MaxTimeoutSeconds: 600,               // Default: 300
+    MimeType:          "application/xml", // Default: "application/json"
+})
+```
+
+## Client Examples
+
+### Single Chain Client
+
+```go
+import (
+    "github.com/mark3labs/x402-go"
+    "github.com/mark3labs/x402-go/evm"
+    x402http "github.com/mark3labs/x402-go/http"
+)
+
+// Use USDC helper for token config
+token := x402.NewUSDCTokenConfig(x402.BaseMainnet, 1)
+
+signer, _ := evm.NewSigner(
+    evm.WithPrivateKey("0xYourPrivateKey"),
+    evm.WithNetwork("base"),
+    evm.WithToken(token.Address, token.Symbol, token.Decimals),
+)
+
+client, _ := x402http.NewClient(x402http.WithSigner(signer))
+resp, _ := client.Get("https://api.example.com/data")
+```
+
+### Multi-Chain Client
+
+Configure multiple wallets and the client will automatically choose the best one:
+
+```go
+// Setup Base wallet
+baseToken := x402.NewUSDCTokenConfig(x402.BaseMainnet, 1)  // Priority 1 (highest)
+baseSigner, _ := evm.NewSigner(
+    evm.WithPrivateKey("0xYourKey"),
+    evm.WithNetwork("base"),
+    evm.WithToken(baseToken.Address, baseToken.Symbol, baseToken.Decimals),
+)
+
+// Setup Solana wallet
+solanaToken := x402.NewUSDCTokenConfig(x402.SolanaMainnet, 2)  // Priority 2
+solanaSigner, _ := svm.NewSigner(
+    svm.WithPrivateKey("YourSolanaKey"),
+    svm.WithNetwork("solana"),
+    svm.WithToken(solanaToken.Address, solanaToken.Symbol, solanaToken.Decimals),
+)
+
+// Client automatically selects appropriate wallet
+client, _ := x402http.NewClient(
+    x402http.WithSigner(baseSigner),
+    x402http.WithSigner(solanaSigner),
+)
+
+// Works with any paywalled endpoint
+resp, _ := client.Get("https://api.example.com/data")
+```
+
+### Solana Client
+
+```go
+import (
+    "github.com/mark3labs/x402-go"
     "github.com/mark3labs/x402-go/svm"
     x402http "github.com/mark3labs/x402-go/http"
 )
 
-// Create Solana signer
-signer, err := svm.NewSigner(
-    svm.WithPrivateKey("Base58PrivateKey"),  // Or WithKeygenFile("~/.config/solana/id.json")
+// Use USDC helper for token config
+token := x402.NewUSDCTokenConfig(x402.SolanaMainnet, 1)
+
+signer, _ := svm.NewSigner(
+    svm.WithPrivateKey("Base58PrivateKey"),
+    // Or load from file: svm.WithKeygenFile("~/.config/solana/id.json")
     svm.WithNetwork("solana"),
-    svm.WithToken("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", "USDC", 6),
+    svm.WithToken(token.Address, token.Symbol, token.Decimals),
 )
 
-// Create client
-client, err := x402http.NewClient(x402http.WithSigner(signer))
-
-// Make requests
-resp, err := client.Get("https://api.example.com/data")
-```
-
-**Supported Solana networks:** `solana`, `solana-devnet`
-
-### Multi-wallet Client
-
-```go
-// Add multiple signers for automatic network selection
-client, err := x402http.NewClient(
-    x402http.WithSigner(evmSigner),
-    x402http.WithSigner(svmSigner),
-)
-
-// Client automatically selects appropriate wallet based on server requirements
-resp, err := client.Get(anyPaywalledURL)
+client, _ := x402http.NewClient(x402http.WithSigner(signer))
+resp, _ := client.Get("https://api.example.com/data")
 ```
