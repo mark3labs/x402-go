@@ -127,6 +127,9 @@ For more details, see README.md and QUICKSTART.md.
 - File-based persistence for budget tracking (JSON files in user config directory) (002-x402-client)
 - Go 1.25.1 + Go standard library (strconv, fmt, encoding/json) (003-helpers-constants)
 - N/A (constants and pure functions) (003-helpers-constants)
+- Go 1.25.1 + Gin framework (github.com/gin-gonic/gin), existing x402-go core package (004-gin-middleware)
+- N/A (stateless middleware, payment tracking delegated to facilitator) (004-gin-middleware)
+- Go 1.25.1 + Gin (github.com/gin-gonic/gin), existing x402-go core package (004-gin-middleware)
 
 ## Recent Changes
 - 001-x402-payment-middleware: Added Go 1.25.1 + Go standard library (net/http, encoding/json, encoding/base64, context)
