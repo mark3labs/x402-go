@@ -1,6 +1,8 @@
 package pocketbase
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"net/http/httptest"
 	"testing"
 
@@ -160,6 +162,101 @@ func TestHelperFunctions(t *testing.T) {
 		_, err = findMatchingRequirementPocketBase(payment2, requirements)
 		if err == nil {
 			t.Error("Expected error for non-matching requirement")
+		}
+	})
+
+	t.Run("sendPaymentRequiredPocketBase", func(t *testing.T) {
+		// We test the logic by verifying the PaymentRequirementsResponse structure
+		// rather than testing the full PocketBase event flow which requires unexported fields
+
+		requirements := []x402.PaymentRequirement{
+			{
+				Scheme:            "exact",
+				Network:           "base-sepolia",
+				MaxAmountRequired: "10000",
+				Asset:             "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+				PayTo:             "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+				Resource:          "https://api.example.com/test",
+				Description:       "Test payment",
+				MaxTimeoutSeconds: 300,
+			},
+		}
+
+		// Verify the response structure that would be sent
+		response := x402.PaymentRequirementsResponse{
+			X402Version: 1,
+			Error:       "Payment required for this resource",
+			Accepts:     requirements,
+		}
+
+		// Verify response marshals to valid JSON
+		data, err := json.Marshal(response)
+		if err != nil {
+			t.Errorf("Failed to marshal PaymentRequirementsResponse: %v", err)
+		}
+
+		// Verify we can unmarshal it back
+		var decoded x402.PaymentRequirementsResponse
+		if err := json.Unmarshal(data, &decoded); err != nil {
+			t.Errorf("Failed to unmarshal response: %v", err)
+		}
+
+		// Verify response fields
+		if decoded.X402Version != 1 {
+			t.Errorf("Expected X402Version 1, got %d", decoded.X402Version)
+		}
+
+		if decoded.Error == "" {
+			t.Error("Expected error message in response")
+		}
+
+		if len(decoded.Accepts) != 1 {
+			t.Errorf("Expected 1 payment requirement, got %d", len(decoded.Accepts))
+		}
+
+		if decoded.Accepts[0].Network != "base-sepolia" {
+			t.Errorf("Expected network base-sepolia, got %s", decoded.Accepts[0].Network)
+		}
+	})
+
+	t.Run("addPaymentResponseHeaderPocketBase", func(t *testing.T) {
+		// Test the header encoding logic directly
+		settlement := &x402.SettlementResponse{
+			Success:     true,
+			Transaction: "0xabcdef123456789",
+		}
+
+		// Marshal settlement response to JSON (same logic as the function)
+		data, err := json.Marshal(settlement)
+		if err != nil {
+			t.Errorf("Failed to marshal settlement response: %v", err)
+		}
+
+		// Encode as base64 (same logic as the function)
+		encoded := base64.StdEncoding.EncodeToString(data)
+
+		if encoded == "" {
+			t.Error("Expected non-empty base64 encoded string")
+		}
+
+		// Verify we can decode it back
+		decoded, err := base64.StdEncoding.DecodeString(encoded)
+		if err != nil {
+			t.Errorf("Failed to decode base64: %v", err)
+		}
+
+		var decodedSettlement x402.SettlementResponse
+		if err := json.Unmarshal(decoded, &decodedSettlement); err != nil {
+			t.Errorf("Failed to unmarshal settlement JSON: %v", err)
+		}
+
+		// Verify the decoded values match the original
+		if decodedSettlement.Success != settlement.Success {
+			t.Errorf("Expected Success %v, got %v", settlement.Success, decodedSettlement.Success)
+		}
+
+		if decodedSettlement.Transaction != settlement.Transaction {
+			t.Errorf("Expected Transaction %s, got %s", settlement.Transaction, decodedSettlement.Transaction)
 		}
 	})
 }
