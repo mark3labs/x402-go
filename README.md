@@ -178,6 +178,7 @@ import (
     "github.com/pocketbase/pocketbase"
     "github.com/pocketbase/pocketbase/core"
     "github.com/mark3labs/x402-go"
+    x402http "github.com/mark3labs/x402-go/http"
     pbx402 "github.com/mark3labs/x402-go/http/pocketbase"
 )
 
