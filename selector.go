@@ -39,10 +39,12 @@ func (s *DefaultPaymentSelector) SelectAndSign(requirements []PaymentRequirement
 
 	// Try each requirement option and find the best signer match
 	type requirementCandidate struct {
-		requirement    *PaymentRequirement
-		signer         Signer
-		signerPriority int
-		tokenPriority  int
+		requirement      *PaymentRequirement
+		signer           Signer
+		signerPriority   int
+		tokenPriority    int
+		signerIndex      int // Index of signer in configuration (for deterministic tie-breaking)
+		requirementIndex int // Index of requirement option (for deterministic tie-breaking)
 	}
 
 	var allCandidates []requirementCandidate
@@ -62,7 +64,7 @@ func (s *DefaultPaymentSelector) SelectAndSign(requirements []PaymentRequirement
 		hasValidRequirement = true
 
 		// Find all signers that can satisfy this requirement
-		for _, signer := range signers {
+		for signerIndex, signer := range signers {
 			if !signer.CanSign(req) {
 				continue
 			}
@@ -83,10 +85,12 @@ func (s *DefaultPaymentSelector) SelectAndSign(requirements []PaymentRequirement
 			}
 
 			allCandidates = append(allCandidates, requirementCandidate{
-				requirement:    req,
-				signer:         signer,
-				signerPriority: signer.GetPriority(),
-				tokenPriority:  tokenPriority,
+				requirement:      req,
+				signer:           signer,
+				signerPriority:   signer.GetPriority(),
+				tokenPriority:    tokenPriority,
+				signerIndex:      signerIndex,
+				requirementIndex: i,
 			})
 		}
 	}
@@ -106,13 +110,20 @@ func (s *DefaultPaymentSelector) SelectAndSign(requirements []PaymentRequirement
 			WithDetails("options", strings.Join(errorDetails, ", "))
 	}
 
-	// Sort by priority (signer first, then token)
+	// Sort by priority (signer first, then token, then configuration order)
 	// Lower priority numbers come first (1 > 2 > 3)
+	// For ties, use configuration order (signer index, then requirement index)
 	sort.Slice(allCandidates, func(i, j int) bool {
 		if allCandidates[i].signerPriority != allCandidates[j].signerPriority {
 			return allCandidates[i].signerPriority < allCandidates[j].signerPriority
 		}
-		return allCandidates[i].tokenPriority < allCandidates[j].tokenPriority
+		if allCandidates[i].tokenPriority != allCandidates[j].tokenPriority {
+			return allCandidates[i].tokenPriority < allCandidates[j].tokenPriority
+		}
+		if allCandidates[i].signerIndex != allCandidates[j].signerIndex {
+			return allCandidates[i].signerIndex < allCandidates[j].signerIndex
+		}
+		return allCandidates[i].requirementIndex < allCandidates[j].requirementIndex
 	})
 
 	// Use the highest priority signer and requirement combination

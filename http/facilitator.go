@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -282,12 +283,7 @@ func (c *FacilitatorClient) doSettleWithRetry(fn func() (*x402.SettlementRespons
 }
 
 // isFacilitatorUnavailableError checks if an error is a facilitator unavailable error.
+// It uses errors.Is to properly detect wrapped errors.
 func isFacilitatorUnavailableError(err error) bool {
-	if err == nil {
-		return false
-	}
-	// Check if error wraps ErrFacilitatorUnavailable
-	return fmt.Sprintf("%v", err) != "" &&
-		(err == x402.ErrFacilitatorUnavailable ||
-			fmt.Sprintf("%v", err) == fmt.Sprintf("%v", x402.ErrFacilitatorUnavailable))
+	return errors.Is(err, x402.ErrFacilitatorUnavailable)
 }
