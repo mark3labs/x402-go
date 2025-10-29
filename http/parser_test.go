@@ -916,14 +916,14 @@ func TestParsePaymentRequirements_ConflictingRequirements(t *testing.T) {
 				Body: io.NopCloser(strings.NewReader(body)),
 			}
 
-			requirement, err := parsePaymentRequirements(resp)
+			requirements, err := parsePaymentRequirements(resp)
 
 			if tt.wantErr {
 				if err == nil {
 					t.Error("expected error, got nil")
 				}
-				if requirement != nil {
-					t.Error("expected nil requirement on error")
+				if requirements != nil {
+					t.Error("expected nil requirements on error")
 				}
 				return
 			}
@@ -933,17 +933,20 @@ func TestParsePaymentRequirements_ConflictingRequirements(t *testing.T) {
 			}
 
 			if tt.expectValid {
-				if requirement == nil {
-					t.Fatal("expected non-nil requirement")
+				if requirements == nil {
+					t.Fatal("expected non-nil requirements")
 				}
-				// Verify we got the first requirement from accepts array
-				if requirement.Network == "" {
+				if len(requirements) == 0 {
+					t.Fatal("expected at least one requirement")
+				}
+				// Verify we got requirements from accepts array
+				if requirements[0].Network == "" {
 					t.Error("expected network to be set")
 				}
-				if requirement.Scheme == "" {
+				if requirements[0].Scheme == "" {
 					t.Error("expected scheme to be set")
 				}
-				if requirement.MaxAmountRequired == "" {
+				if requirements[0].MaxAmountRequired == "" {
 					t.Error("expected maxAmountRequired to be set")
 				}
 			}

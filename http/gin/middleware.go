@@ -121,17 +121,6 @@ func NewGinX402Middleware(config *httpx402.Config) gin.HandlerFunc {
 			return
 		}
 
-		// DEBUG: Log parsed payment
-		if payloadMap, ok := payment.Payload.(map[string]any); ok {
-			if tx, ok := payloadMap["transaction"].(string); ok {
-				logger.Info("📥 GIN MIDDLEWARE RECEIVED PAYMENT",
-					"network", payment.Network,
-					"scheme", payment.Scheme,
-					"tx_length", len(tx),
-					"tx_preview", tx[:min(50, len(tx))])
-			}
-		}
-
 		// Find matching requirement
 		requirement, err := findMatchingRequirementGin(payment, requirementsWithResource)
 		if err != nil {

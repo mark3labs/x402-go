@@ -10,7 +10,8 @@ import (
 type PaymentSelector interface {
 	// SelectAndSign chooses the best signer from the available signers
 	// and creates a signed payment for the given requirements.
-	SelectAndSign(requirements *PaymentRequirement, signers []Signer) (*PaymentPayload, error)
+	// It selects from multiple payment requirement options provided by the server.
+	SelectAndSign(requirements []PaymentRequirement, signers []Signer) (*PaymentPayload, error)
 }
 
 // DefaultPaymentSelector implements the standard payment selection algorithm.
@@ -27,77 +28,112 @@ func NewDefaultPaymentSelector() *DefaultPaymentSelector {
 }
 
 // SelectAndSign implements PaymentSelector.
-func (s *DefaultPaymentSelector) SelectAndSign(requirements *PaymentRequirement, signers []Signer) (*PaymentPayload, error) {
+func (s *DefaultPaymentSelector) SelectAndSign(requirements []PaymentRequirement, signers []Signer) (*PaymentPayload, error) {
 	if len(signers) == 0 {
 		return nil, NewPaymentError(ErrCodeNoValidSigner, "no signers configured", ErrNoValidSigner)
 	}
 
-	// Parse required amount
-	requiredAmount := new(big.Int)
-	if _, ok := requiredAmount.SetString(requirements.MaxAmountRequired, 10); !ok {
+	if len(requirements) == 0 {
+		return nil, NewPaymentError(ErrCodeInvalidRequirements, "no payment requirements provided", ErrInvalidRequirements)
+	}
+
+	// Try each requirement option and find the best signer match
+	type requirementCandidate struct {
+		requirement      *PaymentRequirement
+		signer           Signer
+		signerPriority   int
+		tokenPriority    int
+		signerIndex      int // Index of signer in configuration (for deterministic tie-breaking)
+		requirementIndex int // Index of requirement option (for deterministic tie-breaking)
+	}
+
+	var allCandidates []requirementCandidate
+	hasValidRequirement := false
+
+	for i := range requirements {
+		req := &requirements[i]
+
+		// Parse required amount
+		requiredAmount := new(big.Int)
+		if _, ok := requiredAmount.SetString(req.MaxAmountRequired, 10); !ok {
+			// If all requirements are invalid, we should return an error
+			// But continue checking other requirements first
+			continue
+		}
+
+		hasValidRequirement = true
+
+		// Find all signers that can satisfy this requirement
+		for signerIndex, signer := range signers {
+			if !signer.CanSign(req) {
+				continue
+			}
+
+			// Check max amount limit
+			maxAmount := signer.GetMaxAmount()
+			if maxAmount != nil && requiredAmount.Cmp(maxAmount) > 0 {
+				continue
+			}
+
+			// Find matching token and its priority
+			tokenPriority := 0
+			for _, token := range signer.GetTokens() {
+				if strings.EqualFold(token.Address, req.Asset) {
+					tokenPriority = token.Priority
+					break
+				}
+			}
+
+			allCandidates = append(allCandidates, requirementCandidate{
+				requirement:      req,
+				signer:           signer,
+				signerPriority:   signer.GetPriority(),
+				tokenPriority:    tokenPriority,
+				signerIndex:      signerIndex,
+				requirementIndex: i,
+			})
+		}
+	}
+
+	// If no valid requirements were found, return an error
+	if !hasValidRequirement {
 		return nil, NewPaymentError(ErrCodeInvalidRequirements, "invalid amount in requirements", ErrInvalidRequirements)
 	}
 
-	// Find all signers that can satisfy the requirements
-	var candidates []signerCandidate
-	for _, signer := range signers {
-		if !signer.CanSign(requirements) {
-			continue
+	if len(allCandidates) == 0 {
+		// Build error details from all requirements
+		errorDetails := make([]string, 0, len(requirements))
+		for _, req := range requirements {
+			errorDetails = append(errorDetails, req.Network+":"+req.Asset)
 		}
-
-		// Check max amount limit
-		maxAmount := signer.GetMaxAmount()
-		if maxAmount != nil && requiredAmount.Cmp(maxAmount) > 0 {
-			continue
-		}
-
-		// Find matching token and its priority
-		tokenPriority := 0
-		for _, token := range signer.GetTokens() {
-			if strings.EqualFold(token.Address, requirements.Asset) {
-				tokenPriority = token.Priority
-				break
-			}
-		}
-
-		candidates = append(candidates, signerCandidate{
-			signer:         signer,
-			signerPriority: signer.GetPriority(),
-			tokenPriority:  tokenPriority,
-		})
+		return nil, NewPaymentError(ErrCodeNoValidSigner, "no signer can satisfy any payment requirement", ErrNoValidSigner).
+			WithDetails("options", strings.Join(errorDetails, ", "))
 	}
 
-	if len(candidates) == 0 {
-		return nil, NewPaymentError(ErrCodeNoValidSigner, "no signer can satisfy requirements", ErrNoValidSigner).
-			WithDetails("network", requirements.Network).
-			WithDetails("asset", requirements.Asset).
-			WithDetails("amount", requirements.MaxAmountRequired)
-	}
-
-	// Sort by priority (signer first, then token)
+	// Sort by priority (signer first, then token, then configuration order)
 	// Lower priority numbers come first (1 > 2 > 3)
-	sort.Slice(candidates, func(i, j int) bool {
-		if candidates[i].signerPriority != candidates[j].signerPriority {
-			return candidates[i].signerPriority < candidates[j].signerPriority
+	// For ties, use configuration order (signer index, then requirement index)
+	sort.Slice(allCandidates, func(i, j int) bool {
+		if allCandidates[i].signerPriority != allCandidates[j].signerPriority {
+			return allCandidates[i].signerPriority < allCandidates[j].signerPriority
 		}
-		return candidates[i].tokenPriority < candidates[j].tokenPriority
+		if allCandidates[i].tokenPriority != allCandidates[j].tokenPriority {
+			return allCandidates[i].tokenPriority < allCandidates[j].tokenPriority
+		}
+		if allCandidates[i].signerIndex != allCandidates[j].signerIndex {
+			return allCandidates[i].signerIndex < allCandidates[j].signerIndex
+		}
+		return allCandidates[i].requirementIndex < allCandidates[j].requirementIndex
 	})
 
-	// Use the highest priority signer
-	selectedSigner := candidates[0].signer
+	// Use the highest priority signer and requirement combination
+	selectedCandidate := allCandidates[0]
 
 	// Sign the payment
-	payment, err := selectedSigner.Sign(requirements)
+	payment, err := selectedCandidate.signer.Sign(selectedCandidate.requirement)
 	if err != nil {
 		return nil, NewPaymentError(ErrCodeSigningFailed, "failed to sign payment", err)
 	}
 
 	return payment, nil
-}
-
-// signerCandidate represents a signer that can satisfy the payment requirements.
-type signerCandidate struct {
-	signer         Signer
-	signerPriority int
-	tokenPriority  int
 }

@@ -85,7 +85,7 @@ func (t *X402Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 // parsePaymentRequirements extracts payment requirements from a 402 response.
-func parsePaymentRequirements(resp *http.Response) (*x402.PaymentRequirement, error) {
+func parsePaymentRequirements(resp *http.Response) ([]x402.PaymentRequirement, error) {
 	// Read the response body
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -119,20 +119,21 @@ func parsePaymentRequirements(resp *http.Response) (*x402.PaymentRequirement, er
 		return nil, fmt.Errorf("no payment requirements in response")
 	}
 
-	// Use the first requirement (for now, client doesn't support selecting from multiple)
-	req := paymentReqResp.Accepts[0]
-
-	requirements := &x402.PaymentRequirement{
-		Scheme:            req.Scheme,
-		Network:           req.Network,
-		MaxAmountRequired: req.MaxAmountRequired,
-		Asset:             req.Asset,
-		PayTo:             req.PayTo,
-		Resource:          req.Resource,
-		Description:       req.Description,
-		MimeType:          req.MimeType,
-		MaxTimeoutSeconds: req.MaxTimeoutSeconds,
-		Extra:             req.Extra,
+	// Convert all requirements
+	requirements := make([]x402.PaymentRequirement, len(paymentReqResp.Accepts))
+	for i, req := range paymentReqResp.Accepts {
+		requirements[i] = x402.PaymentRequirement{
+			Scheme:            req.Scheme,
+			Network:           req.Network,
+			MaxAmountRequired: req.MaxAmountRequired,
+			Asset:             req.Asset,
+			PayTo:             req.PayTo,
+			Resource:          req.Resource,
+			Description:       req.Description,
+			MimeType:          req.MimeType,
+			MaxTimeoutSeconds: req.MaxTimeoutSeconds,
+			Extra:             req.Extra,
+		}
 	}
 
 	return requirements, nil
