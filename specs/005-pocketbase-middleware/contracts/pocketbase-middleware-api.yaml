@@ -1,0 +1,376 @@
+openapi: 3.0.3
+info:
+  title: PocketBase x402 Middleware API
+  description: |
+    API contract for the PocketBase-compatible x402 payment middleware.
+    This middleware integrates with PocketBase's routing system to provide
+    payment gating for protected endpoints.
+  version: 1.0.0
+  contact:
+    name: x402-go
+    url: https://github.com/mark3labs/x402-go
+
+paths:
+  # This is not a REST API - it's a middleware contract
+  # The paths section describes the middleware behavior for any protected endpoint
+
+  /protected-endpoint:
+    get:
+      summary: Example protected endpoint with x402 middleware
+      description: |
+        Any endpoint protected by the PocketBase x402 middleware follows this request/response pattern.
+        The middleware intercepts requests before they reach the handler.
+      
+      security:
+        - X-PAYMENT: []
+      
+      responses:
+        '200':
+          description: Payment verified and settled, protected handler executed
+          headers:
+            X-PAYMENT-RESPONSE:
+              description: Base64-encoded settlement response (if VerifyOnly=false)
+              schema:
+                type: string
+                format: base64
+              example: eyJzdWNjZXNzIjp0cnVlLCJ0cmFuc2FjdGlvbiI6IjB4YWJjZGVmLi4uIn0=
+          content:
+            application/json:
+              schema:
+                type: object
+                description: Response from the protected handler (application-specific)
+
+        '400':
+          description: Bad Request - malformed X-PAYMENT header
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                x402Version: 1
+                error: "Invalid payment header"
+
+        '402':
+          description: Payment Required - missing or invalid payment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentRequirementsResponse'
+              example:
+                x402Version: 1
+                error: "Payment required for this resource"
+                accepts:
+                  - scheme: "exact"
+                    network: "base-sepolia"
+                    maxAmountRequired: "10000"
+                    asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+                    payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0"
+                    maxTimeoutSeconds: 300
+                    resource: "https://api.example.com/protected-endpoint"
+                    description: "Payment required for /protected-endpoint"
+
+        '503':
+          description: Service Unavailable - facilitator error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                verificationFailed:
+                  summary: Verification failed
+                  value:
+                    x402Version: 1
+                    error: "Payment verification failed"
+                settlementFailed:
+                  summary: Settlement failed
+                  value:
+                    x402Version: 1
+                    error: "Payment settlement failed"
+
+components:
+  securitySchemes:
+    X-PAYMENT:
+      type: apiKey
+      in: header
+      name: X-PAYMENT
+      description: |
+        Base64-encoded JSON payment payload for x402 protocol.
+        Format: base64({"x402Version": 1, "scheme": "exact", "network": "base", "payload": {...}})
+        
+        The payment must match one of the accepted PaymentRequirements advertised in the 402 response.
+
+  schemas:
+    ErrorResponse:
+      type: object
+      required:
+        - x402Version
+        - error
+      properties:
+        x402Version:
+          type: integer
+          enum: [1]
+          description: x402 protocol version
+        error:
+          type: string
+          description: Human-readable error message
+      example:
+        x402Version: 1
+        error: "Invalid payment header"
+
+    PaymentRequirementsResponse:
+      type: object
+      required:
+        - x402Version
+        - error
+        - accepts
+      properties:
+        x402Version:
+          type: integer
+          enum: [1]
+          description: x402 protocol version
+        error:
+          type: string
+          description: Human-readable error message
+        accepts:
+          type: array
+          description: List of accepted payment methods
+          items:
+            $ref: '#/components/schemas/PaymentRequirement'
+      example:
+        x402Version: 1
+        error: "Payment required for this resource"
+        accepts:
+          - scheme: "exact"
+            network: "base-sepolia"
+            maxAmountRequired: "10000"
+            asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+            payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0"
+            maxTimeoutSeconds: 300
+            resource: "https://api.example.com/protected"
+            description: "Payment required for /protected"
+
+    PaymentRequirement:
+      type: object
+      required:
+        - scheme
+        - network
+        - maxAmountRequired
+        - asset
+        - payTo
+      properties:
+        scheme:
+          type: string
+          enum: ["exact", "signature"]
+          description: Payment scheme type
+        network:
+          type: string
+          enum: ["base", "base-sepolia", "solana-mainnet", "solana-devnet"]
+          description: Blockchain network
+        maxAmountRequired:
+          type: string
+          description: Payment amount in atomic units (e.g., "10000" for 0.01 USDC)
+          pattern: '^\d+$'
+        asset:
+          type: string
+          description: Token contract address (EVM) or mint (SVM)
+        payTo:
+          type: string
+          description: Recipient wallet address
+        maxTimeoutSeconds:
+          type: integer
+          description: Payment validity window in seconds
+        resource:
+          type: string
+          description: Protected resource URL (populated by middleware)
+        description:
+          type: string
+          description: Human-readable payment description
+        feePayer:
+          type: string
+          description: (SVM only) Fee payer address for transactions
+      example:
+        scheme: "exact"
+        network: "base-sepolia"
+        maxAmountRequired: "10000"
+        asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0"
+        maxTimeoutSeconds: 300
+        resource: "https://api.example.com/protected"
+        description: "Payment required for /protected"
+
+    PaymentPayload:
+      type: object
+      required:
+        - x402Version
+        - scheme
+        - network
+        - payload
+      properties:
+        x402Version:
+          type: integer
+          enum: [1]
+          description: x402 protocol version
+        scheme:
+          type: string
+          enum: ["exact", "signature"]
+          description: Payment scheme type (must match requirement)
+        network:
+          type: string
+          enum: ["base", "base-sepolia", "solana-mainnet", "solana-devnet"]
+          description: Blockchain network (must match requirement)
+        payload:
+          type: object
+          description: Scheme-specific payment data
+          oneOf:
+            - $ref: '#/components/schemas/EIP3009Payload'
+            - $ref: '#/components/schemas/SignaturePayload'
+      example:
+        x402Version: 1
+        scheme: "exact"
+        network: "base"
+        payload:
+          transaction: "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAQABBZsW..."
+
+    EIP3009Payload:
+      type: object
+      required:
+        - transaction
+      properties:
+        transaction:
+          type: string
+          description: Signed EIP-3009 transaction (base64-encoded)
+      example:
+        transaction: "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAQABBZsW..."
+
+    SignaturePayload:
+      type: object
+      required:
+        - signature
+        - message
+      properties:
+        signature:
+          type: string
+          description: Cryptographic signature
+        message:
+          type: string
+          description: Signed message
+      example:
+        signature: "0x1234..."
+        message: "Pay 10000 to 0x742d35Cc..."
+
+    SettlementResponse:
+      type: object
+      required:
+        - success
+      properties:
+        success:
+          type: boolean
+          description: True if settlement succeeded
+        transaction:
+          type: string
+          description: On-chain transaction hash (if success=true)
+        errorReason:
+          type: string
+          description: Error reason (if success=false)
+      example:
+        success: true
+        transaction: "0xabcdef123456..."
+
+---
+# Middleware Function Signatures (Go)
+
+# Main Factory Function
+# func NewPocketBaseX402Middleware(config *http.Config) func(*core.RequestEvent) error
+# 
+# Parameters:
+#   - config: Middleware configuration (FacilitatorURL, PaymentRequirements, VerifyOnly)
+# 
+# Returns:
+#   - Middleware handler function compatible with PocketBase's BindFunc
+# 
+# Usage:
+#   se.Router.GET("/protected", handler).BindFunc(NewPocketBaseX402Middleware(config))
+#   OR
+#   se.Router.Bind(&hook.Handler[*core.RequestEvent]{
+#       Func: NewPocketBaseX402Middleware(config),
+#   })
+
+# Helper Functions (Internal, duplicated from stdlib pattern)
+
+# func parsePaymentHeaderFromRequest(r *http.Request) (x402.PaymentPayload, error)
+# Parses X-PAYMENT header: base64 decode → JSON unmarshal → version check
+
+# func sendPaymentRequiredPocketBase(e *core.RequestEvent, requirements []x402.PaymentRequirement) error
+# Sends 402 response with PaymentRequirementsResponse using e.JSON()
+# Returns e.JSON() error to stop handler chain (don't call e.Next() after this)
+
+# func findMatchingRequirementPocketBase(payment x402.PaymentPayload, requirements []x402.PaymentRequirement) (x402.PaymentRequirement, error)
+# Finds requirement matching payment's scheme and network
+
+# func addPaymentResponseHeaderPocketBase(e *core.RequestEvent, settlement *x402.SettlementResponse) error
+# Adds X-PAYMENT-RESPONSE header: JSON marshal → base64 encode → e.Response.Header().Set()
+
+---
+# Configuration Structure (Reused from stdlib)
+
+# type Config struct {
+#     FacilitatorURL         string
+#     FallbackFacilitatorURL string
+#     PaymentRequirements    []x402.PaymentRequirement
+#     VerifyOnly             bool
+# }
+
+# Example Configuration:
+# config := &http.Config{
+#     FacilitatorURL: "https://api.x402.coinbase.com",
+#     PaymentRequirements: []x402.PaymentRequirement{{
+#         Scheme:            "exact",
+#         Network:           "base-sepolia",
+#         MaxAmountRequired: "10000",
+#         Asset:             "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+#         PayTo:             "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+#         MaxTimeoutSeconds: 300,
+#     }},
+#     VerifyOnly: false,
+# }
+
+---
+# Request Store Access Pattern
+
+# Middleware stores payment details after successful verification:
+#   e.Set("x402_payment", verifyResp)
+# 
+# Handler retrieves payment details:
+#   verifyResp := e.Get("x402_payment").(*http.VerifyResponse)
+#   payer := verifyResp.Payer
+#   isValid := verifyResp.IsValid
+
+---
+# Middleware Behavior Summary
+
+# 1. Check X-PAYMENT header
+#    - Missing → 402 with PaymentRequirementsResponse
+#    - Present → continue to step 2
+# 
+# 2. Parse and validate header
+#    - Invalid base64/JSON → 400 Bad Request
+#    - Valid → continue to step 3
+# 
+# 3. Match payment to requirements
+#    - No match → 402 with PaymentRequirementsResponse
+#    - Match found → continue to step 4
+# 
+# 4. Verify with facilitator
+#    - Verification fails → 503 Service Unavailable
+#    - Verification invalid → 402 with PaymentRequirementsResponse
+#    - Verification valid → continue to step 5
+# 
+# 5. Store in request store
+#    e.Set("x402_payment", verifyResp)
+# 
+# 6. Settle (if VerifyOnly=false)
+#    - Settlement fails → 503 Service Unavailable
+#    - Settlement succeeds → add X-PAYMENT-RESPONSE header
+# 
+# 7. Call next handler
+#    return e.Next()

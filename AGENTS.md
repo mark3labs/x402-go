@@ -130,6 +130,9 @@ For more details, see README.md and QUICKSTART.md.
 - Go 1.25.1 + Gin framework (github.com/gin-gonic/gin), existing x402-go core package (004-gin-middleware)
 - N/A (stateless middleware, payment tracking delegated to facilitator) (004-gin-middleware)
 - Go 1.25.1 + Gin (github.com/gin-gonic/gin), existing x402-go core package (004-gin-middleware)
+- Go 1.25.1 + PocketBase framework (github.com/pocketbase/pocketbase/core), existing x402-go core package (005-pocketbase-middleware)
+- N/A (stateless middleware, payment tracking delegated to facilitator) (005-pocketbase-middleware)
 
 ## Recent Changes
+- 005-pocketbase-middleware: Added PocketBase middleware adapter for x402 payment gating
 - 001-x402-payment-middleware: Added Go 1.25.1 + Go standard library (net/http, encoding/json, encoding/base64, context)
