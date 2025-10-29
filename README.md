@@ -53,6 +53,32 @@ middleware := x402http.NewX402Middleware(config)
 http.Handle("/protected", middleware(yourHandler))
 ```
 
+### Using with Gin Framework
+
+```go
+import (
+    ginx402 "github.com/mark3labs/x402-go/http/gin"
+    "github.com/gin-gonic/gin"
+)
+
+// Create Gin router
+r := gin.Default()
+
+// Apply x402 middleware
+r.Use(ginx402.NewGinX402Middleware(config))
+
+// Protected endpoint
+r.GET("/data", func(c *gin.Context) {
+    // Access payment info from context
+    if payment, exists := c.Get("x402_payment"); exists {
+        verifyResp := payment.(*x402http.VerifyResponse)
+        c.JSON(200, gin.H{"payer": verifyResp.Payer})
+    }
+})
+```
+
+See `examples/gin/` for complete Gin examples.
+
 ### Multi-chain pricing
 
 ```go

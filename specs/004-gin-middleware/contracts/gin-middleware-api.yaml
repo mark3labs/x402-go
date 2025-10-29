@@ -1,0 +1,342 @@
+openapi: 3.0.3
+info:
+  title: x402 Gin Middleware API
+  description: API contracts for x402 payment middleware with Gin framework integration
+  version: 1.0.0
+  contact:
+    name: x402-go Project
+    url: https://github.com/mark3labs/x402-go
+
+paths:
+  /protected-endpoint:
+    get:
+      summary: Example protected endpoint requiring x402 payment
+      description: |
+        This endpoint demonstrates how the x402 Gin middleware protects resources.
+        Requests without valid payment receive 402 responses with payment requirements.
+        Browser clients receive HTML paywalls, API clients receive JSON responses.
+      parameters:
+        - name: X-PAYMENT
+          in: header
+          description: Base64-encoded payment payload for x402 payment protocol
+          schema:
+            type: string
+          required: false
+      responses:
+        '200':
+          description: Successful response after valid payment verification and settlement
+          headers:
+            X-PAYMENT-RESPONSE:
+              description: Base64-encoded settlement response details
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Protected content accessed successfully"
+                  payment_info:
+                    type: object
+                    properties:
+                      payer:
+                        type: string
+                        example: "0x8576ab39b6c7d8e9f2a1b4c5d6e7f8a9b0c1d2e3"
+                      network:
+                        type: string
+                        example: "base-sepolia"
+        '402':
+          description: Payment required - missing or invalid payment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentRequiredResponse'
+            text/html:
+              schema:
+                type: string
+                example: "<html><body>Payment Required</body></html>"
+        '400':
+          description: Bad request - malformed payment header
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service unavailable - facilitator service error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    PaymentRequiredResponse:
+      type: object
+      required:
+        - x402Version
+        - error
+        - accepts
+      properties:
+        x402Version:
+          type: integer
+          example: 1
+        error:
+          type: string
+          example: "Payment required for this resource"
+        accepts:
+          type: array
+          items:
+            $ref: '#/components/schemas/PaymentRequirement'
+    
+    PaymentRequirement:
+      type: object
+      required:
+        - scheme
+        - network
+        - maxAmountRequired
+        - asset
+        - payTo
+        - resource
+        - maxTimeoutSeconds
+      properties:
+        scheme:
+          type: string
+          example: "exact"
+          description: Payment scheme identifier
+        network:
+          type: string
+          example: "base-sepolia"
+          description: Blockchain network identifier
+        maxAmountRequired:
+          type: string
+          example: "10000"
+          description: Payment amount in atomic units (USDC with 6 decimals)
+        asset:
+          type: string
+          example: "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+          description: USDC token contract address
+        payTo:
+          type: string
+          example: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0"
+          description: Recipient wallet address
+        resource:
+          type: string
+          example: "https://api.example.com/protected-endpoint"
+          description: URL of the protected resource
+        description:
+          type: string
+          example: "Payment required for /protected-endpoint"
+          description: Human-readable payment description
+        mimeType:
+          type: string
+          example: "application/json"
+          description: Expected response MIME type
+        maxTimeoutSeconds:
+          type: integer
+          example: 300
+          description: Payment validity period in seconds
+        extra:
+          type: object
+          properties:
+            name:
+              type: string
+              example: "USD Coin"
+            version:
+              type: string
+              example: "2"
+          description: Additional scheme-specific data
+    
+    ErrorResponse:
+      type: object
+      required:
+        - x402Version
+        - error
+      properties:
+        x402Version:
+          type: integer
+          example: 1
+        error:
+          type: string
+          example: "Invalid payment header"
+          description: Human-readable error message
+    
+    PaymentPayload:
+      type: object
+      required:
+        - x402Version
+        - scheme
+        - network
+        - payload
+      properties:
+        x402Version:
+          type: integer
+          example: 1
+        scheme:
+          type: string
+          example: "exact"
+        network:
+          type: string
+          example: "base-sepolia"
+        payload:
+          oneOf:
+            - $ref: '#/components/schemas/EVMPayload'
+            - $ref: '#/components/schemas/SVMPayload'
+          description: Blockchain-specific payment data
+    
+    EVMPayload:
+      type: object
+      required:
+        - signature
+        - authorization
+      properties:
+        signature:
+          type: string
+          example: "0x1234567890abcdef..."
+          description: Hex-encoded ECDSA signature
+        authorization:
+          $ref: '#/components/schemas/EVMAuthorization'
+    
+    EVMAuthorization:
+      type: object
+      required:
+        - from
+        - to
+        - value
+        - validAfter
+        - validBefore
+        - nonce
+      properties:
+        from:
+          type: string
+          example: "0x8576ab39b6c7d8e9f2a1b4c5d6e7f8a9b0c1d2e3"
+          description: Payer's address
+        to:
+          type: string
+          example: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0"
+          description: Recipient's address
+        value:
+          type: string
+          example: "10000"
+          description: Payment amount in atomic units
+        validAfter:
+          type: string
+          example: "1698710400"
+          description: Unix timestamp after which authorization is valid
+        validBefore:
+          type: string
+          example: "1698796800"
+          description: Unix timestamp before which authorization is valid
+        nonce:
+          type: string
+          example: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+          description: 32-byte hex string to prevent replay attacks
+    
+    SVMPayload:
+      type: object
+      required:
+        - transaction
+      properties:
+        transaction:
+          type: string
+          example: "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA..."
+          description: Base64-encoded partially signed Solana transaction
+    
+    SettlementResponse:
+      type: object
+      required:
+        - success
+        - network
+        - payer
+      properties:
+        success:
+          type: boolean
+          example: true
+          description: Whether payment was successfully settled
+        errorReason:
+          type: string
+          example: "Insufficient funds"
+          description: Error details if payment failed
+        transaction:
+          type: string
+          example: "0x1234567890abcdef..."
+          description: Blockchain transaction hash
+        network:
+          type: string
+          example: "base-sepolia"
+          description: Network where payment was settled
+        payer:
+          type: string
+          example: "0x8576ab39b6c7d8e9f2a1b4c5d6e7f8a9b0c1d2e3"
+          description: Address that made the payment
+
+  headers:
+    X-PAYMENT:
+      description: Base64-encoded payment payload for x402 payment protocol
+      schema:
+        type: string
+      example: "eyJ4NDAyVmVyc2lvbiI6MSwic2NoZW1lIjoiZXhhY3QiLCJuZXR3b3JrIjoiYmFzZS1zZXBvbGlhIiwicGF5bG9hZCI6eyJzaWduYXR1cmUiOiIweDEyMzQ1Njc4OTBhYmNkZWYiLCJhdXRob3JpemF0aW9uIjp7ImZyb20iOiIweDg1NzZhYjM5YjZjN2Q4ZTlmMmExYjRjNWQ2ZTdmOGE5YjBjMWQyZTMiLCJ0byI6IjB4NzQyZDM1Q2M2NjM0QzA1MzI5MjVhM2I4NDRiYzllNzU5NWYwYkViMCIsInZhbHVlIjoiMTAwMDAiLCJ2YWxpZEFmdGVyIjoiMTY5ODcxMDQwMCIsInZhbGlkQmVmb3JlIjoiMTY5ODc5NjgwMCIsIm5vbmNlIjoiMHgxMjM0NTY3ODkwYWJjZGVmMTIzNDU2Nzg5MGFiY2RlZjEyMzQ1Njc4OTBhYmNkZWYifX19"
+    
+    X-PAYMENT-RESPONSE:
+      description: Base64-encoded settlement response details
+      schema:
+        type: string
+      example: "eyJzdWNjZXNzIjp0cnVlLCJ0cmFuc2FjdGlvbiI6IjB4MTIzNDU2Nzg5MGFiY2RlZiIsIm5ldHdvcmsiOiJiYXNlLXNlcG9saWEiLCJwYXllciI6IjB4ODU3NmFiMzliNmM3ZDhlOWYyYTFiNGM1ZDZlN2Y4YTliMGMxZDJlMyJ9"
+
+  examples:
+    MissingPayment:
+      summary: Request without payment header
+      value:
+        headers:
+          User-Agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+          Accept: "application/json"
+      response:
+        statusCode: 402
+        headers:
+          Content-Type: "application/json"
+        body:
+          x402Version: 1
+          error: "Payment required for this resource"
+          accepts:
+            - scheme: "exact"
+              network: "base-sepolia"
+              maxAmountRequired: "10000"
+              asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+              payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0"
+              resource: "https://api.example.com/protected-endpoint"
+              description: "Payment required for /protected-endpoint"
+              mimeType: "application/json"
+              maxTimeoutSeconds: 300
+    
+    BrowserPaywall:
+      summary: Browser request without payment
+      value:
+        headers:
+          User-Agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+      response:
+        statusCode: 402
+        headers:
+          Content-Type: "text/html"
+        body: "<html><body>Payment Required</body></html>"
+    
+    ValidPayment:
+      summary: Request with valid payment
+      value:
+        headers:
+          X-PAYMENT: "eyJ4NDAyVmVyc2lvbiI6MSwic2NoZW1lIjoiZXhhY3QiLCJuZXR3b3JrIjoiYmFzZS1zZXBvbGlhIiwicGF5bG9hZCI6eyJzaWduYXR1cmUiOiIweDEyMzQ1Njc4OTBhYmNkZWYiLCJhdXRob3JpemF0aW9uIjp7ImZyb20iOiIweDg1NzZhYjM5YjZjN2Q4ZTlmMmExYjRjNWQ2ZTdmOGE5YjBjMWQyZTMiLCJ0byI6IjB4NzQyZDM1Q2M2NjM0QzA1MzI5MjVhM2I4NDRiYzllNzU5NWYwYkViMCIsInZhbHVlIjoiMTAwMDAiLCJ2YWxpZEFmdGVyIjoiMTY5ODcxMDQwMCIsInZhbGlkQmVmb3JlIjoiMTY5ODc5NjgwMCIsIm5vbmNlIjoiMHgxMjM0NTY3ODkwYWJjZGVmMTIzNDU2Nzg5MGFiY2RlZjEyMzQ1Njc4OTBhYmNkZWYifX19"
+      response:
+        statusCode: 200
+        headers:
+          X-PAYMENT-RESPONSE: "eyJzdWNjZXNzIjp0cnVlLCJ0cmFuc2FjdGlvbiI6IjB4MTIzNDU2Nzg5MGFiY2RlZiIsIm5ldHdvcmsiOiJiYXNlLXNlcG9saWEiLCJwYXllciI6IjB4ODU3NmFiMzliNmM3ZDhlOWYyYTFiNGM1ZDZlN2Y4YTliMGMxZDJlMyJ9"
+          Content-Type: "application/json"
+        body:
+          message: "Protected content accessed successfully"
+          payment_info:
+            payer: "0x8576ab39b6c7d8e9f2a1b4c5d6e7f8a9b0c1d2e3"
+            network: "base-sepolia"
+
+tags:
+  - name: x402-payment
+    description: x402 payment protocol operations

@@ -51,3 +51,5 @@ bin/
 
 # Example binaries
 examples/x402demo/x402demo
+examples/gin/gin
+examples/gin/gin-example
