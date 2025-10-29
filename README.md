@@ -7,7 +7,7 @@ Go implementation of the x402 payment standard for paywalled HTTP endpoints.
 x402-go makes it simple to add crypto payments to HTTP APIs. This library provides:
 
 - **USDC helpers** for easy payment setup across 8+ chains (Base, Polygon, Avalanche, Solana)
-- **Middleware** for standard `net/http`, Gin, and PocketBase frameworks
+- **Middleware** for standard `net/http`, Chi, Gin, and PocketBase frameworks
 - **HTTP client** with automatic payment handling
 - **Multi-chain support** with automatic wallet selection
 
@@ -170,6 +170,52 @@ func main() {
 ```
 
 See `examples/gin/` for complete examples.
+
+### Using with Chi Framework
+
+```go
+import (
+    "net/http"
+    "github.com/go-chi/chi/v5"
+    "github.com/mark3labs/x402-go"
+    x402http "github.com/mark3labs/x402-go/http"
+    chix402 "github.com/mark3labs/x402-go/http/chi"
+)
+
+func main() {
+    // Create payment requirement
+    requirement, _ := x402.NewUSDCPaymentRequirement(x402.USDCRequirementConfig{
+        Chain:            x402.BaseSepolia,
+        Amount:           "0.01",
+        RecipientAddress: "0xYourAddress",
+    })
+
+    config := &x402http.Config{
+        FacilitatorURL: "https://facilitator.x402.rs",
+        PaymentRequirements: []x402.PaymentRequirement{requirement},
+    }
+
+    // Setup Chi with x402 middleware
+    r := chi.NewRouter()
+    r.Use(chix402.NewChiX402Middleware(config))
+
+    r.Get("/data", func(w http.ResponseWriter, r *http.Request) {
+        // Access payment details from context
+        if payment := r.Context().Value(x402http.PaymentContextKey); payment != nil {
+            verifyResp := payment.(*x402http.VerifyResponse)
+            w.Header().Set("Content-Type", "application/json")
+            w.Write([]byte(`{"data": "your response", "payer": "` + verifyResp.Payer + `"}`))
+            return
+        }
+        w.WriteHeader(http.StatusPaymentRequired)
+        w.Write([]byte(`{"error": "payment required"}`))
+    })
+
+    http.ListenAndServe(":8080", r)
+}
+```
+
+See `examples/chi/` for complete examples.
 
 ### Using with PocketBase Framework
 

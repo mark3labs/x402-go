@@ -5,9 +5,6 @@ package gin
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/json"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
@@ -15,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/mark3labs/x402-go"
 	httpx402 "github.com/mark3labs/x402-go/http"
+	"github.com/mark3labs/x402-go/http/internal/helpers"
 )
 
 // NewGinX402Middleware creates a new x402 payment middleware for Gin.
@@ -200,32 +198,9 @@ func NewGinX402Middleware(config *httpx402.Config) gin.HandlerFunc {
 }
 
 // parsePaymentHeaderFromRequest parses the X-PAYMENT header from an http.Request.
-// This mirrors the logic from http.parsePaymentHeader since that function is not exported.
+// Delegates to shared helper from http/internal/helpers package.
 func parsePaymentHeaderFromRequest(r *http.Request) (x402.PaymentPayload, error) {
-	var payment x402.PaymentPayload
-
-	headerValue := r.Header.Get("X-PAYMENT")
-	if headerValue == "" {
-		return payment, x402.ErrMalformedHeader
-	}
-
-	// Decode base64
-	decoded, err := base64.StdEncoding.DecodeString(headerValue)
-	if err != nil {
-		return payment, fmt.Errorf("%w: invalid base64 encoding", x402.ErrMalformedHeader)
-	}
-
-	// Parse JSON
-	if err := json.Unmarshal(decoded, &payment); err != nil {
-		return payment, fmt.Errorf("%w: invalid JSON", x402.ErrMalformedHeader)
-	}
-
-	// Validate version
-	if payment.X402Version != 1 {
-		return payment, x402.ErrUnsupportedVersion
-	}
-
-	return payment, nil
+	return helpers.ParsePaymentHeaderFromRequest(r)
 }
 
 // sendPaymentRequiredGin sends a 402 Payment Required response for Gin.
@@ -240,27 +215,14 @@ func sendPaymentRequiredGin(c *gin.Context, requirements []x402.PaymentRequireme
 }
 
 // findMatchingRequirementGin finds a payment requirement that matches the provided payment.
+// Delegates to shared helper from http/internal/helpers package.
 func findMatchingRequirementGin(payment x402.PaymentPayload, requirements []x402.PaymentRequirement) (x402.PaymentRequirement, error) {
-	for _, req := range requirements {
-		if req.Scheme == payment.Scheme && req.Network == payment.Network {
-			return req, nil
-		}
-	}
-	return x402.PaymentRequirement{}, x402.ErrUnsupportedScheme
+	return helpers.FindMatchingRequirement(payment, requirements)
 }
 
 // addPaymentResponseHeaderGin adds the X-PAYMENT-RESPONSE header with settlement information.
 func addPaymentResponseHeaderGin(c *gin.Context, settlement *x402.SettlementResponse) error {
-	// Marshal settlement response to JSON
-	data, err := json.Marshal(settlement)
-	if err != nil {
-		return fmt.Errorf("failed to marshal settlement response: %w", err)
-	}
-
-	// Encode as base64
-	encoded := base64.StdEncoding.EncodeToString(data)
-
-	// Set header using Gin's Header method
-	c.Header("X-PAYMENT-RESPONSE", encoded)
-	return nil
+	// Use stdlib ResponseWriter through Gin's Writer
+	// Delegates to shared helper from http/internal/helpers package
+	return helpers.AddPaymentResponseHeader(c.Writer, settlement)
 }
