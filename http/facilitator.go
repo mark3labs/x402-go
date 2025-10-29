@@ -17,6 +17,8 @@ type FacilitatorClient struct {
 	Client        *http.Client
 	VerifyTimeout time.Duration // Timeout for verify operations
 	SettleTimeout time.Duration // Timeout for settle operations (longer due to blockchain tx)
+	MaxRetries    int           // Maximum number of retry attempts for failed requests (default: 0)
+	RetryDelay    time.Duration // Delay between retry attempts (default: 100ms)
 }
 
 // FacilitatorRequest is the request payload sent to the facilitator.
@@ -48,34 +50,36 @@ func (c *FacilitatorClient) Verify(payment x402.PaymentPayload, requirement x402
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	// Create request with timeout context
-	ctx, cancel := context.WithTimeout(context.Background(), c.VerifyTimeout)
-	defer cancel()
+	return c.doWithRetry(func() (*VerifyResponse, error) {
+		// Create request with timeout context
+		ctx, cancel := context.WithTimeout(context.Background(), c.VerifyTimeout)
+		defer cancel()
 
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.BaseURL+"/verify", bytes.NewReader(data))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
+		httpReq, err := http.NewRequestWithContext(ctx, "POST", c.BaseURL+"/verify", bytes.NewReader(data))
+		if err != nil {
+			return nil, fmt.Errorf("failed to create request: %w", err)
+		}
+		httpReq.Header.Set("Content-Type", "application/json")
 
-	// Send request
-	resp, err := c.Client.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %v", x402.ErrFacilitatorUnavailable, err)
-	}
-	defer resp.Body.Close()
+		// Send request
+		resp, err := c.Client.Do(httpReq)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %v", x402.ErrFacilitatorUnavailable, err)
+		}
+		defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("%w: status %d", x402.ErrVerificationFailed, resp.StatusCode)
-	}
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("%w: status %d", x402.ErrVerificationFailed, resp.StatusCode)
+		}
 
-	// Parse response
-	var verifyResp VerifyResponse
-	if err := json.NewDecoder(resp.Body).Decode(&verifyResp); err != nil {
-		return nil, fmt.Errorf("failed to decode verify response: %w", err)
-	}
+		// Parse response
+		var verifyResp VerifyResponse
+		if err := json.NewDecoder(resp.Body).Decode(&verifyResp); err != nil {
+			return nil, fmt.Errorf("failed to decode verify response: %w", err)
+		}
 
-	return &verifyResp, nil
+		return &verifyResp, nil
+	})
 }
 
 // SupportedKind represents a supported payment type.
@@ -137,34 +141,36 @@ func (c *FacilitatorClient) Settle(payment x402.PaymentPayload, requirement x402
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	// Create request with timeout context (longer timeout for blockchain tx)
-	ctx, cancel := context.WithTimeout(context.Background(), c.SettleTimeout)
-	defer cancel()
+	return c.doSettleWithRetry(func() (*x402.SettlementResponse, error) {
+		// Create request with timeout context (longer timeout for blockchain tx)
+		ctx, cancel := context.WithTimeout(context.Background(), c.SettleTimeout)
+		defer cancel()
 
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.BaseURL+"/settle", bytes.NewReader(data))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
+		httpReq, err := http.NewRequestWithContext(ctx, "POST", c.BaseURL+"/settle", bytes.NewReader(data))
+		if err != nil {
+			return nil, fmt.Errorf("failed to create request: %w", err)
+		}
+		httpReq.Header.Set("Content-Type", "application/json")
 
-	// Send request
-	resp, err := c.Client.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %v", x402.ErrFacilitatorUnavailable, err)
-	}
-	defer resp.Body.Close()
+		// Send request
+		resp, err := c.Client.Do(httpReq)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %v", x402.ErrFacilitatorUnavailable, err)
+		}
+		defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("%w: status %d", x402.ErrSettlementFailed, resp.StatusCode)
-	}
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("%w: status %d", x402.ErrSettlementFailed, resp.StatusCode)
+		}
 
-	// Parse response
-	var settlementResp x402.SettlementResponse
-	if err := json.NewDecoder(resp.Body).Decode(&settlementResp); err != nil {
-		return nil, fmt.Errorf("failed to decode settlement response: %w", err)
-	}
+		// Parse response
+		var settlementResp x402.SettlementResponse
+		if err := json.NewDecoder(resp.Body).Decode(&settlementResp); err != nil {
+			return nil, fmt.Errorf("failed to decode settlement response: %w", err)
+		}
 
-	return &settlementResp, nil
+		return &settlementResp, nil
+	})
 }
 
 // EnrichRequirements fetches supported payment types from the facilitator and
@@ -205,4 +211,83 @@ func (c *FacilitatorClient) EnrichRequirements(requirements []x402.PaymentRequir
 	}
 
 	return enriched, nil
+}
+
+// doWithRetry executes a function with retry logic for transient failures.
+func (c *FacilitatorClient) doWithRetry(fn func() (*VerifyResponse, error)) (*VerifyResponse, error) {
+	maxRetries := c.MaxRetries
+	if maxRetries < 0 {
+		maxRetries = 0
+	}
+
+	retryDelay := c.RetryDelay
+	if retryDelay <= 0 {
+		retryDelay = 100 * time.Millisecond
+	}
+
+	var lastErr error
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		if attempt > 0 {
+			time.Sleep(retryDelay)
+		}
+
+		result, err := fn()
+		if err == nil {
+			return result, nil
+		}
+
+		lastErr = err
+
+		// Only retry on facilitator unavailable errors
+		if !isFacilitatorUnavailableError(err) {
+			return nil, err
+		}
+	}
+
+	return nil, lastErr
+}
+
+// doSettleWithRetry executes a settle function with retry logic for transient failures.
+func (c *FacilitatorClient) doSettleWithRetry(fn func() (*x402.SettlementResponse, error)) (*x402.SettlementResponse, error) {
+	maxRetries := c.MaxRetries
+	if maxRetries < 0 {
+		maxRetries = 0
+	}
+
+	retryDelay := c.RetryDelay
+	if retryDelay <= 0 {
+		retryDelay = 100 * time.Millisecond
+	}
+
+	var lastErr error
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		if attempt > 0 {
+			time.Sleep(retryDelay)
+		}
+
+		result, err := fn()
+		if err == nil {
+			return result, nil
+		}
+
+		lastErr = err
+
+		// Only retry on facilitator unavailable errors
+		if !isFacilitatorUnavailableError(err) {
+			return nil, err
+		}
+	}
+
+	return nil, lastErr
+}
+
+// isFacilitatorUnavailableError checks if an error is a facilitator unavailable error.
+func isFacilitatorUnavailableError(err error) bool {
+	if err == nil {
+		return false
+	}
+	// Check if error wraps ErrFacilitatorUnavailable
+	return fmt.Sprintf("%v", err) != "" &&
+		(err == x402.ErrFacilitatorUnavailable ||
+			fmt.Sprintf("%v", err) == fmt.Sprintf("%v", x402.ErrFacilitatorUnavailable))
 }
