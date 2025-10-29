@@ -49,7 +49,11 @@ func NewSigner(opts ...SignerOption) (*Signer, error) {
 
 	// Derive address and chain ID from network
 	s.address = crypto.PubkeyToAddress(s.privateKey.PublicKey)
-	s.chainID = getChainID(s.network)
+	chainID, err := getChainID(s.network)
+	if err != nil {
+		return nil, err
+	}
+	s.chainID = chainID
 
 	return s, nil
 }
@@ -242,18 +246,18 @@ func (s *Signer) Address() common.Address {
 }
 
 // getChainID returns the chain ID for the given network.
-func getChainID(network string) *big.Int {
+func getChainID(network string) (*big.Int, error) {
 	switch network {
 	case "base":
-		return big.NewInt(8453)
+		return big.NewInt(8453), nil
 	case "base-sepolia":
-		return big.NewInt(84532)
+		return big.NewInt(84532), nil
 	case "ethereum":
-		return big.NewInt(1)
+		return big.NewInt(1), nil
 	case "sepolia":
-		return big.NewInt(11155111)
+		return big.NewInt(11155111), nil
 	default:
-		// Unknown network, return 0
-		return big.NewInt(0)
+		// Unknown network, return error
+		return nil, x402.ErrInvalidNetwork
 	}
 }

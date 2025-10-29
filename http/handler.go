@@ -24,11 +24,9 @@ func sendPaymentRequiredWithRequirements(w http.ResponseWriter, requirements []x
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusPaymentRequired)
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		// At this point headers are already sent, just log the error
-		// Note: In production, consider using a structured logger
-		http.Error(w, fmt.Sprintf("Failed to encode payment requirements: %v", err), http.StatusInternalServerError)
-	}
+	// Ignore encoding errors - headers are already sent with 402 status
+	// The response body may be incomplete, but the client will see the correct status code
+	_ = json.NewEncoder(w).Encode(response)
 }
 
 // parsePaymentHeader parses the X-PAYMENT header and returns the payment payload.

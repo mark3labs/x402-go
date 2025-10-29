@@ -3,6 +3,7 @@ package x402
 import (
 	"math/big"
 	"sort"
+	"strings"
 )
 
 // PaymentSelector selects the appropriate signer and creates a payment.
@@ -53,7 +54,7 @@ func (s *DefaultPaymentSelector) SelectAndSign(requirements *PaymentRequirement,
 		// Find matching token and its priority
 		tokenPriority := 0
 		for _, token := range signer.GetTokens() {
-			if token.Address == requirements.Asset {
+			if strings.EqualFold(token.Address, requirements.Asset) {
 				tokenPriority = token.Priority
 				break
 			}
