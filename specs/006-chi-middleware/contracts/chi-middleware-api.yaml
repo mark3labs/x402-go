@@ -1,0 +1,416 @@
+# Chi Middleware API Contract
+# Feature: Chi Middleware for x402 Payment Protocol
+# Date: 2025-10-29
+
+# This contract defines the public API surface of the Chi middleware package.
+# It follows the stdlib and Gin middleware patterns for consistency.
+
+openapi: 3.0.3
+info:
+  title: Chi x402 Middleware API
+  version: 1.0.0
+  description: |
+    Chi-compatible middleware adapter for x402 payment gating.
+    
+    This middleware:
+    - Enforces payment requirements on HTTP routes
+    - Verifies payments with facilitator service
+    - Settles payments (unless verify-only mode enabled)
+    - Stores payment details in request context
+    - Uses standard Chi middleware signature: func(http.Handler) http.Handler
+
+components:
+  schemas:
+    Config:
+      type: object
+      description: |
+        Configuration for x402 middleware (shared with stdlib, Gin, PocketBase).
+        Imported from github.com/mark3labs/x402-go/http package.
+      required:
+        - FacilitatorURL
+        - PaymentRequirements
+      properties:
+        FacilitatorURL:
+          type: string
+          format: uri
+          description: Primary facilitator endpoint URL
+          example: "https://api.x402.coinbase.com"
+        
+        FallbackFacilitatorURL:
+          type: string
+          format: uri
+          description: Optional backup facilitator endpoint URL
+          example: "https://backup-facilitator.example.com"
+        
+        PaymentRequirements:
+          type: array
+          minItems: 1
+          description: List of accepted payment methods for protected resources
+          items:
+            $ref: '#/components/schemas/PaymentRequirement'
+        
+        VerifyOnly:
+          type: boolean
+          default: false
+          description: If true, skip settlement (verify payments only)
+
+    PaymentRequirement:
+      type: object
+      description: |
+        Specification of accepted payment method.
+        Imported from github.com/mark3labs/x402-go package.
+      required:
+        - Scheme
+        - Network
+        - MaxAmountRequired
+        - Asset
+        - PayTo
+        - MaxTimeoutSeconds
+      properties:
+        Scheme:
+          type: string
+          description: Payment scheme identifier
+          example: "exact"
+        
+        Network:
+          type: string
+          description: Blockchain network identifier
+          enum: ["base", "base-sepolia", "solana", "solana-devnet"]
+          example: "base-sepolia"
+        
+        MaxAmountRequired:
+          type: string
+          description: Maximum payment amount in atomic units
+          example: "10000"
+        
+        Asset:
+          type: string
+          description: Token contract address
+          example: "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+        
+        PayTo:
+          type: string
+          description: Recipient wallet address
+          example: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0"
+        
+        MaxTimeoutSeconds:
+          type: integer
+          minimum: 1
+          description: Payment timeout window in seconds
+          example: 300
+        
+        Resource:
+          type: string
+          description: Resource URL (populated automatically by middleware)
+          example: "https://api.example.com/protected/resource"
+        
+        Description:
+          type: string
+          description: Human-readable description of payment requirement
+          example: "Payment required for premium API access"
+        
+        FeePayer:
+          type: string
+          description: Fee payer address (populated by EnrichRequirements for SVM)
+          example: "FeePayer1234567890123456789012345678901234"
+
+    VerifyResponse:
+      type: object
+      description: |
+        Payment verification result stored in request context.
+        Imported from github.com/mark3labs/x402-go/http package.
+      required:
+        - IsValid
+        - Payer
+      properties:
+        IsValid:
+          type: boolean
+          description: Whether payment verification succeeded
+        
+        Payer:
+          type: string
+          description: Wallet address of payer
+          example: "0x1234567890123456789012345678901234567890"
+        
+        InvalidReason:
+          type: string
+          description: Reason for verification failure (if IsValid is false)
+          example: "Insufficient payment amount"
+
+    PaymentRequirementsResponse:
+      type: object
+      description: |
+        Response body for HTTP 402 Payment Required responses.
+        Imported from github.com/mark3labs/x402-go package.
+      required:
+        - x402Version
+        - error
+        - accepts
+      properties:
+        x402Version:
+          type: integer
+          const: 1
+          description: x402 protocol version
+        
+        error:
+          type: string
+          description: Human-readable error message
+          example: "Payment required for this resource"
+        
+        accepts:
+          type: array
+          description: List of accepted payment methods
+          items:
+            $ref: '#/components/schemas/PaymentRequirement'
+
+    ErrorResponse:
+      type: object
+      description: Error response for 400/503 status codes
+      required:
+        - x402Version
+        - error
+      properties:
+        x402Version:
+          type: integer
+          const: 1
+          description: x402 protocol version
+        
+        error:
+          type: string
+          description: Human-readable error message
+          examples:
+            - "Invalid payment header"
+            - "Payment verification failed"
+            - "Payment settlement failed"
+
+paths:
+  # This section documents the middleware behavior, not HTTP endpoints
+  # The middleware is applied to existing endpoints via Chi router
+  
+  /middleware-behavior:
+    get:
+      summary: Middleware Request Processing
+      description: |
+        Documents how the middleware processes incoming requests.
+        This is not an actual endpoint but describes middleware behavior.
+      
+      parameters:
+        - name: X-PAYMENT
+          in: header
+          required: false
+          description: Base64-encoded JSON payment payload
+          schema:
+            type: string
+            format: byte
+            example: "eyJ4NDAyVmVyc2lvbiI6MSwic2NoZW1lIjoiZXhhY3QiLCJuZXR3b3JrIjoiYmFzZS1zZXBvbGlhIiwiZGF0YSI6e319"
+      
+      responses:
+        '200':
+          description: |
+            Payment verified (and settled if !VerifyOnly), protected handler executed.
+            Response format depends on protected handler implementation.
+          headers:
+            X-PAYMENT-RESPONSE:
+              description: Base64-encoded settlement details (if !VerifyOnly)
+              schema:
+                type: string
+                format: byte
+        
+        '400':
+          description: |
+            Invalid payment header (malformed base64, invalid JSON, unsupported version)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                x402Version: 1
+                error: "Invalid payment header"
+        
+        '402':
+          description: |
+            Payment required (missing header, insufficient payment, invalid payment)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentRequirementsResponse'
+              example:
+                x402Version: 1
+                error: "Payment required for this resource"
+                accepts:
+                  - Scheme: "exact"
+                    Network: "base-sepolia"
+                    MaxAmountRequired: "10000"
+                    Asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+                    PayTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0"
+                    MaxTimeoutSeconds: 300
+                    Resource: "https://api.example.com/protected/resource"
+                    Description: "Payment required for premium API access"
+        
+        '503':
+          description: |
+            Service unavailable (facilitator unreachable, verification failed, settlement failed)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                verification_failed:
+                  value:
+                    x402Version: 1
+                    error: "Payment verification failed"
+                settlement_failed:
+                  value:
+                    x402Version: 1
+                    error: "Payment settlement failed"
+
+# Go API Documentation (not OpenAPI standard, but useful for implementation)
+x-go-api:
+  package: github.com/mark3labs/x402-go/http/chi
+  
+  functions:
+    NewChiX402Middleware:
+      signature: "func NewChiX402Middleware(config *httpx402.Config) func(http.Handler) http.Handler"
+      description: |
+        Creates and returns Chi-compatible middleware for x402 payment gating.
+        
+        The middleware:
+        1. Checks for OPTIONS requests and bypasses payment verification
+        2. Extracts X-PAYMENT header from requests
+        3. Parses and validates payment payload
+        4. Matches payment against configured requirements
+        5. Verifies payment with facilitator (with fallback support)
+        6. Settles payment if VerifyOnly=false (with fallback support)
+        7. Stores payment details in request context
+        8. Calls next handler if payment successful
+        9. Returns error response if payment fails
+        
+        Constructor behavior:
+        - Creates FacilitatorClient(s) with hardcoded timeouts (5s verify, 60s settle)
+        - Calls facilitator.EnrichRequirements() to fetch network config
+        - Logs warning and continues with original requirements if enrichment fails
+        - Logs info if enrichment succeeds
+      
+      parameters:
+        - name: config
+          type: "*httpx402.Config"
+          required: true
+          description: Middleware configuration
+      
+      returns:
+        - type: "func(http.Handler) http.Handler"
+          description: Chi-compatible middleware handler function
+      
+      example: |
+        config := &httpx402.Config{
+            FacilitatorURL: "https://api.x402.coinbase.com",
+            PaymentRequirements: []x402.PaymentRequirement{{
+                Scheme:            "exact",
+                Network:           "base-sepolia",
+                MaxAmountRequired: "10000",
+                Asset:             "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+                PayTo:             "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+                MaxTimeoutSeconds: 300,
+            }},
+        }
+        
+        r := chi.NewRouter()
+        r.Use(NewChiX402Middleware(config))
+        r.Get("/protected", func(w http.ResponseWriter, r *http.Request) {
+            payment := r.Context().Value(httpx402.PaymentContextKey).(*httpx402.VerifyResponse)
+            w.Write([]byte("Payment received from: " + payment.Payer))
+        })
+  
+  context_keys:
+    PaymentContextKey:
+      type: "httpx402.contextKey"
+      value: '"x402_payment"'
+      description: |
+        Context key for accessing payment verification details in handlers.
+        Use: r.Context().Value(httpx402.PaymentContextKey).(*httpx402.VerifyResponse)
+
+  usage_patterns:
+    global_middleware:
+      description: Apply to all routes
+      example: |
+        r := chi.NewRouter()
+        r.Use(NewChiX402Middleware(config))
+        r.Get("/protected", handler)
+    
+    route_group:
+      description: Apply to route group
+      example: |
+        r := chi.NewRouter()
+        r.Route("/paid", func(r chi.Router) {
+            r.Use(NewChiX402Middleware(config))
+            r.Get("/resource", handler)
+        })
+    
+    inline_middleware:
+      description: Apply to single route
+      example: |
+        r := chi.NewRouter()
+        r.With(NewChiX402Middleware(config)).Get("/paid", handler)
+    
+    context_access:
+      description: Access payment details in handler
+      example: |
+        func handler(w http.ResponseWriter, r *http.Request) {
+            payment, ok := r.Context().Value(httpx402.PaymentContextKey).(*httpx402.VerifyResponse)
+            if !ok {
+                http.Error(w, "Payment info not found", http.StatusInternalServerError)
+                return
+            }
+            
+            if !payment.IsValid {
+                http.Error(w, "Invalid payment", http.StatusPaymentRequired)
+                return
+            }
+            
+            log.Printf("Payment from: %s", payment.Payer)
+            w.Write([]byte("Access granted"))
+        }
+
+  special_behaviors:
+    options_bypass:
+      description: |
+        OPTIONS requests bypass all payment verification to support CORS preflight.
+        Implementation: if r.Method == "OPTIONS" { next.ServeHTTP(w, r); return }
+    
+    enrichment:
+      description: |
+        Constructor calls facilitator.EnrichRequirements() to fetch network-specific
+        configuration (e.g., feePayer for SVM chains). Logs warning and continues
+        with original requirements if enrichment fails.
+    
+    fallback_support:
+      description: |
+        If FallbackFacilitatorURL is configured, middleware automatically tries
+        fallback facilitator if primary fails for both verify and settle operations.
+    
+    verify_only_mode:
+      description: |
+        When VerifyOnly=true, middleware skips settlement and does not add
+        X-PAYMENT-RESPONSE header. Useful for testing or when settlement is
+        handled elsewhere.
+
+  error_handling:
+    malformed_header:
+      status_code: 400
+      response: ErrorResponse with "Invalid payment header"
+    
+    missing_payment:
+      status_code: 402
+      response: PaymentRequirementsResponse with configured requirements
+    
+    verification_failed:
+      status_code: 503
+      response: ErrorResponse with "Payment verification failed"
+    
+    settlement_failed:
+      status_code: 503
+      response: ErrorResponse with "Payment settlement failed"
+
+  timeouts:
+    verify: "5 seconds (hardcoded in FacilitatorClient)"
+    settle: "60 seconds (hardcoded in FacilitatorClient)"
