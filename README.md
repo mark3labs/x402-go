@@ -7,7 +7,7 @@ Go implementation of the x402 payment standard for paywalled HTTP endpoints.
 x402-go makes it simple to add crypto payments to HTTP APIs. This library provides:
 
 - **USDC helpers** for easy payment setup across 8+ chains (Base, Polygon, Avalanche, Solana)
-- **Middleware** for standard `net/http` and Gin framework
+- **Middleware** for standard `net/http`, Gin, and PocketBase frameworks
 - **HTTP client** with automatic payment handling
 - **Multi-chain support** with automatic wallet selection
 
@@ -170,6 +170,43 @@ func main() {
 ```
 
 See `examples/gin/` for complete examples.
+
+### Using with PocketBase Framework
+
+```go
+import (
+    "github.com/pocketbase/pocketbase"
+    "github.com/pocketbase/pocketbase/core"
+    "github.com/mark3labs/x402-go"
+    pbx402 "github.com/mark3labs/x402-go/http/pocketbase"
+)
+
+func main() {
+    app := pocketbase.New()
+
+    // Create payment requirement
+    requirement, _ := x402.NewUSDCPaymentRequirement(x402.USDCRequirementConfig{
+        Chain:            x402.BaseSepolia,
+        Amount:           "0.01",
+        RecipientAddress: "0xYourAddress",
+    })
+
+    config := &x402http.Config{
+        FacilitatorURL: "https://facilitator.x402.rs",
+        PaymentRequirements: []x402.PaymentRequirement{requirement},
+    }
+
+    // Apply middleware to specific routes
+    app.OnRecordBeforeCreateRequest("protected_collection").BindFunc(func(e *core.RequestEvent) error {
+        middleware := pbx402.NewPocketBaseX402Middleware(config)
+        return middleware(e)
+    })
+
+    app.Start()
+}
+```
+
+See `examples/pocketbase/` for complete examples.
 
 ### Custom Configuration
 
