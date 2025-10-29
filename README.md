@@ -173,13 +173,14 @@ See `examples/gin/` for complete examples.
 
 ### Using with Chi Framework
 
+Chi uses the standard `http.Handler` middleware interface, so you can use the base middleware directly:
+
 ```go
 import (
     "net/http"
     "github.com/go-chi/chi/v5"
     "github.com/mark3labs/x402-go"
     x402http "github.com/mark3labs/x402-go/http"
-    chix402 "github.com/mark3labs/x402-go/http/chi"
 )
 
 func main() {
@@ -195,9 +196,9 @@ func main() {
         PaymentRequirements: []x402.PaymentRequirement{requirement},
     }
 
-    // Setup Chi with x402 middleware
+    // Setup Chi with x402 middleware (uses standard http.Handler interface)
     r := chi.NewRouter()
-    r.Use(chix402.NewChiX402Middleware(config))
+    r.Use(x402http.NewX402Middleware(config))
 
     r.Get("/data", func(w http.ResponseWriter, r *http.Request) {
         // Access payment details from context

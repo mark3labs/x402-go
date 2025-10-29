@@ -6,6 +6,7 @@ require (
 	github.com/ethereum/go-ethereum v1.16.5
 	github.com/gagliardetto/solana-go v1.14.0
 	github.com/gin-gonic/gin v1.10.0
+	github.com/go-chi/chi/v5 v5.2.3
 	github.com/pocketbase/pocketbase v0.31.0
 	github.com/tyler-smith/go-bip32 v1.0.0
 	github.com/tyler-smith/go-bip39 v1.1.0
@@ -41,7 +42,6 @@ require (
 	github.com/gagliardetto/treeout v0.1.4 // indirect
 	github.com/ganigeorgiev/fexpr v0.5.0 // indirect
 	github.com/gin-contrib/sse v0.1.0 // indirect
-	github.com/go-chi/chi/v5 v5.2.3 // indirect
 	github.com/go-ozzo/ozzo-validation/v4 v4.3.0 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect

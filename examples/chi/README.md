@@ -88,7 +88,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/mark3labs/x402-go"
 	httpx402 "github.com/mark3labs/x402-go/http"
-	chix402 "github.com/mark3labs/x402-go/http/chi"
 )
 
 func main() {
@@ -108,8 +107,8 @@ func main() {
 		}},
 	}
 	
-	// Apply middleware to routes
-	r.Use(chix402.NewChiX402Middleware(config))
+	// Apply middleware to routes (Chi uses standard http.Handler middleware)
+	r.Use(httpx402.NewX402Middleware(config))
 	
 	// Protected endpoint
 	r.Get("/data", func(w http.ResponseWriter, r *http.Request) {
@@ -124,15 +123,16 @@ func main() {
 
 ## Middleware Features
 
-The Chi x402 middleware provides:
+The x402 middleware (compatible with Chi's standard http.Handler interface) provides:
 
 1. **Automatic Payment Verification**: Validates X-PAYMENT headers
 2. **Payment Settlement**: Processes payments through facilitator
 3. **Context Integration**: Stores payment info in request context
-4. **CORS Support**: Automatically bypasses OPTIONS requests
-5. **Error Handling**: Returns proper 402/400/503 responses
-6. **Logging**: Structured logging via slog.Default()
-7. **Verify-Only Mode**: Optional mode for testing without settlement
+4. **Error Handling**: Returns proper 402/400/503 responses
+5. **Logging**: Structured logging via slog.Default()
+6. **Verify-Only Mode**: Optional mode for testing without settlement
+
+**Note**: Chi uses the standard `http.Handler` middleware interface, so the base x402 middleware works directly without any framework-specific adapter.
 
 ## Advanced Usage
 
@@ -145,7 +145,7 @@ r := chi.NewRouter()
 r.Get("/public", publicHandler)
 
 // Protected routes
-r.With(chix402.NewChiX402Middleware(config)).Get("/premium", premiumHandler)
+r.With(httpx402.NewX402Middleware(config)).Get("/premium", premiumHandler)
 ```
 
 ### Route Groups
@@ -155,7 +155,7 @@ r := chi.NewRouter()
 
 // Protected group
 r.Route("/api", func(r chi.Router) {
-	r.Use(chix402.NewChiX402Middleware(config))
+	r.Use(httpx402.NewX402Middleware(config))
 	r.Get("/data", dataHandler)
 	r.Get("/analytics", analyticsHandler)
 })
@@ -223,9 +223,9 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 - [Gin Example](../gin/) - Gin framework with x402
 - [Basic Example](../basic/) - Stdlib HTTP with x402
+- [PocketBase Example](../pocketbase/) - PocketBase framework with x402
 
 ## Documentation
 
-- [Chi Middleware Spec](../../specs/006-chi-middleware/spec.md)
-- [Chi Middleware API](../../specs/006-chi-middleware/contracts/chi-middleware-api.yaml)
 - [x402 Protocol](https://x402.org)
+- [Base HTTP Middleware](../../http/) - Standard middleware that works with Chi

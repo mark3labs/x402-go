@@ -14,7 +14,6 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/mark3labs/x402-go"
 	x402http "github.com/mark3labs/x402-go/http"
-	chix402 "github.com/mark3labs/x402-go/http/chi"
 )
 
 func main() {
@@ -101,7 +100,7 @@ func main() {
 	// Paywalled endpoint group
 	r.Route("/", func(r chi.Router) {
 		// Apply x402 middleware to this group
-		r.Use(chix402.NewChiX402Middleware(config))
+		r.Use(x402http.NewX402Middleware(config))
 
 		r.Get("/data", func(w http.ResponseWriter, r *http.Request) {
 			// Access payment information from context
