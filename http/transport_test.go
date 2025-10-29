@@ -326,7 +326,7 @@ func TestRoundTrip_WithSettlement(t *testing.T) {
 			data, _ := json.Marshal(settlement)
 			settlementHeader := base64.StdEncoding.EncodeToString(data)
 
-			w.Header().Set("X-SETTLEMENT", settlementHeader)
+			w.Header().Set("X-PAYMENT-RESPONSE", settlementHeader)
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte("success"))
 		} else {

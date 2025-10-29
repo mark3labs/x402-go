@@ -152,7 +152,7 @@ func buildPaymentHeader(payment *x402.PaymentPayload) (string, error) {
 	return paymentBase64, nil
 }
 
-// parseSettlement extracts settlement information from the X-SETTLEMENT header.
+// parseSettlement extracts settlement information from the X-PAYMENT-RESPONSE header.
 func parseSettlement(headerValue string) (*x402.SettlementResponse, error) {
 	// Decode base64
 	settlementJSON, err := base64.StdEncoding.DecodeString(headerValue)

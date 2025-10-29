@@ -94,7 +94,7 @@ func WithSelector(selector x402.PaymentSelector) ClientOption {
 // GetSettlement extracts settlement information from an HTTP response.
 // Returns nil if no settlement header is present.
 func GetSettlement(resp *http.Response) *x402.SettlementResponse {
-	settlementHeader := resp.Header.Get("X-SETTLEMENT")
+	settlementHeader := resp.Header.Get("X-PAYMENT-RESPONSE")
 	if settlementHeader == "" {
 		return nil
 	}
