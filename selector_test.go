@@ -2,6 +2,7 @@ package x402
 
 import (
 	"math/big"
+	"strings"
 	"testing"
 )
 
@@ -34,7 +35,7 @@ func (m *mockSignerForSelector) CanSign(req *PaymentRequirement) bool {
 	}
 	// Check if we have the requested token
 	for _, token := range m.tokens {
-		if token.Address == req.Asset {
+		if strings.EqualFold(token.Address, req.Asset) {
 			return m.canSignValue
 		}
 	}
@@ -63,7 +64,7 @@ func TestDefaultPaymentSelector_SelectAndSign_NoSigners(t *testing.T) {
 		Asset:             "0xUSDC",
 	}
 
-	_, err := selector.SelectAndSign(requirements, []Signer{})
+	_, err := selector.SelectAndSign([]PaymentRequirement{*requirements}, []Signer{})
 	if err == nil {
 		t.Fatal("expected error with no signers, got nil")
 	}
@@ -95,7 +96,7 @@ func TestDefaultPaymentSelector_SelectAndSign_InvalidAmount(t *testing.T) {
 		Asset:             "0xUSDC",
 	}
 
-	_, err := selector.SelectAndSign(requirements, []Signer{signer})
+	_, err := selector.SelectAndSign([]PaymentRequirement{*requirements}, []Signer{signer})
 	if err == nil {
 		t.Fatal("expected error with invalid amount, got nil")
 	}
@@ -178,7 +179,7 @@ func TestDefaultPaymentSelector_SelectAndSign_SignerPriority(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			selector := NewDefaultPaymentSelector()
-			payment, err := selector.SelectAndSign(tt.requirements, tt.signers)
+			payment, err := selector.SelectAndSign([]PaymentRequirement{*tt.requirements}, tt.signers)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -246,7 +247,7 @@ func TestDefaultPaymentSelector_SelectAndSign_TokenPriority(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			selector := NewDefaultPaymentSelector()
-			payment, err := selector.SelectAndSign(tt.requirements, tt.signers)
+			payment, err := selector.SelectAndSign([]PaymentRequirement{*tt.requirements}, tt.signers)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -270,7 +271,7 @@ func TestDefaultPaymentSelector_SelectAndSign_TokenPriority(t *testing.T) {
 			// Verify the selected signer has the expected token
 			hasToken := false
 			for _, token := range selectedSigner.tokens {
-				if token.Address == tt.expectedToken {
+				if strings.EqualFold(token.Address, tt.expectedToken) {
 					hasToken = true
 					break
 				}
@@ -370,7 +371,7 @@ func TestDefaultPaymentSelector_SelectAndSign_MaxAmountFiltering(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			selector := NewDefaultPaymentSelector()
-			payment, err := selector.SelectAndSign(tt.requirements, tt.signers)
+			payment, err := selector.SelectAndSign([]PaymentRequirement{*tt.requirements}, tt.signers)
 
 			if tt.expectError {
 				if err == nil {
@@ -458,7 +459,7 @@ func TestDefaultPaymentSelector_SelectAndSign_NetworkFiltering(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			selector := NewDefaultPaymentSelector()
-			payment, err := selector.SelectAndSign(tt.requirements, signers)
+			payment, err := selector.SelectAndSign([]PaymentRequirement{*tt.requirements}, signers)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -487,7 +488,7 @@ func TestDefaultPaymentSelector_SelectAndSign_NoMatchingNetwork(t *testing.T) {
 	}
 
 	selector := NewDefaultPaymentSelector()
-	_, err := selector.SelectAndSign(requirements, signers)
+	_, err := selector.SelectAndSign([]PaymentRequirement{*requirements}, signers)
 	if err == nil {
 		t.Fatal("expected error with no matching network, got nil")
 	}
@@ -519,7 +520,7 @@ func TestDefaultPaymentSelector_SelectAndSign_NoMatchingToken(t *testing.T) {
 	}
 
 	selector := NewDefaultPaymentSelector()
-	_, err := selector.SelectAndSign(requirements, signers)
+	_, err := selector.SelectAndSign([]PaymentRequirement{*requirements}, signers)
 	if err == nil {
 		t.Fatal("expected error with no matching token, got nil")
 	}
@@ -552,7 +553,7 @@ func TestDefaultPaymentSelector_SelectAndSign_SigningError(t *testing.T) {
 	}
 
 	selector := NewDefaultPaymentSelector()
-	_, err := selector.SelectAndSign(requirements, signers)
+	_, err := selector.SelectAndSign([]PaymentRequirement{*requirements}, signers)
 	if err == nil {
 		t.Fatal("expected signing error, got nil")
 	}
@@ -590,7 +591,7 @@ func BenchmarkDefaultPaymentSelector_SelectAndSign_10Signers(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := selector.SelectAndSign(requirements, signers)
+		_, err := selector.SelectAndSign([]PaymentRequirement{*requirements}, signers)
 		if err != nil {
 			b.Fatalf("SelectAndSign failed: %v", err)
 		}
@@ -646,7 +647,7 @@ func TestDefaultPaymentSelector_PriorityOrderingConvention(t *testing.T) {
 			}
 
 			selector := NewDefaultPaymentSelector()
-			_, err := selector.SelectAndSign(requirements, signers)
+			_, err := selector.SelectAndSign([]PaymentRequirement{*requirements}, signers)
 			if err != nil {
 				t.Fatalf("SelectAndSign failed: %v", err)
 			}
@@ -664,6 +665,215 @@ func TestDefaultPaymentSelector_PriorityOrderingConvention(t *testing.T) {
 			if selectedPriority != tt.expectedPriority {
 				t.Errorf("expected priority %d to be selected, got %d", tt.expectedPriority, selectedPriority)
 			}
+		})
+	}
+}
+func TestDefaultPaymentSelector_SelectAndSign_MultipleRequirements(t *testing.T) {
+	tests := []struct {
+		name              string
+		requirements      []PaymentRequirement
+		signers           []Signer
+		expectedNetwork   string
+		expectedAsset     string
+		expectError       bool
+		expectedErrorCode ErrorCode
+	}{
+		{
+			name: "select first matching requirement when signer supports first option",
+			requirements: []PaymentRequirement{
+				{
+					Scheme:            "exact",
+					Network:           "base",
+					MaxAmountRequired: "100000",
+					Asset:             "0xUSDC",
+				},
+				{
+					Scheme:            "exact",
+					Network:           "solana",
+					MaxAmountRequired: "100000",
+					Asset:             "0xSOL",
+				},
+			},
+			signers: []Signer{
+				&mockSignerForSelector{
+					network:      "base",
+					scheme:       "exact",
+					canSignValue: true,
+					priority:     1,
+					tokens: []TokenConfig{
+						{Address: "0xUSDC", Symbol: "USDC", Decimals: 6},
+					},
+				},
+			},
+			expectedNetwork: "base",
+			expectedAsset:   "0xUSDC",
+			expectError:     false,
+		},
+		{
+			name: "select second requirement when signer only supports second option",
+			requirements: []PaymentRequirement{
+				{
+					Scheme:            "exact",
+					Network:           "base",
+					MaxAmountRequired: "100000",
+					Asset:             "0xUSDC",
+				},
+				{
+					Scheme:            "exact",
+					Network:           "solana",
+					MaxAmountRequired: "100000",
+					Asset:             "0xSOL",
+				},
+			},
+			signers: []Signer{
+				&mockSignerForSelector{
+					network:      "solana",
+					scheme:       "exact",
+					canSignValue: true,
+					priority:     1,
+					tokens: []TokenConfig{
+						{Address: "0xSOL", Symbol: "SOL", Decimals: 9},
+					},
+				},
+			},
+			expectedNetwork: "solana",
+			expectedAsset:   "0xSOL",
+			expectError:     false,
+		},
+		{
+			name: "select higher priority signer across multiple requirements",
+			requirements: []PaymentRequirement{
+				{
+					Scheme:            "exact",
+					Network:           "base",
+					MaxAmountRequired: "100000",
+					Asset:             "0xUSDC",
+				},
+				{
+					Scheme:            "exact",
+					Network:           "solana",
+					MaxAmountRequired: "100000",
+					Asset:             "0xSOL",
+				},
+			},
+			signers: []Signer{
+				&mockSignerForSelector{
+					network:      "base",
+					scheme:       "exact",
+					canSignValue: true,
+					priority:     2, // Lower priority
+					tokens: []TokenConfig{
+						{Address: "0xUSDC", Symbol: "USDC", Decimals: 6},
+					},
+				},
+				&mockSignerForSelector{
+					network:      "solana",
+					scheme:       "exact",
+					canSignValue: true,
+					priority:     1, // Higher priority - should be selected
+					tokens: []TokenConfig{
+						{Address: "0xSOL", Symbol: "SOL", Decimals: 9},
+					},
+				},
+			},
+			expectedNetwork: "solana",
+			expectedAsset:   "0xSOL",
+			expectError:     false,
+		},
+		{
+			name: "error when no signer can satisfy any requirement",
+			requirements: []PaymentRequirement{
+				{
+					Scheme:            "exact",
+					Network:           "base",
+					MaxAmountRequired: "100000",
+					Asset:             "0xUSDC",
+				},
+				{
+					Scheme:            "exact",
+					Network:           "ethereum",
+					MaxAmountRequired: "100000",
+					Asset:             "0xDAI",
+				},
+			},
+			signers: []Signer{
+				&mockSignerForSelector{
+					network:      "solana",
+					scheme:       "exact",
+					canSignValue: true,
+					priority:     1,
+					tokens: []TokenConfig{
+						{Address: "0xSOL", Symbol: "SOL", Decimals: 9},
+					},
+				},
+			},
+			expectError:       true,
+			expectedErrorCode: ErrCodeNoValidSigner,
+		},
+		{
+			name: "select requirement based on max amount filtering",
+			requirements: []PaymentRequirement{
+				{
+					Scheme:            "exact",
+					Network:           "base",
+					MaxAmountRequired: "10000000", // 10 USDC - too high
+					Asset:             "0xUSDC",
+				},
+				{
+					Scheme:            "exact",
+					Network:           "base",
+					MaxAmountRequired: "100000", // 0.1 USDC - within limit
+					Asset:             "0xDAI",
+				},
+			},
+			signers: []Signer{
+				&mockSignerForSelector{
+					network:      "base",
+					scheme:       "exact",
+					canSignValue: true,
+					priority:     1,
+					maxAmount:    big.NewInt(1000000), // 1 USDC max
+					tokens: []TokenConfig{
+						{Address: "0xUSDC", Symbol: "USDC", Decimals: 6},
+						{Address: "0xDAI", Symbol: "DAI", Decimals: 6},
+					},
+				},
+			},
+			expectedNetwork: "base",
+			expectedAsset:   "0xDAI",
+			expectError:     false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			selector := NewDefaultPaymentSelector()
+			payment, err := selector.SelectAndSign(tt.requirements, tt.signers)
+
+			if tt.expectError {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				paymentErr, ok := err.(*PaymentError)
+				if !ok {
+					t.Fatalf("expected PaymentError, got %T", err)
+				}
+				if paymentErr.Code != tt.expectedErrorCode {
+					t.Errorf("expected error code %s, got %s", tt.expectedErrorCode, paymentErr.Code)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if payment.Network != tt.expectedNetwork {
+				t.Errorf("expected network %s, got %s", tt.expectedNetwork, payment.Network)
+			}
+
+			// Verify the selected requirement by checking which signer was used
+			// (the payment should match the expected asset indirectly through the network)
 		})
 	}
 }

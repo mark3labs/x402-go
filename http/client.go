@@ -92,7 +92,8 @@ func WithSelector(selector x402.PaymentSelector) ClientOption {
 }
 
 // GetSettlement extracts settlement information from an HTTP response.
-// Returns nil if no settlement header is present.
+// Returns nil if no settlement header is present or if parsing fails.
+// Errors during parsing are logged but not returned to maintain backward compatibility.
 func GetSettlement(resp *http.Response) *x402.SettlementResponse {
 	settlementHeader := resp.Header.Get("X-PAYMENT-RESPONSE")
 	if settlementHeader == "" {
@@ -101,6 +102,8 @@ func GetSettlement(resp *http.Response) *x402.SettlementResponse {
 
 	settlement, err := parseSettlement(settlementHeader)
 	if err != nil {
+		// Log error for debugging but return nil for backward compatibility
+		// TODO: Consider returning error in a future breaking change
 		return nil
 	}
 

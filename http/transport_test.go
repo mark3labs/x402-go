@@ -1149,3 +1149,163 @@ func (m *mockSignerWithTracking) Sign(req *x402.PaymentRequirement) (*x402.Payme
 	}
 	return m.mockSigner.Sign(req)
 }
+
+// Test for handling multiple payment requirements in 402 response
+func TestRoundTrip_MultiplePaymentRequirements(t *testing.T) {
+	tests := []struct {
+		name            string
+		requirements    []x402.PaymentRequirement
+		signers         []x402.Signer
+		expectedNetwork string
+		expectError     bool
+	}{
+		{
+			name: "select first matching requirement from multiple options",
+			requirements: []x402.PaymentRequirement{
+				{
+					Scheme:            "exact",
+					Network:           "base",
+					Asset:             "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+					MaxAmountRequired: "100000",
+					PayTo:             "0x1234567890123456789012345678901234567890",
+					MaxTimeoutSeconds: 60,
+				},
+				{
+					Scheme:            "exact",
+					Network:           "solana",
+					Asset:             "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+					MaxAmountRequired: "100000",
+					PayTo:             "SomeAddress",
+					MaxTimeoutSeconds: 60,
+				},
+			},
+			signers: []x402.Signer{
+				&mockSigner{network: "base", scheme: "exact", canSignValue: true},
+			},
+			expectedNetwork: "base",
+			expectError:     false,
+		},
+		{
+			name: "select second requirement when first is not supported",
+			requirements: []x402.PaymentRequirement{
+				{
+					Scheme:            "exact",
+					Network:           "ethereum",
+					Asset:             "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+					MaxAmountRequired: "100000",
+					PayTo:             "0x1234567890123456789012345678901234567890",
+					MaxTimeoutSeconds: 60,
+				},
+				{
+					Scheme:            "exact",
+					Network:           "base",
+					Asset:             "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+					MaxAmountRequired: "100000",
+					PayTo:             "0x1234567890123456789012345678901234567890",
+					MaxTimeoutSeconds: 60,
+				},
+			},
+			signers: []x402.Signer{
+				&mockSigner{network: "base", scheme: "exact", canSignValue: true},
+			},
+			expectedNetwork: "base",
+			expectError:     false,
+		},
+		{
+			name: "error when no signer can satisfy any requirement",
+			requirements: []x402.PaymentRequirement{
+				{
+					Scheme:            "exact",
+					Network:           "ethereum",
+					Asset:             "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+					MaxAmountRequired: "100000",
+					PayTo:             "0x1234567890123456789012345678901234567890",
+					MaxTimeoutSeconds: 60,
+				},
+				{
+					Scheme:            "exact",
+					Network:           "solana",
+					Asset:             "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+					MaxAmountRequired: "100000",
+					PayTo:             "SomeAddress",
+					MaxTimeoutSeconds: 60,
+				},
+			},
+			signers: []x402.Signer{
+				&mockSigner{network: "base", scheme: "exact", canSignValue: false},
+			},
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var selectedNetwork string
+			requestCount := 0
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requestCount++
+
+				if r.Header.Get("X-PAYMENT") == "" {
+					// First request - return multiple payment requirements
+					response := struct {
+						X402Version int                       `json:"x402Version"`
+						Error       string                    `json:"error"`
+						Accepts     []x402.PaymentRequirement `json:"accepts"`
+					}{
+						X402Version: 1,
+						Error:       "Payment required",
+						Accepts:     tt.requirements,
+					}
+					body, _ := json.Marshal(response)
+					w.WriteHeader(http.StatusPaymentRequired)
+					_, _ = w.Write(body)
+				} else {
+					// Parse payment to determine which network was selected
+					paymentHeader := r.Header.Get("X-PAYMENT")
+					decoded, _ := base64.StdEncoding.DecodeString(paymentHeader)
+					var payment x402.PaymentPayload
+					_ = json.Unmarshal(decoded, &payment)
+					selectedNetwork = payment.Network
+
+					w.WriteHeader(http.StatusOK)
+					_, _ = w.Write([]byte("success"))
+				}
+			}))
+			defer server.Close()
+
+			transport := &X402Transport{
+				Base:     http.DefaultTransport,
+				Signers:  tt.signers,
+				Selector: x402.NewDefaultPaymentSelector(),
+			}
+
+			req, _ := http.NewRequest("GET", server.URL, nil)
+			resp, err := transport.RoundTrip(req)
+
+			if tt.expectError {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode != http.StatusOK {
+				t.Errorf("expected status 200, got %d", resp.StatusCode)
+			}
+
+			if selectedNetwork != tt.expectedNetwork {
+				t.Errorf("expected network %s, got %s", tt.expectedNetwork, selectedNetwork)
+			}
+
+			if requestCount != 2 {
+				t.Errorf("expected 2 requests (402 + retry), got %d", requestCount)
+			}
+		})
+	}
+}

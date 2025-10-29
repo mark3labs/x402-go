@@ -153,7 +153,10 @@ func AmountToBigInt(amount string, decimals int) (*big.Int, error) {
 	value.Mul(value, multiplier)
 
 	// Convert to integer
-	result, _ := value.Int(nil)
+	result, accuracy := value.Int(nil)
+	if accuracy != big.Exact {
+		return nil, ErrInvalidAmount
+	}
 	return result, nil
 }
 
