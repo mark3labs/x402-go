@@ -10,6 +10,7 @@ import (
 )
 
 // Test EC private key (ECDSA P-256) - base64-encoded (CDP format) - DO NOT USE IN PRODUCTION
+// gitleaks:allow
 const testECPrivateKey = `MHcCAQEEIIGlRFY0J0gbOFJbZqHRIhzgFjt6sMdVlvL+8zBcCIJmoAoGCCqGSM49AwEHoUQDQgAEzXDFO5wEOHqMNLhFqn1NJl3vXqKLJJqL0YNn2R3DJCDm7fRXQzKtYMJcQFMQKmC0BNm7hPpYPKJbZEcLQ9chMg==`
 
 // Test invalid base64 format
