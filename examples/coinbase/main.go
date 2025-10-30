@@ -175,6 +175,7 @@ func runClient(args []string) {
 	apiKeyName := fs.String("api-key-name", "", "CDP API Key Name (or set CDP_API_KEY_NAME env var)")
 	apiKeySecret := fs.String("api-key-secret", "", "CDP API Key Secret (or set CDP_API_KEY_SECRET env var)")
 	walletSecret := fs.String("wallet-secret", "", "CDP Wallet Secret (optional, or set CDP_WALLET_SECRET env var)")
+	accountName := fs.String("account-name", "x402-payment-wallet", "CDP account name (unique identifier for your wallet)")
 	url := fs.String("url", "", "URL to fetch (must be paywalled with x402)")
 	tokenAddr := fs.String("token", "", "Token address (auto-detected based on network if not specified)")
 	maxAmount := fs.String("max", "", "Maximum amount per call (optional)")
@@ -242,14 +243,15 @@ func runClient(args []string) {
 		signerOpts = append(signerOpts, coinbase.WithMaxAmountPerCall(*maxAmount))
 	}
 
-	// Create Coinbase CDP signer
-	cdpSigner, err := coinbase.NewSigner(signerOpts...)
+	// Create Coinbase CDP signer with account name
+	cdpSigner, err := coinbase.NewSigner(*accountName, signerOpts...)
 	if err != nil {
 		log.Fatalf("Failed to create Coinbase CDP signer: %v", err)
 	}
 
 	signerAddress := cdpSigner.Address()
 	fmt.Printf("Created Coinbase CDP signer for address: %s\n", signerAddress)
+	fmt.Printf("Account name: %s\n", *accountName)
 	fmt.Printf("Network: %s\n", *network)
 	fmt.Printf("Token: %s\n", *tokenAddr)
 

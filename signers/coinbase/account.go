@@ -42,10 +42,11 @@ type CDPAccount struct {
 }
 
 // CreateAccountRequest represents the request body for creating a new CDP account.
-// The NetworkID field specifies which blockchain network the account should be created on.
+// The Name field is optional but recommended to avoid creating duplicate unnamed accounts.
 type CreateAccountRequest struct {
-	// NetworkID is the CDP network identifier (e.g., "base-sepolia", "solana-devnet")
-	NetworkID string `json:"network_id"`
+	// Name is an optional identifier for the account (2-36 alphanumeric chars + hyphens)
+	// Must be unique across all accounts in the CDP project
+	Name string `json:"name,omitempty"`
 }
 
 // AccountResponse represents a single account in CDP API responses for list operations.
@@ -58,13 +59,19 @@ type AccountResponse struct {
 
 	// Network is the CDP network identifier
 	Network string `json:"network"`
+
+	// Name is the optional account identifier
+	Name string `json:"name,omitempty"`
 }
 
 // CreateAccountResponse represents the response from creating a new account.
-// Note: CDP API returns only address and timestamps, no id or network.
+// Note: CDP API returns address, name (if provided), and timestamps, but no id or network.
 type CreateAccountResponse struct {
 	// Address is the blockchain address
 	Address string `json:"address"`
+
+	// Name is the account identifier (if provided during creation)
+	Name string `json:"name,omitempty"`
 
 	// CreatedAt is the timestamp when the account was created
 	CreatedAt string `json:"createdAt"`
@@ -84,8 +91,8 @@ type ListAccountsResponse struct {
 // This function implements a GET-then-POST pattern to ensure idempotency:
 //
 //  1. Attempts to retrieve existing accounts for the network type via GET request
-//  2. If an account exists for the target network, returns it
-//  3. If no account exists, creates a new one via POST request
+//  2. If an account with the given name exists for the target network, returns it
+//  3. If no matching account exists, creates a new one with the given name via POST request
 //  4. Returns the created or retrieved account
 //
 // The function automatically maps x402 network names to CDP network identifiers and
@@ -95,6 +102,7 @@ type ListAccountsResponse struct {
 //   - ctx: Request context for timeout and cancellation
 //   - client: Configured CDP API client with authentication
 //   - x402Network: x402 network identifier (e.g., "base", "base-sepolia", "solana", "solana-devnet")
+//   - accountName: Unique identifier for the account (2-36 alphanumeric chars + hyphens, required)
 //
 // Returns:
 //   - *CDPAccount on success with ID, Address, and Network populated
@@ -109,7 +117,7 @@ type ListAccountsResponse struct {
 //
 //	auth, _ := NewCDPAuth(apiKeyName, apiKeySecret, walletSecret)
 //	client := NewCDPClient(auth)
-//	account, err := CreateOrGetAccount(ctx, client, "base-sepolia")
+//	account, err := CreateOrGetAccount(ctx, client, "base-sepolia", "my-payment-wallet")
 //	if err != nil {
 //	    log.Fatalf("Failed to create/get account: %v", err)
 //	}
@@ -118,7 +126,15 @@ type ListAccountsResponse struct {
 // Supported networks:
 //   - EVM: base, base-sepolia, ethereum, sepolia
 //   - SVM: solana, mainnet-beta, solana-devnet, devnet
-func CreateOrGetAccount(ctx context.Context, client *CDPClient, x402Network string) (*CDPAccount, error) {
+func CreateOrGetAccount(ctx context.Context, client *CDPClient, x402Network string, accountName string) (*CDPAccount, error) {
+	// Validate account name
+	if accountName == "" {
+		return nil, fmt.Errorf("account name is required")
+	}
+	if len(accountName) < 2 || len(accountName) > 36 {
+		return nil, fmt.Errorf("account name must be between 2 and 36 characters")
+	}
+
 	// Map x402 network to CDP network identifier
 	cdpNetwork, err := getCDPNetwork(x402Network)
 	if err != nil {
@@ -152,10 +168,10 @@ func CreateOrGetAccount(ctx context.Context, client *CDPClient, x402Network stri
 		return nil, fmt.Errorf("list accounts: %w", err)
 	}
 
-	// Check if an account already exists for this network
+	// Check if an account with this name already exists for this network
 	for _, account := range listResp.Accounts {
-		if account.Network == cdpNetwork {
-			// Account exists, return it
+		if account.Network == cdpNetwork && account.Name == accountName {
+			// Account exists with matching name and network, return it
 			return &CDPAccount{
 				ID:      account.ID,
 				Address: account.Address,
@@ -164,11 +180,13 @@ func CreateOrGetAccount(ctx context.Context, client *CDPClient, x402Network stri
 		}
 	}
 
-	// No existing account found, create a new one
+	// No existing account found, create a new one with the given name
 	// Note: Creating accounts REQUIRES Wallet Auth (sensitive operation)
-	// CDP API creates accounts with an empty JSON object {} (network is not specified during creation)
+	createReq := CreateAccountRequest{
+		Name: accountName,
+	}
 	var createResp CreateAccountResponse
-	err = client.doRequestWithRetry(ctx, "POST", createEndpoint, map[string]interface{}{}, &createResp, true)
+	err = client.doRequestWithRetry(ctx, "POST", createEndpoint, createReq, &createResp, true)
 	if err != nil {
 		return nil, fmt.Errorf("create account: %w", err)
 	}

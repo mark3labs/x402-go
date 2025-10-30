@@ -23,7 +23,7 @@ func TestNewSignerWithEnvironmentVariables(t *testing.T) {
 
 // TestNewSignerMissingAPIKeyName tests error when CDP_API_KEY_NAME is missing
 func TestNewSignerMissingAPIKeyName(t *testing.T) {
-	_, err := NewSigner(
+	_, err := NewSigner("test-wallet",
 		WithCDPCredentials("", testECPrivateKey, ""),
 		WithNetwork("base-sepolia"),
 		WithToken("0x036CbD53842c5426634e7929541eC2318f3dCF7e", "USDC", 6),
@@ -40,7 +40,7 @@ func TestNewSignerMissingAPIKeyName(t *testing.T) {
 
 // TestNewSignerMissingAPIKeySecret tests error when CDP_API_KEY_SECRET is missing
 func TestNewSignerMissingAPIKeySecret(t *testing.T) {
-	_, err := NewSigner(
+	_, err := NewSigner("test-wallet",
 		WithCDPCredentials("organizations/test-org/apiKeys/test-key", "", ""),
 		WithNetwork("base-sepolia"),
 		WithToken("0x036CbD53842c5426634e7929541eC2318f3dCF7e", "USDC", 6),
@@ -60,7 +60,7 @@ func TestCredentialSanitization(t *testing.T) {
 	testSecret := "-----BEGIN EC PRIVATE KEY-----\nMHcCAQEEISecretDataHere\n-----END EC PRIVATE KEY-----"
 	sensitiveFragment := "SecretDataHere"
 
-	_, err := NewSigner(
+	_, err := NewSigner("test-wallet",
 		WithCDPCredentials("organizations/test/apiKeys/key", testSecret, ""),
 		WithNetwork("base-sepolia"),
 		// Intentionally missing token to trigger error
@@ -82,7 +82,7 @@ func TestCredentialSanitization(t *testing.T) {
 
 // TestNewSignerMissingNetwork tests error when network is not specified
 func TestNewSignerMissingNetwork(t *testing.T) {
-	_, err := NewSigner(
+	_, err := NewSigner("test-wallet",
 		WithCDPCredentials("organizations/test-org/apiKeys/test-key", testECPrivateKey, ""),
 		WithToken("0x036CbD53842c5426634e7929541eC2318f3dCF7e", "USDC", 6),
 	)
@@ -98,7 +98,7 @@ func TestNewSignerMissingNetwork(t *testing.T) {
 
 // TestNewSignerMissingTokens tests error when no tokens are configured
 func TestNewSignerMissingTokens(t *testing.T) {
-	_, err := NewSigner(
+	_, err := NewSigner("test-wallet",
 		WithCDPCredentials("organizations/test-org/apiKeys/test-key", testECPrivateKey, ""),
 		WithNetwork("base-sepolia"),
 	)
@@ -129,7 +129,7 @@ func TestWithMaxAmountPerCall(t *testing.T) {
 
 // TestWithMaxAmountPerCallInvalid tests invalid max amount format
 func TestWithMaxAmountPerCallInvalid(t *testing.T) {
-	_, err := NewSigner(
+	_, err := NewSigner("test-wallet",
 		WithCDPCredentials("organizations/test-org/apiKeys/test-key", testECPrivateKey, ""),
 		WithNetwork("base-sepolia"),
 		WithToken("0x036CbD53842c5426634e7929541eC2318f3dCF7e", "USDC", 6),
@@ -289,7 +289,7 @@ func TestWithCDPCredentialsFromEnvMissing(t *testing.T) {
 	t.Setenv("CDP_API_KEY_NAME", "")
 	t.Setenv("CDP_API_KEY_SECRET", "")
 
-	_, err := NewSigner(
+	_, err := NewSigner("test-wallet",
 		WithCDPCredentialsFromEnv(),
 		WithNetwork("base-sepolia"),
 		WithToken("0xUSDC", "USDC", 6),

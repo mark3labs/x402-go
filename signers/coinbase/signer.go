@@ -19,6 +19,7 @@ type Signer struct {
 	cdpClient   *CDPClient
 	auth        *CDPAuth
 	accountID   string
+	accountName string
 	address     string
 	network     string
 	networkType NetworkType
@@ -31,12 +32,19 @@ type Signer struct {
 // SignerOption is a functional option for configuring a Signer.
 type SignerOption func(*Signer) error
 
-// NewSigner creates a new CDP signer with the given options.
+// NewSigner creates a new CDP signer with the given account name and options.
 // The signer is initialized by creating or retrieving a CDP account for the specified network.
 // At least one token must be configured via WithToken or WithTokenPriority.
-func NewSigner(opts ...SignerOption) (*Signer, error) {
+//
+// The accountName parameter is required and must be:
+// - Between 2 and 36 characters long
+// - Alphanumeric characters and hyphens only
+// - Start and end with alphanumeric characters
+// - Unique across all accounts in the CDP project
+func NewSigner(accountName string, opts ...SignerOption) (*Signer, error) {
 	s := &Signer{
-		priority: 0,
+		priority:    0,
+		accountName: accountName,
 	}
 
 	// Apply all options
@@ -52,6 +60,9 @@ func NewSigner(opts ...SignerOption) (*Signer, error) {
 	}
 	if s.network == "" {
 		return nil, x402.ErrInvalidNetwork
+	}
+	if s.accountName == "" {
+		return nil, fmt.Errorf("account name is required (use WithAccountName option)")
 	}
 	if len(s.tokens) == 0 {
 		return nil, x402.ErrNoTokens
@@ -76,9 +87,9 @@ func NewSigner(opts ...SignerOption) (*Signer, error) {
 		s.cdpClient = NewCDPClient(s.auth)
 	}
 
-	// Create or retrieve account for this network
+	// Create or retrieve account for this network with the given name
 	ctx := context.Background()
-	account, err := CreateOrGetAccount(ctx, s.cdpClient, s.network)
+	account, err := CreateOrGetAccount(ctx, s.cdpClient, s.network, s.accountName)
 	if err != nil {
 		return nil, sanitizeError(err)
 	}

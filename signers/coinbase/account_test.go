@@ -92,8 +92,8 @@ func TestCreateOrGetAccount_CreateNew(t *testing.T) {
 						return
 					}
 
-					if req.NetworkID != tt.cdpNetwork {
-						t.Errorf("Expected network_id=%s, got %s", tt.cdpNetwork, req.NetworkID)
+					if req.Name != "test-wallet" {
+						t.Errorf("Expected name=test-wallet, got %s", req.Name)
 					}
 
 					w.WriteHeader(http.StatusOK)
@@ -116,7 +116,7 @@ func TestCreateOrGetAccount_CreateNew(t *testing.T) {
 			client := NewCDPClient(auth)
 			client.baseURL = server.URL
 
-			account, err := CreateOrGetAccount(context.Background(), client, tt.x402Network)
+			account, err := CreateOrGetAccount(context.Background(), client, tt.x402Network, "test-wallet")
 			if err != nil {
 				t.Fatalf("CreateOrGetAccount failed: %v", err)
 			}
@@ -245,7 +245,7 @@ func TestCreateOrGetAccount_ExistingAccount(t *testing.T) {
 			client := NewCDPClient(auth)
 			client.baseURL = server.URL
 
-			account, err := CreateOrGetAccount(context.Background(), client, tt.x402Network)
+			account, err := CreateOrGetAccount(context.Background(), client, tt.x402Network, "test-wallet")
 			if err != nil {
 				t.Fatalf("CreateOrGetAccount failed: %v", err)
 			}
@@ -311,7 +311,7 @@ func TestCreateOrGetAccount_InvalidCredentials(t *testing.T) {
 			client := NewCDPClient(auth)
 			client.baseURL = server.URL
 
-			account, err := CreateOrGetAccount(context.Background(), client, tt.x402Network)
+			account, err := CreateOrGetAccount(context.Background(), client, tt.x402Network, "test-wallet")
 			if err == nil {
 				t.Fatal("Expected error for invalid credentials, got nil")
 			}
@@ -369,7 +369,7 @@ func TestCreateOrGetAccount_UnsupportedNetwork(t *testing.T) {
 			auth := &mockCDPAuth{}
 			client := NewCDPClient(auth)
 
-			account, err := CreateOrGetAccount(context.Background(), client, tt.x402Network)
+			account, err := CreateOrGetAccount(context.Background(), client, tt.x402Network, "test-wallet")
 			if err == nil {
 				t.Fatal("Expected error for unsupported network, got nil")
 			}
@@ -479,7 +479,7 @@ func TestCreateOrGetAccount_Idempotency(t *testing.T) {
 
 			var firstAccount *CDPAccount
 			for i := 0; i < tt.numCalls; i++ {
-				account, err := CreateOrGetAccount(context.Background(), client, tt.x402Network)
+				account, err := CreateOrGetAccount(context.Background(), client, tt.x402Network, "test-wallet")
 				if err != nil {
 					t.Fatalf("Call %d failed: %v", i+1, err)
 				}
@@ -579,7 +579,7 @@ func TestCreateOrGetAccount_ValidationErrors(t *testing.T) {
 			client := NewCDPClient(auth)
 			client.baseURL = server.URL
 
-			account, err := CreateOrGetAccount(context.Background(), client, tt.x402Network)
+			account, err := CreateOrGetAccount(context.Background(), client, tt.x402Network, "test-wallet")
 			if err == nil {
 				t.Fatal("Expected validation error, got nil")
 			}
@@ -639,7 +639,7 @@ func TestCreateOrGetAccount_NetworkAliases(t *testing.T) {
 					if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 						t.Errorf("Failed to decode request: %v", err)
 					}
-					receivedNetworkID = req.NetworkID
+					receivedNetworkID = req.Name
 
 					w.WriteHeader(http.StatusOK)
 					if err := json.NewEncoder(w).Encode(AccountResponse{
@@ -657,13 +657,13 @@ func TestCreateOrGetAccount_NetworkAliases(t *testing.T) {
 			client := NewCDPClient(auth)
 			client.baseURL = server.URL
 
-			account, err := CreateOrGetAccount(context.Background(), client, tt.x402Network)
+			account, err := CreateOrGetAccount(context.Background(), client, tt.x402Network, "test-wallet")
 			if err != nil {
 				t.Fatalf("CreateOrGetAccount failed: %v", err)
 			}
 
-			if receivedNetworkID != tt.expectedCDP {
-				t.Errorf("Expected network_id=%s, got %s", tt.expectedCDP, receivedNetworkID)
+			if receivedNetworkID != "test-wallet" {
+				t.Errorf("Expected name=test-wallet, got %s", receivedNetworkID)
 			}
 			if account.Network != tt.expectedCDP {
 				t.Errorf("Expected account network=%s, got %s", tt.expectedCDP, account.Network)
@@ -710,7 +710,7 @@ func TestCreateOrGetAccount_RetryOnTransientError(t *testing.T) {
 	client := NewCDPClient(auth)
 	client.baseURL = server.URL
 
-	account, err := CreateOrGetAccount(context.Background(), client, "base-sepolia")
+	account, err := CreateOrGetAccount(context.Background(), client, "base-sepolia", "test-wallet")
 	if err != nil {
 		t.Fatalf("Expected success after retry, got error: %v", err)
 	}
