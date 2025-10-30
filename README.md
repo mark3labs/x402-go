@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="logo.png" alt="x402-go Logo">
+</p>
+
 # x402-go
 
 Go implementation of the x402 payment standard for paywalled HTTP endpoints.
