@@ -97,10 +97,11 @@ func TestCreateOrGetAccount_CreateNew(t *testing.T) {
 					}
 
 					w.WriteHeader(http.StatusOK)
-					if err := json.NewEncoder(w).Encode(AccountResponse{
-						ID:      "accounts/test-account-123",
-						Address: tt.wantAddress,
-						Network: tt.cdpNetwork,
+					if err := json.NewEncoder(w).Encode(CreateAccountResponse{
+						Address:   tt.wantAddress,
+						Name:      "test-wallet",
+						CreatedAt: "2025-03-25T12:00:00Z",
+						UpdatedAt: "2025-03-25T12:00:00Z",
 					}); err != nil {
 						t.Errorf("Failed to encode response: %v", err)
 					}
@@ -130,8 +131,8 @@ func TestCreateOrGetAccount_CreateNew(t *testing.T) {
 			}
 
 			// Verify account details
-			if account.ID != "accounts/test-account-123" {
-				t.Errorf("Expected account ID=accounts/test-account-123, got %s", account.ID)
+			if account.Name != "test-wallet" {
+				t.Errorf("Expected account name=test-wallet, got %s", account.Name)
 			}
 			if account.Address != tt.wantAddress {
 				t.Errorf("Expected address=%s, got %s", tt.wantAddress, account.Address)

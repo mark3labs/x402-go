@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gagliardetto/solana-go"
 	"github.com/mark3labs/x402-go"
 )
 
@@ -510,7 +512,7 @@ type signMessageResponse struct {
 
 // signTypedData calls the CDP API to sign EIP-712 typed data.
 func (s *Signer) signTypedData(ctx context.Context, data typedData) (string, error) {
-	path := fmt.Sprintf("/platform/v2/evm/%s/sign/typed-data", s.accountName)
+	path := fmt.Sprintf("/platform/v2/evm/accounts/%s/sign/typed-data", s.address)
 
 	req := signTypedDataRequest{
 		TypedData: data,
@@ -697,12 +699,25 @@ func (s *Signer) buildSolanaTransaction(
 }
 
 // deriveAssociatedTokenAddress derives the Associated Token Account address.
-// This is a simplified placeholder - in production, this should use proper SPL Token ATA derivation.
-func deriveAssociatedTokenAddress(owner, mint string) (string, error) {
-	// For CDP, we'll let the CDP API handle ATA derivation
-	// This is a placeholder that will be replaced with actual ATA derivation logic
-	// The CDP API documentation should specify how to derive ATAs for their wallet system
-	return fmt.Sprintf("ata_%s_%s", owner[:8], mint[:8]), nil
+// Uses the same derivation as svm/signer.go to ensure consistency.
+func deriveAssociatedTokenAddress(ownerStr, mintStr string) (string, error) {
+	owner, err := solana.PublicKeyFromBase58(ownerStr)
+	if err != nil {
+		return "", fmt.Errorf("invalid owner address: %w", err)
+	}
+
+	mint, err := solana.PublicKeyFromBase58(mintStr)
+	if err != nil {
+		return "", fmt.Errorf("invalid mint address: %w", err)
+	}
+
+	// Use the official solana-go function for ATA derivation
+	ata, _, err := solana.FindAssociatedTokenAddress(owner, mint)
+	if err != nil {
+		return "", fmt.Errorf("failed to derive ATA: %w", err)
+	}
+
+	return ata.String(), nil
 }
 
 // buildComputeUnitLimitInstruction creates a SetComputeUnitLimit instruction.
@@ -775,8 +790,9 @@ func buildTransferCheckedInstruction(
 }
 
 // signSolanaTransactionRequest represents the request to sign a Solana transaction.
+// The Transaction field must be a base64-encoded serialized Solana transaction.
 type signSolanaTransactionRequest struct {
-	Transaction solanaTransactionRequest `json:"transaction"`
+	Transaction string `json:"transaction"`
 }
 
 // signSolanaTransactionResponse represents the response from signing a Solana transaction.
@@ -786,14 +802,20 @@ type signSolanaTransactionResponse struct {
 
 // signSolanaTransaction calls the CDP API to sign a Solana transaction.
 func (s *Signer) signSolanaTransaction(ctx context.Context, tx *solanaTransactionRequest) (string, error) {
-	path := fmt.Sprintf("/platform/v2/solana/%s/sign/transaction", s.accountName)
+	path := fmt.Sprintf("/platform/v2/solana/accounts/%s/sign/transaction", s.address)
+
+	// Serialize the transaction to base64
+	serializedTx, err := serializeSolanaTransaction(tx)
+	if err != nil {
+		return "", fmt.Errorf("failed to serialize transaction: %w", err)
+	}
 
 	req := signSolanaTransactionRequest{
-		Transaction: *tx,
+		Transaction: serializedTx,
 	}
 
 	var resp signSolanaTransactionResponse
-	err := s.cdpClient.doRequestWithRetry(ctx, "POST", path, req, &resp, true)
+	err = s.cdpClient.doRequestWithRetry(ctx, "POST", path, req, &resp, true)
 	if err != nil {
 		return "", fmt.Errorf("sign solana transaction: %w", err)
 	}
@@ -803,6 +825,84 @@ func (s *Signer) signSolanaTransaction(ctx context.Context, tx *solanaTransactio
 	}
 
 	return resp.SignedTransaction, nil
+}
+
+// serializeSolanaTransaction serializes a Solana transaction to base64.
+// This converts our internal transaction representation to a proper Solana transaction
+// and serializes it to the base64 format that CDP API expects.
+//
+// The serialized format includes:
+// 1. Signature slots (empty for unsigned transactions)
+// 2. The message (header + accounts + blockhash + instructions)
+//
+// This matches the format that svm/signer.go produces.
+func serializeSolanaTransaction(tx *solanaTransactionRequest) (string, error) {
+	// Parse blockhash
+	blockhash, err := solana.HashFromBase58(tx.Blockhash)
+	if err != nil {
+		return "", fmt.Errorf("invalid blockhash: %w", err)
+	}
+
+	// Parse fee payer
+	feePayer, err := solana.PublicKeyFromBase58(tx.FeePayer)
+	if err != nil {
+		return "", fmt.Errorf("invalid fee payer: %w", err)
+	}
+
+	// Build Solana instructions
+	var instructions []solana.Instruction
+	for _, inst := range tx.Instructions {
+		programID, err := solana.PublicKeyFromBase58(inst.ProgramID)
+		if err != nil {
+			return "", fmt.Errorf("invalid program ID %s: %w", inst.ProgramID, err)
+		}
+
+		// Parse accounts
+		var accountMetas []*solana.AccountMeta
+		for _, acc := range inst.Accounts {
+			pubkey, err := solana.PublicKeyFromBase58(acc.PublicKey)
+			if err != nil {
+				return "", fmt.Errorf("invalid account pubkey %s: %w", acc.PublicKey, err)
+			}
+			accountMetas = append(accountMetas, &solana.AccountMeta{
+				PublicKey:  pubkey,
+				IsSigner:   acc.IsSigner,
+				IsWritable: acc.IsWritable,
+			})
+		}
+
+		// Decode instruction data from hex
+		data, err := hex.DecodeString(inst.Data)
+		if err != nil {
+			return "", fmt.Errorf("invalid instruction data: %w", err)
+		}
+
+		instructions = append(instructions, solana.NewInstruction(
+			programID,
+			accountMetas,
+			data,
+		))
+	}
+
+	// Create the unsigned transaction (this creates signature slots)
+	solanaTx, err := solana.NewTransaction(
+		instructions,
+		blockhash,
+		solana.TransactionPayer(feePayer),
+	)
+	if err != nil {
+		return "", fmt.Errorf("failed to create transaction: %w", err)
+	}
+
+	// Serialize the full transaction (includes empty signature slots)
+	// This matches what svm/signer.go does with tx.MarshalBinary()
+	serialized, err := solanaTx.MarshalBinary()
+	if err != nil {
+		return "", fmt.Errorf("failed to serialize transaction: %w", err)
+	}
+
+	// Encode to base64
+	return base64.StdEncoding.EncodeToString(serialized), nil
 }
 
 // sanitizeError removes any credential fragments from error messages.
