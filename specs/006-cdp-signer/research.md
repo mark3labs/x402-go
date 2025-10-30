@@ -8,12 +8,12 @@
 
 ## Decision: JWT Library Selection
 
-**Chosen**: `gopkg.in/square/go-jose.v2` v2.6.3
+**Chosen**: `gopkg.in/square/go-jose.v2` v2.6.0
 
 **Rationale**:
 - CDP requires ES256 (ECDSA P-256) algorithm for JWT signing
 - go-jose provides native ES256 support with simple API
-- Mature, stable library (v2.6.3, production-ready since 2022)
+- Mature, stable library (v2.6.0, latest v2.x release, production-ready since 2022)
 - Supports custom JWT claims required by CDP (sub, iss, nbf, exp, uri, reqHash)
 - Used by major projects (OAuth2 servers, authentication systems)
 - Well-documented with clear examples for ECDSA JWT signing
