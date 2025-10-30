@@ -196,11 +196,24 @@ func CreateOrGetAccount(ctx context.Context, client *CDPClient, x402Network stri
 		return nil, fmt.Errorf("CDP API returned empty account address")
 	}
 
-	// Note: Created accounts don't have ID or Network in the response
-	// The network is determined by the API endpoint (EVM vs SVM) and CDP defaults
-	return &CDPAccount{
-		ID:      "", // Not provided in create response
-		Address: createResp.Address,
-		Network: cdpNetwork, // Use the network we requested
-	}, nil
+	// After creating the account, we need to fetch its ID by listing accounts again
+	// The create response doesn't include the account ID, which is required for signing operations
+	err = client.doRequestWithRetry(ctx, "GET", listEndpoint, nil, &listResp, false)
+	if err != nil {
+		return nil, fmt.Errorf("list accounts after create: %w", err)
+	}
+
+	// Find the newly created account by name and network
+	for _, account := range listResp.Accounts {
+		if account.Network == cdpNetwork && account.Name == accountName {
+			return &CDPAccount{
+				ID:      account.ID,
+				Address: account.Address,
+				Network: account.Network,
+			}, nil
+		}
+	}
+
+	// This should not happen - we just created the account
+	return nil, fmt.Errorf("failed to retrieve account ID after creation")
 }
