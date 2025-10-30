@@ -23,8 +23,8 @@ import (
 type Signer struct {
 	cdpClient      *CDPClient
 	auth           *CDPAuth
-	accountName    string // Account name used as identifier in CDP API paths
-	address        string
+	accountName    string // Account name (optional identifier, not used in API paths)
+	address        string // Blockchain address used as identifier in CDP API paths
 	network        string
 	networkType    NetworkType
 	chainID        *big.Int
