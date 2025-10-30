@@ -56,7 +56,7 @@ func NewSigner(accountName string, opts ...SignerOption) (*Signer, error) {
 	// Apply all options
 	for _, opt := range opts {
 		if err := opt(s); err != nil {
-			return nil, sanitizeError(err)
+			return nil, err
 		}
 	}
 
@@ -97,7 +97,7 @@ func NewSigner(accountName string, opts ...SignerOption) (*Signer, error) {
 	ctx := context.Background()
 	account, err := CreateOrGetAccount(ctx, s.cdpClient, s.network, s.accountName)
 	if err != nil {
-		return nil, sanitizeError(err)
+		return nil, err
 	}
 
 	s.address = account.Address
@@ -336,7 +336,7 @@ func (s *Signer) signEVM(requirements *x402.PaymentRequirement, amount *big.Int)
 	// Create EIP-3009 authorization with timing and nonce
 	auth, err := s.createEIP3009Authorization(requirements.PayTo, amount, requirements.MaxTimeoutSeconds)
 	if err != nil {
-		return nil, sanitizeError(err)
+		return nil, err
 	}
 
 	// Build EIP-712 typed data for CDP API
@@ -345,7 +345,7 @@ func (s *Signer) signEVM(requirements *x402.PaymentRequirement, amount *big.Int)
 	// Call CDP API to sign
 	signature, err := s.signTypedData(ctx, typedData)
 	if err != nil {
-		return nil, sanitizeError(err)
+		return nil, err
 	}
 
 	// Build payment payload
@@ -391,7 +391,7 @@ func (s *Signer) signSVM(requirements *x402.PaymentRequirement, amount *big.Int)
 	// Get blockhash from Solana network
 	blockhash, err := s.getRecentBlockhash(ctx)
 	if err != nil {
-		return nil, sanitizeError(err)
+		return nil, err
 	}
 
 	// Build the unsigned transaction
@@ -404,13 +404,13 @@ func (s *Signer) signSVM(requirements *x402.PaymentRequirement, amount *big.Int)
 		blockhash,
 	)
 	if err != nil {
-		return nil, sanitizeError(err)
+		return nil, err
 	}
 
 	// Sign the transaction via CDP API
 	signedTx, err := s.signSolanaTransaction(ctx, unsignedTx)
 	if err != nil {
-		return nil, sanitizeError(err)
+		return nil, err
 	}
 
 	// Build payment payload
@@ -929,57 +929,4 @@ func serializeSolanaTransaction(tx *solanaTransactionRequest) (string, error) {
 
 	// Encode to base64
 	return base64.StdEncoding.EncodeToString(serialized), nil
-}
-
-// sanitizeError removes any credential fragments from error messages.
-// This prevents leaking sensitive information in logs or error responses.
-func sanitizeError(err error) error {
-	if err == nil {
-		return nil
-	}
-
-	msg := err.Error()
-
-	// Remove PEM key content (between BEGIN and END markers, including content)
-	for {
-		start := strings.Index(msg, "-----BEGIN")
-		if start == -1 {
-			break
-		}
-		end := strings.Index(msg[start:], "-----END")
-		if end == -1 {
-			break
-		}
-		// Find the actual end of the END marker
-		endPos := start + end + strings.Index(msg[start+end:], "-----")
-		if endPos == -1 {
-			break
-		}
-		endPos += 5 // length of "-----"
-		msg = msg[:start] + "[REDACTED]" + msg[endPos:]
-	}
-
-	// Remove any base64-looking strings (likely key fragments)
-	// Pattern: 20+ consecutive alphanumeric+/+= characters
-	words := strings.Fields(msg)
-	for i, word := range words {
-		if len(word) > 20 && isBase64Like(word) {
-			words[i] = "[REDACTED]"
-		}
-	}
-	msg = strings.Join(words, " ")
-
-	return fmt.Errorf("%s", msg)
-}
-
-// isBase64Like checks if a string looks like base64-encoded data.
-func isBase64Like(s string) bool {
-	for _, c := range s {
-		// Check if character is NOT a valid base64 character
-		if (c < 'A' || c > 'Z') && (c < 'a' || c > 'z') &&
-			(c < '0' || c > '9') && c != '+' && c != '/' && c != '=' {
-			return false
-		}
-	}
-	return true
 }
