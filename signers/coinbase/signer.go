@@ -1,11 +1,14 @@
 package coinbase
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"math/big"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -18,8 +21,7 @@ import (
 type Signer struct {
 	cdpClient   *CDPClient
 	auth        *CDPAuth
-	accountID   string
-	accountName string
+	accountName string // Account name used as identifier in CDP API paths
 	address     string
 	network     string
 	networkType NetworkType
@@ -94,7 +96,6 @@ func NewSigner(accountName string, opts ...SignerOption) (*Signer, error) {
 		return nil, sanitizeError(err)
 	}
 
-	s.accountID = account.ID
 	s.address = account.Address
 
 	return s, nil
@@ -283,9 +284,9 @@ func (s *Signer) Address() string {
 	return s.address
 }
 
-// AccountID returns the CDP account identifier.
-func (s *Signer) AccountID() string {
-	return s.accountID
+// AccountName returns the CDP account name (used as identifier in API paths).
+func (s *Signer) AccountName() string {
+	return s.accountName
 }
 
 // signEVM signs an EVM payment using EIP-3009 authorization.
@@ -509,7 +510,7 @@ type signMessageResponse struct {
 
 // signTypedData calls the CDP API to sign EIP-712 typed data.
 func (s *Signer) signTypedData(ctx context.Context, data typedData) (string, error) {
-	path := fmt.Sprintf("/platform/v2/evm/accounts/%s/sign/typed-data", s.accountID)
+	path := fmt.Sprintf("/platform/v2/evm/%s/sign/typed-data", s.accountName)
 
 	req := signTypedDataRequest{
 		TypedData: data,
@@ -543,26 +544,85 @@ func extractFeePayer(requirements *x402.PaymentRequirement) (string, error) {
 	return feePayerStr, nil
 }
 
-// solanaBlockhashResponse represents the CDP API response for getting a recent blockhash.
-type solanaBlockhashResponse struct {
-	Blockhash string `json:"blockhash"`
-}
-
-// getRecentBlockhash retrieves a recent blockhash from the Solana network via CDP API.
+// getRecentBlockhash retrieves a recent blockhash directly from the Solana network.
+// CDP doesn't provide a blockhash endpoint, so we fetch it from the public RPC.
 func (s *Signer) getRecentBlockhash(ctx context.Context) (string, error) {
-	path := fmt.Sprintf("/platform/v2/solana/accounts/%s/blockhash", s.accountID)
+	// Get RPC URL for the network
+	var rpcURL string
+	switch strings.ToLower(s.network) {
+	case "solana", "mainnet-beta":
+		rpcURL = "https://api.mainnet-beta.solana.com"
+	case "solana-devnet", "devnet":
+		rpcURL = "https://api.devnet.solana.com"
+	case "testnet":
+		rpcURL = "https://api.testnet.solana.com"
+	default:
+		return "", fmt.Errorf("unsupported Solana network: %s", s.network)
+	}
 
-	var resp solanaBlockhashResponse
-	err := s.cdpClient.doRequestWithRetry(ctx, "GET", path, nil, &resp, true)
+	// Call Solana RPC getLatestBlockhash method
+	type rpcRequest struct {
+		JsonRPC string        `json:"jsonrpc"`
+		ID      int           `json:"id"`
+		Method  string        `json:"method"`
+		Params  []interface{} `json:"params"`
+	}
+
+	type rpcResponse struct {
+		Result struct {
+			Context struct {
+				Slot uint64 `json:"slot"`
+			} `json:"context"`
+			Value struct {
+				Blockhash            string `json:"blockhash"`
+				LastValidBlockHeight uint64 `json:"lastValidBlockHeight"`
+			} `json:"value"`
+		} `json:"result"`
+		Error *struct {
+			Code    int    `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+
+	reqBody := rpcRequest{
+		JsonRPC: "2.0",
+		ID:      1,
+		Method:  "getLatestBlockhash",
+		Params:  []interface{}{map[string]string{"commitment": "finalized"}},
+	}
+
+	reqJSON, err := json.Marshal(reqBody)
 	if err != nil {
-		return "", fmt.Errorf("get recent blockhash: %w", err)
+		return "", fmt.Errorf("marshal RPC request: %w", err)
 	}
 
-	if resp.Blockhash == "" {
-		return "", fmt.Errorf("empty blockhash returned from CDP API")
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", rpcURL, bytes.NewReader(reqJSON))
+	if err != nil {
+		return "", fmt.Errorf("create HTTP request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	httpResp, err := client.Do(httpReq)
+	if err != nil {
+		return "", fmt.Errorf("RPC request failed: %w", err)
+	}
+	defer httpResp.Body.Close()
+
+	var rpcResp rpcResponse
+	if err := json.NewDecoder(httpResp.Body).Decode(&rpcResp); err != nil {
+		return "", fmt.Errorf("decode RPC response: %w", err)
 	}
 
-	return resp.Blockhash, nil
+	if rpcResp.Error != nil {
+		return "", fmt.Errorf("RPC error: %s", rpcResp.Error.Message)
+	}
+
+	if rpcResp.Result.Value.Blockhash == "" {
+		return "", fmt.Errorf("empty blockhash in RPC response")
+	}
+
+	return rpcResp.Result.Value.Blockhash, nil
 }
 
 // solanaTransactionRequest represents the transaction structure for CDP signing.
@@ -726,7 +786,7 @@ type signSolanaTransactionResponse struct {
 
 // signSolanaTransaction calls the CDP API to sign a Solana transaction.
 func (s *Signer) signSolanaTransaction(ctx context.Context, tx *solanaTransactionRequest) (string, error) {
-	path := fmt.Sprintf("/platform/v2/solana/accounts/%s/sign/transaction", s.accountID)
+	path := fmt.Sprintf("/platform/v2/solana/%s/sign/transaction", s.accountName)
 
 	req := signSolanaTransactionRequest{
 		Transaction: *tx,

@@ -17,20 +17,20 @@ import (
 //
 //	// EVM Account
 //	account := &CDPAccount{
-//	    ID:      "accounts/abc-123",
+//	    Name:    "my-evm-wallet",
 //	    Address: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
 //	    Network: "base-sepolia",
 //	}
 //
 //	// SVM Account
 //	account := &CDPAccount{
-//	    ID:      "accounts/def-456",
+//	    Name:    "my-solana-wallet",
 //	    Address: "DYw8jCTfwHNRJhhmFcbXvVDTqWMEVFBX6ZKUmG5CNSKK",
 //	    Network: "solana-devnet",
 //	}
 type CDPAccount struct {
-	// ID is the CDP-internal account identifier (e.g., "accounts/abc-123")
-	ID string `json:"id"`
+	// Name is the account identifier used in CDP API paths (e.g., "my-wallet")
+	Name string `json:"name"`
 
 	// Address is the blockchain address:
 	//   - EVM: 0x-prefixed hex address (42 characters)
@@ -51,17 +51,20 @@ type CreateAccountRequest struct {
 
 // AccountResponse represents a single account in CDP API responses for list operations.
 type AccountResponse struct {
-	// ID is the CDP-internal account identifier
-	ID string `json:"id"`
-
-	// Address is the blockchain address
+	// Address is the blockchain address (also used as the account identifier in API paths)
 	Address string `json:"address"`
-
-	// Network is the CDP network identifier
-	Network string `json:"network"`
 
 	// Name is the optional account identifier
 	Name string `json:"name,omitempty"`
+
+	// Policies are the policy IDs associated with this account
+	Policies []string `json:"policies,omitempty"`
+
+	// CreatedAt is the timestamp when the account was created
+	CreatedAt string `json:"createdAt,omitempty"`
+
+	// UpdatedAt is the timestamp when the account was last updated
+	UpdatedAt string `json:"updatedAt,omitempty"`
 }
 
 // CreateAccountResponse represents the response from creating a new account.
@@ -127,12 +130,27 @@ type ListAccountsResponse struct {
 //   - EVM: base, base-sepolia, ethereum, sepolia
 //   - SVM: solana, mainnet-beta, solana-devnet, devnet
 func CreateOrGetAccount(ctx context.Context, client *CDPClient, x402Network string, accountName string) (*CDPAccount, error) {
-	// Validate account name
+	// Validate account name according to CDP requirements
 	if accountName == "" {
 		return nil, fmt.Errorf("account name is required")
 	}
 	if len(accountName) < 2 || len(accountName) > 36 {
 		return nil, fmt.Errorf("account name must be between 2 and 36 characters")
+	}
+
+	// Validate alphanumeric + hyphens only, and must start/end with alphanumeric
+	for i, c := range accountName {
+		isAlphanumeric := (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
+		isHyphen := c == '-'
+
+		if !isAlphanumeric && !isHyphen {
+			return nil, fmt.Errorf("account name can only contain alphanumeric characters and hyphens")
+		}
+
+		// First and last character must be alphanumeric
+		if (i == 0 || i == len(accountName)-1) && !isAlphanumeric {
+			return nil, fmt.Errorf("account name must start and end with alphanumeric characters")
+		}
 	}
 
 	// Map x402 network to CDP network identifier
@@ -168,14 +186,17 @@ func CreateOrGetAccount(ctx context.Context, client *CDPClient, x402Network stri
 		return nil, fmt.Errorf("list accounts: %w", err)
 	}
 
-	// Check if an account with this name already exists for this network
+	// Check if an account with this name already exists
+	// The list endpoint only returns accounts for the specific blockchain type (EVM or SVM)
+	// determined by the API endpoint we called
 	for _, account := range listResp.Accounts {
-		if account.Network == cdpNetwork && account.Name == accountName {
-			// Account exists with matching name and network, return it
+		if account.Name == accountName {
+			// Account with this name exists - return it
+			// Note: The account name is used as the identifier in subsequent API calls
 			return &CDPAccount{
-				ID:      account.ID,
+				Name:    account.Name,
 				Address: account.Address,
-				Network: account.Network,
+				Network: cdpNetwork, // Set the requested network
 			}, nil
 		}
 	}
@@ -196,24 +217,12 @@ func CreateOrGetAccount(ctx context.Context, client *CDPClient, x402Network stri
 		return nil, fmt.Errorf("CDP API returned empty account address")
 	}
 
-	// After creating the account, we need to fetch its ID by listing accounts again
-	// The create response doesn't include the account ID, which is required for signing operations
-	err = client.doRequestWithRetry(ctx, "GET", listEndpoint, nil, &listResp, false)
-	if err != nil {
-		return nil, fmt.Errorf("list accounts after create: %w", err)
-	}
-
-	// Find the newly created account by name and network
-	for _, account := range listResp.Accounts {
-		if account.Network == cdpNetwork && account.Name == accountName {
-			return &CDPAccount{
-				ID:      account.ID,
-				Address: account.Address,
-				Network: account.Network,
-			}, nil
-		}
-	}
-
-	// This should not happen - we just created the account
-	return nil, fmt.Errorf("failed to retrieve account ID after creation")
+	// Account created successfully
+	// The create response includes the address and name, which is all we need
+	// The account name is used as the identifier in subsequent API calls
+	return &CDPAccount{
+		Name:    accountName,
+		Address: createResp.Address,
+		Network: cdpNetwork,
+	}, nil
 }
