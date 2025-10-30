@@ -21,16 +21,18 @@ import (
 // Signer implements the x402.Signer interface using Coinbase Developer Platform (CDP) wallets.
 // It provides secure transaction signing without managing private keys locally.
 type Signer struct {
-	cdpClient   *CDPClient
-	auth        *CDPAuth
-	accountName string // Account name used as identifier in CDP API paths
-	address     string
-	network     string
-	networkType NetworkType
-	chainID     *big.Int
-	tokens      []x402.TokenConfig
-	priority    int
-	maxAmount   *big.Int
+	cdpClient      *CDPClient
+	auth           *CDPAuth
+	accountName    string // Account name used as identifier in CDP API paths
+	address        string
+	network        string
+	networkType    NetworkType
+	chainID        *big.Int
+	tokens         []x402.TokenConfig
+	priority       int
+	maxAmount      *big.Int
+	eip3009Name    string // EIP-3009 domain name for EVM chains
+	eip3009Version string // EIP-3009 domain version for EVM chains
 }
 
 // SignerOption is a functional option for configuring a Signer.
@@ -149,6 +151,30 @@ func WithCDPCredentialsFromEnv() SignerOption {
 func WithNetwork(network string) SignerOption {
 	return func(s *Signer) error {
 		s.network = network
+
+		// Set default EIP-3009 parameters based on network
+		// These can be overridden with WithEIP3009Params if needed
+		switch network {
+		case "base", "ethereum":
+			s.eip3009Name = "USD Coin"
+			s.eip3009Version = "2"
+		case "base-sepolia", "sepolia":
+			// Base Sepolia and Ethereum Sepolia use "USDC" as the domain name
+			s.eip3009Name = "USDC"
+			s.eip3009Version = "2"
+		}
+
+		return nil
+	}
+}
+
+// WithEIP3009Params sets custom EIP-3009 domain parameters for EVM chains.
+// This overrides the default parameters set by WithNetwork.
+// Only needed if the token contract uses non-standard domain parameters.
+func WithEIP3009Params(name, version string) SignerOption {
+	return func(s *Signer) error {
+		s.eip3009Name = name
+		s.eip3009Version = version
 		return nil
 	}
 }
@@ -467,8 +493,8 @@ type typeField struct {
 func (s *Signer) buildEIP712TypedData(tokenAddress string, auth *eip3009Auth) typedData {
 	return typedData{
 		Domain: typedDataDomain{
-			Name:              "USD Coin",
-			Version:           "2",
+			Name:              s.eip3009Name,
+			Version:           s.eip3009Version,
 			ChainID:           s.chainID.Int64(),
 			VerifyingContract: tokenAddress,
 		},
@@ -500,22 +526,22 @@ func (s *Signer) buildEIP712TypedData(tokenAddress string, auth *eip3009Auth) ty
 	}
 }
 
-// signTypedDataRequest represents the CDP API request for signing typed data.
-type signTypedDataRequest struct {
-	TypedData typedData `json:"typedData"`
-}
-
 // signMessageResponse represents the CDP API response for signing operations.
 type signMessageResponse struct {
 	Signature string `json:"signature"`
 }
 
 // signTypedData calls the CDP API to sign EIP-712 typed data.
+// The CDP API expects domain, types, primaryType, and message as top-level fields.
 func (s *Signer) signTypedData(ctx context.Context, data typedData) (string, error) {
 	path := fmt.Sprintf("/platform/v2/evm/accounts/%s/sign/typed-data", s.address)
 
-	req := signTypedDataRequest{
-		TypedData: data,
+	// CDP API expects the typed data fields at the top level, not nested
+	req := map[string]interface{}{
+		"domain":      data.Domain,
+		"types":       data.Types,
+		"primaryType": data.PrimaryType,
+		"message":     data.Message,
 	}
 
 	var resp signMessageResponse

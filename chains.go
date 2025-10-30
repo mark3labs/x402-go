@@ -123,7 +123,7 @@ var (
 	}
 
 	// BaseSepolia is the configuration for Base Sepolia testnet.
-	// USDC address and EIP-3009 parameters verified 2025-10-28.
+	// USDC address and EIP-3009 parameters verified 2025-10-30 via on-chain contract read.
 	BaseSepolia = ChainConfig{
 		NetworkID:      "base-sepolia",
 		USDCAddress:    "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
