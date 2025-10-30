@@ -75,9 +75,11 @@ func TestCreateOrGetAccount_CreateNew(t *testing.T) {
 					// List accounts - return empty list
 					listCalled = true
 					w.WriteHeader(http.StatusOK)
-					json.NewEncoder(w).Encode(ListAccountsResponse{
+					if err := json.NewEncoder(w).Encode(ListAccountsResponse{
 						Accounts: []AccountResponse{},
-					})
+					}); err != nil {
+						t.Errorf("Failed to encode response: %v", err)
+					}
 
 				case r.Method == "POST" && r.URL.Path == tt.createEndpoint:
 					// Create account - verify request body and return new account
@@ -95,11 +97,13 @@ func TestCreateOrGetAccount_CreateNew(t *testing.T) {
 					}
 
 					w.WriteHeader(http.StatusOK)
-					json.NewEncoder(w).Encode(AccountResponse{
+					if err := json.NewEncoder(w).Encode(AccountResponse{
 						ID:      "accounts/test-account-123",
 						Address: tt.wantAddress,
 						Network: tt.cdpNetwork,
-					})
+					}); err != nil {
+						t.Errorf("Failed to encode response: %v", err)
+					}
 
 				default:
 					t.Errorf("Unexpected request: %s %s", r.Method, r.URL.Path)
@@ -218,9 +222,11 @@ func TestCreateOrGetAccount_ExistingAccount(t *testing.T) {
 					// List accounts - return existing accounts
 					listCalled = true
 					w.WriteHeader(http.StatusOK)
-					json.NewEncoder(w).Encode(ListAccountsResponse{
+					if err := json.NewEncoder(w).Encode(ListAccountsResponse{
 						Accounts: tt.existingAccounts,
-					})
+					}); err != nil {
+						t.Errorf("Failed to encode response: %v", err)
+					}
 
 				case r.Method == "POST":
 					// Create should NOT be called when account exists
@@ -293,9 +299,11 @@ func TestCreateOrGetAccount_InvalidCredentials(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(tt.statusCode)
-				json.NewEncoder(w).Encode(map[string]string{
+				if err := json.NewEncoder(w).Encode(map[string]string{
 					"error": tt.wantError,
-				})
+				}); err != nil {
+					t.Errorf("Failed to encode response: %v", err)
+				}
 			}))
 			defer server.Close()
 
@@ -320,10 +328,11 @@ func TestCreateOrGetAccount_InvalidCredentials(t *testing.T) {
 			}
 			// The error is wrapped by fmt.Errorf in account.go, so we check the message contains the status code
 			errMsg := err.Error()
-			expectedCode := ""
-			if tt.statusCode == http.StatusUnauthorized {
+			var expectedCode string
+			switch tt.statusCode {
+			case http.StatusUnauthorized:
 				expectedCode = "[401]"
-			} else if tt.statusCode == http.StatusForbidden {
+			case http.StatusForbidden:
 				expectedCode = "[403]"
 			}
 			if !strings.Contains(errMsg, expectedCode) {
@@ -419,7 +428,7 @@ func TestCreateOrGetAccount_Idempotency(t *testing.T) {
 					// After first create, return the existing account
 					if createCallCount > 0 {
 						w.WriteHeader(http.StatusOK)
-						json.NewEncoder(w).Encode(ListAccountsResponse{
+						if err := json.NewEncoder(w).Encode(ListAccountsResponse{
 							Accounts: []AccountResponse{
 								{
 									ID:      accountID,
@@ -427,13 +436,17 @@ func TestCreateOrGetAccount_Idempotency(t *testing.T) {
 									Network: tt.cdpNetwork,
 								},
 							},
-						})
+						}); err != nil {
+							t.Errorf("Failed to encode response: %v", err)
+						}
 					} else {
 						// First call - no accounts exist yet
 						w.WriteHeader(http.StatusOK)
-						json.NewEncoder(w).Encode(ListAccountsResponse{
+						if err := json.NewEncoder(w).Encode(ListAccountsResponse{
 							Accounts: []AccountResponse{},
-						})
+						}); err != nil {
+							t.Errorf("Failed to encode response: %v", err)
+						}
 					}
 
 				case r.Method == "POST":
@@ -445,11 +458,13 @@ func TestCreateOrGetAccount_Idempotency(t *testing.T) {
 					}
 
 					w.WriteHeader(http.StatusOK)
-					json.NewEncoder(w).Encode(AccountResponse{
+					if err := json.NewEncoder(w).Encode(AccountResponse{
 						ID:      accountID,
 						Address: accountAddress,
 						Network: tt.cdpNetwork,
-					})
+					}); err != nil {
+						t.Errorf("Failed to encode response: %v", err)
+					}
 
 				default:
 					t.Errorf("Unexpected request: %s %s", r.Method, r.URL.Path)
@@ -541,16 +556,21 @@ func TestCreateOrGetAccount_ValidationErrors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if r.Method == "GET" {
+				switch r.Method {
+				case "GET":
 					// Return empty list to trigger account creation
 					w.WriteHeader(http.StatusOK)
-					json.NewEncoder(w).Encode(ListAccountsResponse{
+					if err := json.NewEncoder(w).Encode(ListAccountsResponse{
 						Accounts: []AccountResponse{},
-					})
-				} else if r.Method == "POST" {
+					}); err != nil {
+						t.Errorf("Failed to encode response: %v", err)
+					}
+				case "POST":
 					// Return invalid response
 					w.WriteHeader(http.StatusOK)
-					json.NewEncoder(w).Encode(tt.response)
+					if err := json.NewEncoder(w).Encode(tt.response); err != nil {
+						t.Errorf("Failed to encode response: %v", err)
+					}
 				}
 			}))
 			defer server.Close()
@@ -606,22 +626,29 @@ func TestCreateOrGetAccount_NetworkAliases(t *testing.T) {
 			var receivedNetworkID string
 
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if r.Method == "GET" {
+				switch r.Method {
+				case "GET":
 					w.WriteHeader(http.StatusOK)
-					json.NewEncoder(w).Encode(ListAccountsResponse{
+					if err := json.NewEncoder(w).Encode(ListAccountsResponse{
 						Accounts: []AccountResponse{},
-					})
-				} else if r.Method == "POST" {
+					}); err != nil {
+						t.Errorf("Failed to encode response: %v", err)
+					}
+				case "POST":
 					var req CreateAccountRequest
-					json.NewDecoder(r.Body).Decode(&req)
+					if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+						t.Errorf("Failed to decode request: %v", err)
+					}
 					receivedNetworkID = req.NetworkID
 
 					w.WriteHeader(http.StatusOK)
-					json.NewEncoder(w).Encode(AccountResponse{
+					if err := json.NewEncoder(w).Encode(AccountResponse{
 						ID:      "accounts/alias-test-123",
 						Address: "DYw8jCTfwHNRJhhmFcbXvVDTqWMEVFBX6ZKUmG5CNSKK",
 						Network: tt.expectedCDP,
-					})
+					}); err != nil {
+						t.Errorf("Failed to encode response: %v", err)
+					}
 				}
 			}))
 			defer server.Close()
@@ -652,7 +679,8 @@ func TestCreateOrGetAccount_RetryOnTransientError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		attemptCount++
 
-		if r.Method == "GET" {
+		switch r.Method {
+		case "GET":
 			// Fail first 2 attempts with 500, succeed on 3rd
 			if attemptCount < 3 {
 				w.WriteHeader(http.StatusInternalServerError)
@@ -660,16 +688,20 @@ func TestCreateOrGetAccount_RetryOnTransientError(t *testing.T) {
 			}
 
 			w.WriteHeader(http.StatusOK)
-			json.NewEncoder(w).Encode(ListAccountsResponse{
+			if err := json.NewEncoder(w).Encode(ListAccountsResponse{
 				Accounts: []AccountResponse{},
-			})
-		} else if r.Method == "POST" {
+			}); err != nil {
+				t.Errorf("Failed to encode response: %v", err)
+			}
+		case "POST":
 			w.WriteHeader(http.StatusOK)
-			json.NewEncoder(w).Encode(AccountResponse{
+			if err := json.NewEncoder(w).Encode(AccountResponse{
 				ID:      "accounts/retry-test-123",
 				Address: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
 				Network: "base-sepolia",
-			})
+			}); err != nil {
+				t.Errorf("Failed to encode response: %v", err)
+			}
 		}
 	}))
 	defer server.Close()

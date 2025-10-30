@@ -61,10 +61,12 @@ func TestDoRequest_Success(t *testing.T) {
 
 		// Return successful response
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]string{
+		if err := json.NewEncoder(w).Encode(map[string]string{
 			"id":      "test-id",
 			"address": "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
-		})
+		}); err != nil {
+			t.Errorf("Failed to encode response: %v", err)
+		}
 	}))
 	defer server.Close()
 
@@ -211,7 +213,9 @@ func TestDoRequest_ErrorClassification(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(tt.statusCode)
-				w.Write([]byte("Error message"))
+				if _, err := w.Write([]byte("Error message")); err != nil {
+					t.Errorf("Failed to write response: %v", err)
+				}
 			}))
 			defer server.Close()
 
@@ -255,11 +259,15 @@ func TestDoRequestWithRetry_RateLimit(t *testing.T) {
 			// Return rate limit error for first 2 attempts with short retry-after
 			w.Header().Set("Retry-After", "0") // 0 seconds for fast tests
 			w.WriteHeader(http.StatusTooManyRequests)
-			w.Write([]byte("Rate limit exceeded"))
+			if _, err := w.Write([]byte("Rate limit exceeded")); err != nil {
+				t.Errorf("Failed to write response: %v", err)
+			}
 		} else {
 			// Return success on 3rd attempt
 			w.WriteHeader(http.StatusOK)
-			json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+			if err := json.NewEncoder(w).Encode(map[string]string{"status": "success"}); err != nil {
+				t.Errorf("Failed to encode response: %v", err)
+			}
 		}
 	}))
 	defer server.Close()
@@ -293,11 +301,15 @@ func TestDoRequestWithRetry_ServerError(t *testing.T) {
 		if attemptCount < 2 {
 			// Return server error for first attempt
 			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte("Internal server error"))
+			if _, err := w.Write([]byte("Internal server error")); err != nil {
+				t.Errorf("Failed to write response: %v", err)
+			}
 		} else {
 			// Return success on 2nd attempt
 			w.WriteHeader(http.StatusOK)
-			json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+			if err := json.NewEncoder(w).Encode(map[string]string{"status": "success"}); err != nil {
+				t.Errorf("Failed to encode response: %v", err)
+			}
 		}
 	}))
 	defer server.Close()
@@ -324,7 +336,9 @@ func TestDoRequestWithRetry_NonRetryableError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		attemptCount++
 		w.WriteHeader(http.StatusUnauthorized)
-		w.Write([]byte("Unauthorized"))
+		if _, err := w.Write([]byte("Unauthorized")); err != nil {
+			t.Errorf("Failed to write response: %v", err)
+		}
 	}))
 	defer server.Close()
 
@@ -359,7 +373,9 @@ func TestDoRequestWithRetry_MaxAttemptsExhausted(t *testing.T) {
 		attemptCount++
 		// Always return server error (uses exponential backoff, not Retry-After)
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Internal server error"))
+		if _, err := w.Write([]byte("Internal server error")); err != nil {
+			t.Errorf("Failed to write response: %v", err)
+		}
 	}))
 	defer server.Close()
 
@@ -400,7 +416,9 @@ func TestDoRequestWithRetry_ContextCancellation(t *testing.T) {
 		attemptCount++
 		// Always return server error to trigger retry (uses exponential backoff)
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Internal server error"))
+		if _, err := w.Write([]byte("Internal server error")); err != nil {
+			t.Errorf("Failed to write response: %v", err)
+		}
 	}))
 	defer server.Close()
 
@@ -558,7 +576,9 @@ func TestDoRequest_RequestIDInError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Request-ID", "test-request-123")
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Server error"))
+		if _, err := w.Write([]byte("Server error")); err != nil {
+			t.Errorf("Failed to write response: %v", err)
+		}
 	}))
 	defer server.Close()
 
@@ -600,10 +620,12 @@ func TestDoRequest_WithRequestBody(t *testing.T) {
 
 		// Return response
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]string{
+		if err := json.NewEncoder(w).Encode(map[string]string{
 			"id":      "account-123",
 			"address": "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
-		})
+		}); err != nil {
+			t.Errorf("Failed to encode response: %v", err)
+		}
 	}))
 	defer server.Close()
 
@@ -640,12 +662,16 @@ func TestDoRequestWithRetry_RetryAfterHeader(t *testing.T) {
 			// Return rate limit with Retry-After header
 			w.Header().Set("Retry-After", "1") // 1 second
 			w.WriteHeader(http.StatusTooManyRequests)
-			w.Write([]byte("Rate limit exceeded"))
+			if _, err := w.Write([]byte("Rate limit exceeded")); err != nil {
+				t.Errorf("Failed to write response: %v", err)
+			}
 		} else {
 			secondAttemptTime = time.Now()
 			// Return success
 			w.WriteHeader(http.StatusOK)
-			json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+			if err := json.NewEncoder(w).Encode(map[string]string{"status": "success"}); err != nil {
+				t.Errorf("Failed to encode response: %v", err)
+			}
 		}
 	}))
 	defer server.Close()
@@ -700,7 +726,9 @@ func TestClassifyError_MessageParsing(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(tt.statusCode)
 				if tt.responseBody != "" {
-					w.Write([]byte(tt.responseBody))
+					if _, err := w.Write([]byte(tt.responseBody)); err != nil {
+						t.Errorf("Failed to write response: %v", err)
+					}
 				}
 			}))
 			defer server.Close()
@@ -739,11 +767,15 @@ func TestDoRequestWithRetry_ExponentialBackoff(t *testing.T) {
 		if attemptCount < 4 {
 			// Return server error for first 3 attempts (uses exponential backoff)
 			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte("Internal server error"))
+			if _, err := w.Write([]byte("Internal server error")); err != nil {
+				t.Errorf("Failed to write response: %v", err)
+			}
 		} else {
 			// Success on 4th attempt
 			w.WriteHeader(http.StatusOK)
-			json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+			if err := json.NewEncoder(w).Encode(map[string]string{"status": "success"}); err != nil {
+				t.Errorf("Failed to encode response: %v", err)
+			}
 		}
 	}))
 	defer server.Close()
@@ -867,7 +899,9 @@ func TestDoRequestWithRetry_AttemptTracking(t *testing.T) {
 		attemptCount++
 		w.Header().Set("X-Request-ID", fmt.Sprintf("req-%d", attemptCount))
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Server error"))
+		if _, err := w.Write([]byte("Server error")); err != nil {
+			t.Errorf("Failed to write response: %v", err)
+		}
 	}))
 	defer server.Close()
 
