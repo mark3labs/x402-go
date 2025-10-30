@@ -69,18 +69,32 @@ func runServer(args []string) {
 		os.Exit(1)
 	}
 
-	// Set defaults based on network if not specified
+	// Get chain configuration for the network
+	var chainConfig x402.ChainConfig
+	switch strings.ToLower(*network) {
+	case "base":
+		chainConfig = x402.BaseMainnet
+	case "base-sepolia":
+		chainConfig = x402.BaseSepolia
+	case "polygon":
+		chainConfig = x402.PolygonMainnet
+	case "polygon-amoy":
+		chainConfig = x402.PolygonAmoy
+	case "avalanche":
+		chainConfig = x402.AvalancheMainnet
+	case "avalanche-fuji":
+		chainConfig = x402.AvalancheFuji
+	case "solana", "mainnet-beta":
+		chainConfig = x402.SolanaMainnet
+	case "solana-devnet", "devnet":
+		chainConfig = x402.SolanaDevnet
+	default:
+		log.Fatalf("Unsupported network: %s", *network)
+	}
+
+	// Use token address from config if not specified
 	if *tokenAddr == "" {
-		switch strings.ToLower(*network) {
-		case "base", "base-sepolia":
-			*tokenAddr = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" // USDC on Base
-		case "ethereum", "ethereum-sepolia":
-			*tokenAddr = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48" // USDC on Ethereum
-		case "polygon":
-			*tokenAddr = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174" // USDC on Polygon
-		default:
-			*tokenAddr = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" // Default to Base USDC
-		}
+		*tokenAddr = chainConfig.USDCAddress
 	}
 
 	if *amount == "" {
