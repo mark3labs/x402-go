@@ -10,6 +10,7 @@ require (
 	github.com/pocketbase/pocketbase v0.31.0
 	github.com/tyler-smith/go-bip32 v1.0.0
 	github.com/tyler-smith/go-bip39 v1.1.0
+	gopkg.in/square/go-jose.v2 v2.6.0
 )
 
 require (
