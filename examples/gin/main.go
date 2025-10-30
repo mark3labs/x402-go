@@ -14,10 +14,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/mark3labs/x402-go"
-	"github.com/mark3labs/x402-go/evm"
 	x402http "github.com/mark3labs/x402-go/http"
 	ginx402 "github.com/mark3labs/x402-go/http/gin"
-	"github.com/mark3labs/x402-go/svm"
+	"github.com/mark3labs/x402-go/signers/evm"
+	"github.com/mark3labs/x402-go/signers/svm"
 )
 
 func main() {
