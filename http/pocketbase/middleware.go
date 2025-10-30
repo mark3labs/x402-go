@@ -196,7 +196,7 @@ func NewPocketBaseX402Middleware(config *httpx402.Config) func(*core.RequestEven
 }
 
 // parsePaymentHeaderFromRequest parses the X-PAYMENT header from an http.Request.
-// This mirrors the logic from http.parsePaymentHeader since that function is not exported.
+// It decodes the base64-encoded JSON, unmarshals it, and validates the protocol version.
 func parsePaymentHeaderFromRequest(r *http.Request) (x402.PaymentPayload, error) {
 	var payment x402.PaymentPayload
 
@@ -236,7 +236,8 @@ func sendPaymentRequiredPocketBase(e *core.RequestEvent, requirements []x402.Pay
 	return e.JSON(http.StatusPaymentRequired, response)
 }
 
-// findMatchingRequirementPocketBase finds a payment requirement that matches the provided payment.
+// findMatchingRequirementPocketBase finds a payment requirement matching the payment's scheme and network.
+// It returns an error if no matching requirement is found.
 func findMatchingRequirementPocketBase(payment x402.PaymentPayload, requirements []x402.PaymentRequirement) (x402.PaymentRequirement, error) {
 	for _, req := range requirements {
 		if req.Scheme == payment.Scheme && req.Network == payment.Network {
@@ -247,6 +248,7 @@ func findMatchingRequirementPocketBase(payment x402.PaymentPayload, requirements
 }
 
 // addPaymentResponseHeaderPocketBase adds the X-PAYMENT-RESPONSE header with settlement information.
+// It marshals the settlement response to JSON, encodes it as base64, and sets the header.
 func addPaymentResponseHeaderPocketBase(e *core.RequestEvent, settlement *x402.SettlementResponse) error {
 	// Marshal settlement response to JSON
 	data, err := json.Marshal(settlement)

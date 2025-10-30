@@ -198,12 +198,12 @@ func NewGinX402Middleware(config *httpx402.Config) gin.HandlerFunc {
 }
 
 // parsePaymentHeaderFromRequest parses the X-PAYMENT header from an http.Request.
-// Delegates to shared helper from http/internal/helpers package.
 func parsePaymentHeaderFromRequest(r *http.Request) (x402.PaymentPayload, error) {
 	return helpers.ParsePaymentHeaderFromRequest(r)
 }
 
-// sendPaymentRequiredGin sends a 402 Payment Required response for Gin.
+// sendPaymentRequiredGin sends a 402 Payment Required response using Gin's JSON methods.
+// It aborts the request chain and returns the payment requirements to the client.
 func sendPaymentRequiredGin(c *gin.Context, requirements []x402.PaymentRequirement) {
 	response := x402.PaymentRequirementsResponse{
 		X402Version: 1,
@@ -215,14 +215,11 @@ func sendPaymentRequiredGin(c *gin.Context, requirements []x402.PaymentRequireme
 }
 
 // findMatchingRequirementGin finds a payment requirement that matches the provided payment.
-// Delegates to shared helper from http/internal/helpers package.
 func findMatchingRequirementGin(payment x402.PaymentPayload, requirements []x402.PaymentRequirement) (x402.PaymentRequirement, error) {
 	return helpers.FindMatchingRequirement(payment, requirements)
 }
 
 // addPaymentResponseHeaderGin adds the X-PAYMENT-RESPONSE header with settlement information.
 func addPaymentResponseHeaderGin(c *gin.Context, settlement *x402.SettlementResponse) error {
-	// Use stdlib ResponseWriter through Gin's Writer
-	// Delegates to shared helper from http/internal/helpers package
 	return helpers.AddPaymentResponseHeader(c.Writer, settlement)
 }

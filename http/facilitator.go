@@ -214,7 +214,8 @@ func (c *FacilitatorClient) EnrichRequirements(requirements []x402.PaymentRequir
 	return enriched, nil
 }
 
-// doWithRetry executes a function with retry logic for transient failures.
+// doWithRetry executes a function with exponential backoff retry logic for transient failures.
+// It automatically retries on facilitator unavailable errors up to MaxRetries times.
 func (c *FacilitatorClient) doWithRetry(fn func() (*VerifyResponse, error)) (*VerifyResponse, error) {
 	maxRetries := c.MaxRetries
 	if maxRetries < 0 {
