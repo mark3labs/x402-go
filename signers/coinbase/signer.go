@@ -90,23 +90,16 @@ func NewSigner(opts ...SignerOption) (*Signer, error) {
 }
 
 // WithCDPCredentials sets the CDP API credentials.
-// apiKeyName format: "organizations/{org-id}/apiKeys/{key-id}"
-// apiKeySecret: PEM-encoded ECDSA or Ed25519 private key
+// apiKeyName format: "organizations/{org-id}/apiKeys/{key-id}" or just the UUID
+// apiKeySecret: base64-encoded private key from CDP (Ed25519 raw or DER/PKCS8 format)
 // walletSecret: Optional wallet-specific secret (empty string if not needed)
 func WithCDPCredentials(apiKeyName, apiKeySecret, walletSecret string) SignerOption {
 	return func(s *Signer) error {
-		if apiKeyName == "" {
-			return fmt.Errorf("CDP API key name is required")
+		auth, err := NewCDPAuth(apiKeyName, apiKeySecret, walletSecret)
+		if err != nil {
+			return fmt.Errorf("failed to initialize CDP auth: %w", err)
 		}
-		if apiKeySecret == "" {
-			return fmt.Errorf("CDP API key secret is required")
-		}
-
-		s.auth = &CDPAuth{
-			apiKeyName:   apiKeyName,
-			apiKeySecret: apiKeySecret,
-			walletSecret: walletSecret,
-		}
+		s.auth = auth
 		return nil
 	}
 }
@@ -128,11 +121,11 @@ func WithCDPCredentialsFromEnv() SignerOption {
 			return fmt.Errorf("CDP_API_KEY_SECRET environment variable not set")
 		}
 
-		s.auth = &CDPAuth{
-			apiKeyName:   apiKeyName,
-			apiKeySecret: apiKeySecret,
-			walletSecret: walletSecret,
+		auth, err := NewCDPAuth(apiKeyName, apiKeySecret, walletSecret)
+		if err != nil {
+			return fmt.Errorf("failed to initialize CDP auth from env: %w", err)
 		}
+		s.auth = auth
 		return nil
 	}
 }

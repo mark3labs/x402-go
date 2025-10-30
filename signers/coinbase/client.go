@@ -3,12 +3,14 @@ package coinbase
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
 	"math"
 	"math/rand"
 	"net/http"
+	"sort"
 	"strconv"
 	"time"
 )
@@ -139,7 +141,13 @@ func (c *CDPClient) doRequest(ctx context.Context, method, path string, body, re
 
 	// Add Wallet Auth header if required
 	if requireWalletAuth {
-		walletToken, err := c.auth.GenerateWalletAuthToken(method, path, bodyBytes)
+		// Compute hash of sorted JSON for Wallet Auth (CDP requirement)
+		bodyHash, err := computeSortedJSONHash(bodyBytes)
+		if err != nil {
+			return fmt.Errorf("compute request body hash: %w", err)
+		}
+
+		walletToken, err := c.auth.GenerateWalletAuthToken(method, path, bodyHash)
 		if err != nil {
 			return fmt.Errorf("generate wallet auth JWT: %w", err)
 		}
@@ -401,4 +409,93 @@ func (c *CDPClient) doRequestWithRetry(ctx context.Context, method, path string,
 	}
 
 	return fmt.Errorf("max retry attempts exceeded: %w", lastErr)
+}
+
+// sortJSONKeys recursively sorts all object keys in a JSON value to produce canonical JSON.
+// This is required for computing request body hashes for Wallet Auth tokens, as CDP requires
+// keys to be sorted alphabetically.
+//
+// Parameters:
+//   - v: Any JSON value (map, slice, or primitive)
+//
+// Returns: The same value with all object keys sorted
+func sortJSONKeys(v interface{}) interface{} {
+	switch val := v.(type) {
+	case map[string]interface{}:
+		// Sort map keys
+		sorted := make(map[string]interface{}, len(val))
+		keys := make([]string, 0, len(val))
+		for k := range val {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			sorted[k] = sortJSONKeys(val[k])
+		}
+		return sorted
+	case []interface{}:
+		// Recursively sort array elements
+		for i, elem := range val {
+			val[i] = sortJSONKeys(elem)
+		}
+		return val
+	default:
+		// Primitive value, return as-is
+		return val
+	}
+}
+
+// computeSortedJSONHash computes the SHA-256 hash of a JSON value with sorted keys.
+// This implements CDP's canonical JSON hashing requirement for Wallet Auth tokens.
+//
+// The process is:
+//  1. Parse the JSON bytes
+//  2. Recursively sort all object keys
+//  3. Re-marshal to compact JSON (no whitespace)
+//  4. Compute SHA-256 hash
+//
+// Parameters:
+//   - bodyBytes: Raw JSON bytes (may have unsorted keys)
+//
+// Returns:
+//   - []byte: SHA-256 hash of the canonical JSON, or nil for empty/trivial bodies
+//   - error: Parsing or marshaling errors
+func computeSortedJSONHash(bodyBytes []byte) ([]byte, error) {
+	if len(bodyBytes) == 0 {
+		return nil, nil
+	}
+
+	// Parse JSON
+	var v interface{}
+	if err := json.Unmarshal(bodyBytes, &v); err != nil {
+		return nil, fmt.Errorf("parse JSON for sorting: %w", err)
+	}
+
+	// Check if body is essentially empty (matches Python SDK's "falsy" check)
+	// Empty objects {}, empty arrays [], and null should not generate a hash
+	switch val := v.(type) {
+	case map[string]interface{}:
+		if len(val) == 0 {
+			return nil, nil // Empty object - no hash
+		}
+	case []interface{}:
+		if len(val) == 0 {
+			return nil, nil // Empty array - no hash
+		}
+	case nil:
+		return nil, nil // null - no hash
+	}
+
+	// Sort all keys
+	sorted := sortJSONKeys(v)
+
+	// Re-marshal to canonical form (compact, sorted keys)
+	canonical, err := json.Marshal(sorted)
+	if err != nil {
+		return nil, fmt.Errorf("marshal sorted JSON: %w", err)
+	}
+
+	// Compute SHA-256 hash
+	hash := sha256.Sum256(canonical)
+	return hash[:], nil
 }

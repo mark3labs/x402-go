@@ -48,8 +48,7 @@ type CreateAccountRequest struct {
 	NetworkID string `json:"network_id"`
 }
 
-// AccountResponse represents a single account in CDP API responses.
-// This structure is used for both account creation responses and account list responses.
+// AccountResponse represents a single account in CDP API responses for list operations.
 type AccountResponse struct {
 	// ID is the CDP-internal account identifier
 	ID string `json:"id"`
@@ -59,6 +58,19 @@ type AccountResponse struct {
 
 	// Network is the CDP network identifier
 	Network string `json:"network"`
+}
+
+// CreateAccountResponse represents the response from creating a new account.
+// Note: CDP API returns only address and timestamps, no id or network.
+type CreateAccountResponse struct {
+	// Address is the blockchain address
+	Address string `json:"address"`
+
+	// CreatedAt is the timestamp when the account was created
+	CreatedAt string `json:"createdAt"`
+
+	// UpdatedAt is the timestamp when the account was last updated
+	UpdatedAt string `json:"updatedAt"`
 }
 
 // ListAccountsResponse represents the response from listing existing CDP accounts.
@@ -133,6 +145,7 @@ func CreateOrGetAccount(ctx context.Context, client *CDPClient, x402Network stri
 	}
 
 	// First, try to retrieve existing accounts
+	// Note: Listing accounts does NOT require Wallet Auth (read-only operation)
 	var listResp ListAccountsResponse
 	err = client.doRequestWithRetry(ctx, "GET", listEndpoint, nil, &listResp, false)
 	if err != nil {
@@ -152,30 +165,24 @@ func CreateOrGetAccount(ctx context.Context, client *CDPClient, x402Network stri
 	}
 
 	// No existing account found, create a new one
-	createReq := CreateAccountRequest{
-		NetworkID: cdpNetwork,
-	}
-
-	var accountResp AccountResponse
-	err = client.doRequestWithRetry(ctx, "POST", createEndpoint, createReq, &accountResp, false)
+	// Note: Creating accounts REQUIRES Wallet Auth (sensitive operation)
+	// CDP API creates accounts with an empty JSON object {} (network is not specified during creation)
+	var createResp CreateAccountResponse
+	err = client.doRequestWithRetry(ctx, "POST", createEndpoint, map[string]interface{}{}, &createResp, true)
 	if err != nil {
 		return nil, fmt.Errorf("create account: %w", err)
 	}
 
 	// Validate response
-	if accountResp.ID == "" {
-		return nil, fmt.Errorf("CDP API returned empty account ID")
-	}
-	if accountResp.Address == "" {
+	if createResp.Address == "" {
 		return nil, fmt.Errorf("CDP API returned empty account address")
 	}
-	if accountResp.Network == "" {
-		return nil, fmt.Errorf("CDP API returned empty account network")
-	}
 
+	// Note: Created accounts don't have ID or Network in the response
+	// The network is determined by the API endpoint (EVM vs SVM) and CDP defaults
 	return &CDPAccount{
-		ID:      accountResp.ID,
-		Address: accountResp.Address,
-		Network: accountResp.Network,
+		ID:      "", // Not provided in create response
+		Address: createResp.Address,
+		Network: cdpNetwork, // Use the network we requested
 	}, nil
 }

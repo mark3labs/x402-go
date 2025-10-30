@@ -9,20 +9,14 @@ import (
 	"gopkg.in/square/go-jose.v2/jwt"
 )
 
-// Test EC private key (ECDSA P-256) - DO NOT USE IN PRODUCTION
-const testECPrivateKey = `-----BEGIN EC PRIVATE KEY-----
-MHcCAQEEIIGlRFY0J0gbOFJbZqHRIhzgFjt6sMdVlvL+8zBcCIJmoAoGCCqGSM49
-AwEHoUQDQgAEzXDFO5wEOHqMNLhFqn1NJl3vXqKLJJqL0YNn2R3DJCDm7fRXQzKt
-YMJcQFMQKmC0BNm7hPpYPKJbZEcLQ9chMg==
------END EC PRIVATE KEY-----`
+// Test EC private key (ECDSA P-256) - base64-encoded (CDP format) - DO NOT USE IN PRODUCTION
+const testECPrivateKey = `MHcCAQEEIIGlRFY0J0gbOFJbZqHRIhzgFjt6sMdVlvL+8zBcCIJmoAoGCCqGSM49AwEHoUQDQgAEzXDFO5wEOHqMNLhFqn1NJl3vXqKLJJqL0YNn2R3DJCDm7fRXQzKtYMJcQFMQKmC0BNm7hPpYPKJbZEcLQ9chMg==`
 
-// Test invalid PEM format
-const testInvalidPEM = `-----BEGIN EC PRIVATE KEY-----
-THIS IS NOT A VALID KEY
------END EC PRIVATE KEY-----`
+// Test invalid base64 format
+const testInvalidBase64 = `THIS IS NOT A VALID BASE64 KEY!!!`
 
-// Test non-PEM data
-const testNonPEM = `this is not PEM encoded data at all`
+// Test non-base64 data
+const testNonBase64 = `this is not base64 encoded data at all`
 
 func TestNewCDPAuth_ValidCredentials(t *testing.T) {
 	tests := []struct {
@@ -104,25 +98,25 @@ func TestNewCDPAuth_InvalidCredentials(t *testing.T) {
 			wantErrMsg:   "apiKeyName must not be empty",
 		},
 		{
-			name:         "invalid PEM format",
+			name:         "invalid base64 format",
 			apiKeyName:   "organizations/test-org/apiKeys/test-key",
-			apiKeySecret: testInvalidPEM,
+			apiKeySecret: testInvalidBase64,
 			walletSecret: "wallet-secret",
-			wantErrMsg:   "failed to decode PEM block",
+			wantErrMsg:   "failed to decode base64 key",
 		},
 		{
-			name:         "non-PEM data",
+			name:         "non-base64 data",
 			apiKeyName:   "organizations/test-org/apiKeys/test-key",
-			apiKeySecret: testNonPEM,
+			apiKeySecret: testNonBase64,
 			walletSecret: "wallet-secret",
-			wantErrMsg:   "failed to decode PEM block",
+			wantErrMsg:   "failed to decode base64 key",
 		},
 		{
-			name:         "empty PEM data",
+			name:         "empty base64 data",
 			apiKeyName:   "organizations/test-org/apiKeys/test-key",
 			apiKeySecret: "",
 			walletSecret: "wallet-secret",
-			wantErrMsg:   "failed to decode PEM block",
+			wantErrMsg:   "failed to parse private key",
 		},
 	}
 
@@ -265,15 +259,20 @@ func TestGenerateBearerToken_Claims(t *testing.T) {
 		t.Errorf("expected subject %s, got %s", "organizations/test-org/apiKeys/test-key", claims.Subject)
 	}
 
-	// Verify issuer
-	if claims.Issuer != "coinbase-cloud" {
-		t.Errorf("expected issuer coinbase-cloud, got %s", claims.Issuer)
+	// Verify issuer (CDP SDK uses "cdp")
+	if claims.Issuer != "cdp" {
+		t.Errorf("expected issuer cdp, got %s", claims.Issuer)
 	}
 
-	// Verify URI format
+	// Verify audience (should be array with "cdp_service")
+	if len(claims.Audience) != 1 || claims.Audience[0] != "cdp_service" {
+		t.Errorf("expected audience [cdp_service], got %v", claims.Audience)
+	}
+
+	// Verify URIs format (should be array)
 	expectedURI := "GET api.cdp.coinbase.com/platform/v2/evm/accounts"
-	if claims.URI != expectedURI {
-		t.Errorf("expected URI %s, got %s", expectedURI, claims.URI)
+	if len(claims.URIs) != 1 || claims.URIs[0] != expectedURI {
+		t.Errorf("expected URIs [%s], got %v", expectedURI, claims.URIs)
 	}
 
 	// Verify expiration is approximately 2 minutes from now
@@ -330,31 +329,43 @@ func TestGenerateWalletAuthToken_WithBodyHash(t *testing.T) {
 		t.Fatalf("failed to parse JWT: %v", err)
 	}
 
-	// Extract claims
-	var claims APIKeyClaims
+	// Extract claims (Wallet Auth uses different structure than Bearer)
+	var claims map[string]interface{}
 	if err := parsedToken.UnsafeClaimsWithoutVerification(&claims); err != nil {
 		t.Fatalf("failed to extract claims: %v", err)
 	}
 
 	// Verify reqHash is set and correct
 	expectedHash := "367fc472194508bcb21c0c67de93721bdc937da40cccf39b984929ee55cd6f32" // SHA-256 of testBody
-	if claims.ReqHash != expectedHash {
-		t.Errorf("expected reqHash %s, got %s", expectedHash, claims.ReqHash)
+	reqHash, ok := claims["reqHash"].(string)
+	if !ok {
+		t.Fatal("reqHash claim not found or not a string")
+	}
+	if reqHash != expectedHash {
+		t.Errorf("expected reqHash %s, got %s", expectedHash, reqHash)
 	}
 
-	// Verify expiration is approximately 1 minute from now
-	now := time.Now()
-	expTime := claims.Expiry.Time()
-	expectedExp := now.Add(1 * time.Minute)
-	timeDiff := expTime.Sub(expectedExp)
-	if timeDiff < -5*time.Second || timeDiff > 5*time.Second {
-		t.Errorf("expected expiration around %v, got %v (diff: %v)", expectedExp, expTime, timeDiff)
+	// Verify iat and nbf are set
+	if _, ok := claims["iat"]; !ok {
+		t.Error("iat claim not found")
+	}
+	if _, ok := claims["nbf"]; !ok {
+		t.Error("nbf claim not found")
 	}
 
-	// Verify URI format
+	// Verify jti is set
+	if _, ok := claims["jti"].(string); !ok {
+		t.Error("jti claim not found or not a string")
+	}
+
+	// Verify uris is an array with the correct URI
+	uris, ok := claims["uris"].([]interface{})
+	if !ok || len(uris) != 1 {
+		t.Fatal("uris claim not found or not an array with one element")
+	}
 	expectedURI := "POST api.cdp.coinbase.com/platform/v2/evm/accounts/0x742d35Cc6634C0532925a3b844Bc454e4438f44e/sign/typed-data"
-	if claims.URI != expectedURI {
-		t.Errorf("expected URI %s, got %s", expectedURI, claims.URI)
+	if uris[0].(string) != expectedURI {
+		t.Errorf("expected URI %s, got %s", expectedURI, uris[0])
 	}
 }
 
@@ -387,15 +398,15 @@ func TestGenerateWalletAuthToken_EmptyBodyHash(t *testing.T) {
 		t.Fatalf("failed to parse JWT: %v", err)
 	}
 
-	// Extract claims
-	var claims APIKeyClaims
+	// Extract claims (Wallet Auth uses map structure)
+	var claims map[string]interface{}
 	if err := parsedToken.UnsafeClaimsWithoutVerification(&claims); err != nil {
 		t.Fatalf("failed to extract claims: %v", err)
 	}
 
-	// Verify reqHash is empty when no body hash provided
-	if claims.ReqHash != "" {
-		t.Errorf("expected empty reqHash, got %s", claims.ReqHash)
+	// Verify reqHash is not set when no body hash provided
+	if reqHash, ok := claims["reqHash"]; ok {
+		t.Errorf("expected no reqHash claim, got %s", reqHash)
 	}
 }
 
@@ -537,34 +548,59 @@ func TestAPIKeyClaims_Structure(t *testing.T) {
 				t.Fatalf("failed to parse JWT: %v", err)
 			}
 
-			var claims APIKeyClaims
-			if err := parsedToken.UnsafeClaimsWithoutVerification(&claims); err != nil {
-				t.Fatalf("failed to extract claims: %v", err)
-			}
-
-			// Verify all standard claims are present
-			if claims.Subject == "" {
-				t.Error("expected Subject to be set")
-			}
-			if claims.Issuer == "" {
-				t.Error("expected Issuer to be set")
-			}
-			if claims.Expiry == nil {
-				t.Error("expected Expiry to be set")
-			}
-			if claims.NotBefore == nil {
-				t.Error("expected NotBefore to be set")
-			}
-			if claims.URI == "" {
-				t.Error("expected URI to be set")
-			}
-
-			// Verify reqHash presence based on test case
 			if tt.checkReqHash {
-				if claims.ReqHash == "" {
-					t.Error("expected ReqHash to be set for wallet auth token")
+				// Wallet Auth uses different claims structure
+				var claims map[string]interface{}
+				if err := parsedToken.UnsafeClaimsWithoutVerification(&claims); err != nil {
+					t.Fatalf("failed to extract claims: %v", err)
+				}
+
+				// Verify Wallet Auth specific claims
+				if _, ok := claims["iat"]; !ok {
+					t.Error("expected iat to be set")
+				}
+				if _, ok := claims["nbf"]; !ok {
+					t.Error("expected nbf to be set")
+				}
+				if _, ok := claims["jti"]; !ok {
+					t.Error("expected jti to be set")
+				}
+				if uris, ok := claims["uris"].([]interface{}); !ok || len(uris) == 0 {
+					t.Error("expected uris to be set")
+				}
+
+				// Verify reqHash is set for wallet auth token
+				if reqHash, ok := claims["reqHash"].(string); !ok || reqHash == "" {
+					t.Error("expected reqHash to be set for wallet auth token")
 				}
 			} else {
+				// Bearer token uses APIKeyClaims structure
+				var claims APIKeyClaims
+				if err := parsedToken.UnsafeClaimsWithoutVerification(&claims); err != nil {
+					t.Fatalf("failed to extract claims: %v", err)
+				}
+
+				// Verify all standard claims are present
+				if claims.Subject == "" {
+					t.Error("expected Subject to be set")
+				}
+				if claims.Issuer == "" {
+					t.Error("expected Issuer to be set")
+				}
+				if claims.Expiry == nil {
+					t.Error("expected Expiry to be set")
+				}
+				if claims.NotBefore == nil {
+					t.Error("expected NotBefore to be set")
+				}
+				if len(claims.URIs) == 0 {
+					t.Error("expected URIs to be set")
+				}
+				if len(claims.Audience) == 0 {
+					t.Error("expected Audience to be set")
+				}
+
+				// Verify reqHash is empty for bearer token
 				if claims.ReqHash != "" {
 					t.Error("expected ReqHash to be empty for bearer token")
 				}

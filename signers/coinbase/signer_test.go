@@ -33,7 +33,7 @@ func TestNewSignerMissingAPIKeyName(t *testing.T) {
 		t.Fatal("Expected error when API key name is missing")
 	}
 
-	if !strings.Contains(err.Error(), "API key name") {
+	if !strings.Contains(err.Error(), "apiKeyName") {
 		t.Errorf("Expected error about API key name, got: %v", err)
 	}
 }
@@ -50,8 +50,8 @@ func TestNewSignerMissingAPIKeySecret(t *testing.T) {
 		t.Fatal("Expected error when API key secret is missing")
 	}
 
-	if !strings.Contains(err.Error(), "API key secret") {
-		t.Errorf("Expected error about API key secret, got: %v", err)
+	if !strings.Contains(err.Error(), "parse") {
+		t.Errorf("Expected error about parsing key, got: %v", err)
 	}
 }
 
@@ -395,7 +395,7 @@ func TestSanitizeErrorFunction(t *testing.T) {
 			mustHave: []string{},
 		},
 		{
-			name:     "error with PEM key",
+			name:     "error with base64 key",
 			input:    "error: failed with -----BEGIN EC PRIVATE KEY-----\nMHcCAQEEISecretData\n-----END EC PRIVATE KEY----- content",
 			mustNOT:  []string{"SecretData", "MHcCAQEEI"},
 			mustHave: []string{"[REDACTED]"},
