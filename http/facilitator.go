@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/mark3labs/x402-go"
+	"github.com/mark3labs/x402-go/http/internal/helpers"
 )
 
 // FacilitatorClient is a client for communicating with x402 facilitator services.
@@ -77,6 +78,10 @@ func (c *FacilitatorClient) Verify(payment x402.PaymentPayload, requirement x402
 		var verifyResp VerifyResponse
 		if err := json.NewDecoder(resp.Body).Decode(&verifyResp); err != nil {
 			return nil, fmt.Errorf("failed to decode verify response: %w", err)
+		}
+
+		if verifyResp.Payer == "" {
+			verifyResp.Payer = helpers.GetPayer(payment)
 		}
 
 		return &verifyResp, nil
