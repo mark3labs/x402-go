@@ -74,6 +74,13 @@ func NewSigner(accountName string, opts ...SignerOption) (*Signer, error) {
 		return nil, x402.ErrNoTokens
 	}
 
+	// Validate all token addresses for the configured network
+	for _, token := range s.tokens {
+		if err := x402.ValidateTokenAddress(s.network, token.Address); err != nil {
+			return nil, err
+		}
+	}
+
 	// Determine network type and chain ID
 	s.networkType = getNetworkType(s.network)
 	if s.networkType == NetworkTypeUnknown {
@@ -185,12 +192,6 @@ func WithEIP3009Params(name, version string) SignerOption {
 // decimals: Token decimal places
 func WithToken(address, symbol string, decimals int) SignerOption {
 	return func(s *Signer) error {
-		// Validate token address format if network is already set
-		if s.network != "" {
-			if err := x402.ValidateTokenAddress(s.network, address); err != nil {
-				return err
-			}
-		}
 		s.tokens = append(s.tokens, x402.TokenConfig{
 			Address:  address,
 			Symbol:   symbol,
@@ -205,12 +206,6 @@ func WithToken(address, symbol string, decimals int) SignerOption {
 // Lower priority numbers are selected first.
 func WithTokenPriority(address, symbol string, decimals, priority int) SignerOption {
 	return func(s *Signer) error {
-		// Validate token address format if network is already set
-		if s.network != "" {
-			if err := x402.ValidateTokenAddress(s.network, address); err != nil {
-				return err
-			}
-		}
 		s.tokens = append(s.tokens, x402.TokenConfig{
 			Address:  address,
 			Symbol:   symbol,

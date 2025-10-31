@@ -1,8 +1,6 @@
 package mcp
 
 import (
-	"time"
-
 	"github.com/mark3labs/x402-go"
 	"github.com/mark3labs/x402-go/http"
 )
@@ -19,13 +17,14 @@ const (
 	MetaKeyProtocolVersion = "protocol-version"
 )
 
-// Timeout constants for payment operations
+// Timeout constants for MCP payment operations (FR-017, FR-018)
+// These reference the protocol-level defaults from the x402 package.
 const (
-	// VerificationTimeout is the maximum time to wait for payment verification (FR-017)
-	VerificationTimeout = 5 * time.Second
+	// VerificationTimeout is the maximum time to wait for payment verification
+	VerificationTimeout = x402.DefaultVerifyTimeout
 
-	// SettlementTimeout is the maximum time to wait for payment settlement (FR-018)
-	SettlementTimeout = 60 * time.Second
+	// SettlementTimeout is the maximum time to wait for payment settlement
+	SettlementTimeout = x402.DefaultSettleTimeout
 )
 
 // PaymentContext holds payment information during MCP request lifecycle

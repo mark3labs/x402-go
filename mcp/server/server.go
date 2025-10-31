@@ -21,8 +21,12 @@ type Config struct {
 	Verbose        bool
 }
 
-// NewX402Server creates a new x402-enabled MCP server
+// NewX402Server creates a new x402-enabled MCP server.
+// config must not be nil.
 func NewX402Server(name, version string, config *Config) *X402Server {
+	if config == nil {
+		config = &Config{}
+	}
 	// TODO: Initialize underlying MCP server
 	// TODO: Create facilitator client
 	return &X402Server{

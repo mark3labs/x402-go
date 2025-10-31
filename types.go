@@ -1,6 +1,21 @@
 package x402
 
-import "math/big"
+import (
+	"math/big"
+	"time"
+)
+
+// Timeout constants for facilitator operations.
+// These values are specified in the x402 protocol and used across all transports.
+const (
+	// DefaultVerifyTimeout is the maximum time to wait for payment verification with the facilitator.
+	// Specified at 5 seconds to ensure responsive payment flows.
+	DefaultVerifyTimeout = 5 * time.Second
+
+	// DefaultSettleTimeout is the maximum time to wait for payment settlement with the facilitator.
+	// Specified at 60 seconds to accommodate blockchain transaction execution time.
+	DefaultSettleTimeout = 60 * time.Second
+)
 
 // PaymentRequirement represents a single payment option from a 402 response.
 type PaymentRequirement struct {

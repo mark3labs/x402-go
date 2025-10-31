@@ -95,6 +95,13 @@ func NewSigner(opts ...SignerOption) (*Signer, error) {
 		return nil, x402.ErrNoTokens
 	}
 
+	// Validate all token addresses for the configured network
+	for _, token := range s.tokens {
+		if err := x402.ValidateTokenAddress(s.network, token.Address); err != nil {
+			return nil, err
+		}
+	}
+
 	// Derive address and chain ID from network
 	s.address = crypto.PubkeyToAddress(s.privateKey.PublicKey)
 	chainID, err := getChainID(s.network)
@@ -133,12 +140,6 @@ func WithNetwork(network string) SignerOption {
 // WithToken adds a token configuration.
 func WithToken(address, symbol string, decimals int) SignerOption {
 	return func(s *Signer) error {
-		// Validate token address format if network is already set
-		if s.network != "" {
-			if err := x402.ValidateTokenAddress(s.network, address); err != nil {
-				return err
-			}
-		}
 		s.tokens = append(s.tokens, x402.TokenConfig{
 			Address:  address,
 			Symbol:   symbol,
@@ -152,12 +153,6 @@ func WithToken(address, symbol string, decimals int) SignerOption {
 // WithTokenPriority adds a token configuration with a priority.
 func WithTokenPriority(address, symbol string, decimals, priority int) SignerOption {
 	return func(s *Signer) error {
-		// Validate token address format if network is already set
-		if s.network != "" {
-			if err := x402.ValidateTokenAddress(s.network, address); err != nil {
-				return err
-			}
-		}
 		s.tokens = append(s.tokens, x402.TokenConfig{
 			Address:  address,
 			Symbol:   symbol,

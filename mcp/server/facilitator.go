@@ -2,7 +2,7 @@ package server
 
 import (
 	"context"
-	"time"
+	nethttp "net/http"
 
 	"github.com/mark3labs/x402-go"
 	"github.com/mark3labs/x402-go/http"
@@ -18,6 +18,7 @@ type FacilitatorWrapper struct {
 func NewFacilitatorWrapper(facilitatorURL string) (*FacilitatorWrapper, error) {
 	client := &http.FacilitatorClient{
 		BaseURL:       facilitatorURL,
+		Client:        &nethttp.Client{},
 		VerifyTimeout: mcp.VerificationTimeout,
 		SettleTimeout: mcp.SettlementTimeout,
 	}
@@ -87,7 +88,7 @@ func timeoutError(err error, operation string) error {
 //
 //nolint:unused // Reserved for future facilitator implementation
 func (f *FacilitatorWrapper) verifyWithTimeout(payment x402.PaymentPayload, requirement x402.PaymentRequirement) (*http.VerifyResponse, error) {
-	verifyCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	verifyCtx, cancel := context.WithTimeout(context.Background(), mcp.VerificationTimeout)
 	defer cancel()
 
 	// TODO: Implement actual verify call
@@ -101,7 +102,7 @@ func (f *FacilitatorWrapper) verifyWithTimeout(payment x402.PaymentPayload, requ
 //
 //nolint:unused // Reserved for future facilitator implementation
 func (f *FacilitatorWrapper) settleWithTimeout(payment x402.PaymentPayload, requirement x402.PaymentRequirement) (*x402.SettlementResponse, error) {
-	settleCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	settleCtx, cancel := context.WithTimeout(context.Background(), mcp.SettlementTimeout)
 	defer cancel()
 
 	// TODO: Implement actual settle call

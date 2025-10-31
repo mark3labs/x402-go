@@ -5,7 +5,6 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
-	"time"
 
 	"github.com/mark3labs/x402-go"
 )
@@ -40,8 +39,8 @@ func NewX402Middleware(config *Config) func(http.Handler) http.Handler {
 	facilitator := &FacilitatorClient{
 		BaseURL:       config.FacilitatorURL,
 		Client:        &http.Client{},
-		VerifyTimeout: 5 * time.Second,  // Quick verification
-		SettleTimeout: 60 * time.Second, // Longer for blockchain tx execution
+		VerifyTimeout: x402.DefaultVerifyTimeout,
+		SettleTimeout: x402.DefaultSettleTimeout,
 	}
 
 	// Create fallback facilitator client if configured
@@ -50,8 +49,8 @@ func NewX402Middleware(config *Config) func(http.Handler) http.Handler {
 		fallbackFacilitator = &FacilitatorClient{
 			BaseURL:       config.FallbackFacilitatorURL,
 			Client:        &http.Client{},
-			VerifyTimeout: 5 * time.Second,
-			SettleTimeout: 60 * time.Second,
+			VerifyTimeout: x402.DefaultVerifyTimeout,
+			SettleTimeout: x402.DefaultSettleTimeout,
 		}
 	}
 

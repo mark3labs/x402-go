@@ -50,6 +50,13 @@ func NewX402Transport(underlying transport.Interface, signers []x402.Signer, opt
 		return nil, fmt.Errorf("at least one signer is required")
 	}
 
+	// Validate all signers are non-nil
+	for i, signer := range signers {
+		if signer == nil {
+			return nil, fmt.Errorf("signer at index %d is nil", i)
+		}
+	}
+
 	t := &X402Transport{
 		underlying:     underlying,
 		paymentHandler: NewPaymentHandler(signers, nil),
