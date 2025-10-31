@@ -273,3 +273,64 @@ func ValidateNetwork(networkID string) (NetworkType, error) {
 
 	return netType, nil
 }
+
+// ValidateTokenAddress validates that a token address matches the network type.
+// Returns an error if the address format is invalid for the network type.
+//
+// For EVM networks (base, polygon, avalanche, etc.):
+//   - Address must be 0x-prefixed hex string (42 characters total)
+//   - Example: 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
+//
+// For Solana networks (solana, solana-devnet):
+//   - Address must be base58 encoded (32-44 characters)
+//   - Cannot contain 0, O, I, l characters (not valid in base58)
+//   - Example: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
+func ValidateTokenAddress(networkID, address string) error {
+	if address == "" {
+		return fmt.Errorf("token address cannot be empty")
+	}
+
+	// Get network type
+	netType, err := ValidateNetwork(networkID)
+	if err != nil {
+		return err
+	}
+
+	switch netType {
+	case NetworkTypeEVM:
+		// EVM addresses must be 0x-prefixed hex (42 chars: 0x + 40 hex digits)
+		if len(address) != 42 {
+			return fmt.Errorf("token address '%s' is invalid for EVM network '%s', expected 0x-prefixed hex address (42 chars)", address, networkID)
+		}
+		if address[0:2] != "0x" && address[0:2] != "0X" {
+			return fmt.Errorf("token address '%s' is invalid for EVM network '%s', expected 0x-prefixed hex address (42 chars)", address, networkID)
+		}
+		// Validate hex characters
+		for i := 2; i < len(address); i++ {
+			c := address[i]
+			if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+				return fmt.Errorf("token address '%s' is invalid for EVM network '%s', expected 0x-prefixed hex address (42 chars)", address, networkID)
+			}
+		}
+
+	case NetworkTypeSVM:
+		// Solana addresses are base58 encoded (typically 32-44 chars)
+		if len(address) < 32 || len(address) > 44 {
+			return fmt.Errorf("token address '%s' is invalid for Solana network '%s', expected base58 address (32-44 chars)", address, networkID)
+		}
+		// Base58 character set: 123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz
+		// Does NOT include: 0, O, I, l
+		for i := 0; i < len(address); i++ {
+			c := address[i]
+			if c == '0' || c == 'O' || c == 'I' || c == 'l' {
+				return fmt.Errorf("token address '%s' is invalid for Solana network '%s', expected base58 address (32-44 chars)", address, networkID)
+			}
+			// Check if character is in base58 set
+			if !((c >= '1' && c <= '9') || (c >= 'A' && c <= 'Z' && c != 'I' && c != 'O') || (c >= 'a' && c <= 'z' && c != 'l')) {
+				return fmt.Errorf("token address '%s' is invalid for Solana network '%s', expected base58 address (32-44 chars)", address, networkID)
+			}
+		}
+	}
+
+	return nil
+}

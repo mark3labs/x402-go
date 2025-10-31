@@ -185,6 +185,12 @@ func WithEIP3009Params(name, version string) SignerOption {
 // decimals: Token decimal places
 func WithToken(address, symbol string, decimals int) SignerOption {
 	return func(s *Signer) error {
+		// Validate token address format if network is already set
+		if s.network != "" {
+			if err := x402.ValidateTokenAddress(s.network, address); err != nil {
+				return err
+			}
+		}
 		s.tokens = append(s.tokens, x402.TokenConfig{
 			Address:  address,
 			Symbol:   symbol,
@@ -199,6 +205,12 @@ func WithToken(address, symbol string, decimals int) SignerOption {
 // Lower priority numbers are selected first.
 func WithTokenPriority(address, symbol string, decimals, priority int) SignerOption {
 	return func(s *Signer) error {
+		// Validate token address format if network is already set
+		if s.network != "" {
+			if err := x402.ValidateTokenAddress(s.network, address); err != nil {
+				return err
+			}
+		}
 		s.tokens = append(s.tokens, x402.TokenConfig{
 			Address:  address,
 			Symbol:   symbol,

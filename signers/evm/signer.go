@@ -1,3 +1,51 @@
+// Package evm provides an EVM-compatible blockchain signer for x402 payments.
+// This package implements the x402.Signer interface for Ethereum Virtual Machine (EVM)
+// compatible chains including Base, Polygon, Avalanche, and others.
+//
+// # Quick Start
+//
+// Create a signer for EVM payments:
+//
+//	signer, err := evm.NewSigner(
+//		evm.WithPrivateKey("0xYourPrivateKey"),
+//		evm.WithNetwork("base"),
+//		evm.WithToken(
+//			"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", // USDC on Base
+//			"USDC",
+//			6,
+//		),
+//	)
+//
+//	// Or load from keystore file:
+//	signer, err := evm.NewSigner(
+//		evm.WithKeystore("/path/to/keystore.json", "password"),
+//		evm.WithNetwork("polygon"),
+//		evm.WithToken(
+//			"0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359", // USDC on Polygon
+//			"USDC",
+//			6,
+//		),
+//	)
+//
+// # Supported Networks
+//
+// - Base (base, base-sepolia)
+// - Polygon (polygon, polygon-amoy)
+// - Avalanche (avalanche, avalanche-fuji)
+//
+// # Payment Protocol
+//
+// This signer implements EIP-3009 transferWithAuthorization for gasless payments:
+// - Creates off-chain payment authorization
+// - Signs with EIP-712 typed data
+// - Facilitator submits on-chain (pays gas)
+//
+// # Security
+//
+// Private keys should be loaded from secure sources (env vars, key management systems).
+// Never hardcode private keys in source code.
+//
+// See examples/multichain/ for complete usage examples.
 package evm
 
 import (
@@ -85,6 +133,12 @@ func WithNetwork(network string) SignerOption {
 // WithToken adds a token configuration.
 func WithToken(address, symbol string, decimals int) SignerOption {
 	return func(s *Signer) error {
+		// Validate token address format if network is already set
+		if s.network != "" {
+			if err := x402.ValidateTokenAddress(s.network, address); err != nil {
+				return err
+			}
+		}
 		s.tokens = append(s.tokens, x402.TokenConfig{
 			Address:  address,
 			Symbol:   symbol,
@@ -98,6 +152,12 @@ func WithToken(address, symbol string, decimals int) SignerOption {
 // WithTokenPriority adds a token configuration with a priority.
 func WithTokenPriority(address, symbol string, decimals, priority int) SignerOption {
 	return func(s *Signer) error {
+		// Validate token address format if network is already set
+		if s.network != "" {
+			if err := x402.ValidateTokenAddress(s.network, address); err != nil {
+				return err
+			}
+		}
 		s.tokens = append(s.tokens, x402.TokenConfig{
 			Address:  address,
 			Symbol:   symbol,

@@ -733,3 +733,204 @@ func TestValidateNetworkEmpty(t *testing.T) {
 		t.Errorf("error = %v, want %v", err.Error(), wantError)
 	}
 }
+
+// TestValidateTokenAddressEVM tests ValidateTokenAddress for valid EVM addresses
+func TestValidateTokenAddressEVM(t *testing.T) {
+	tests := []struct {
+		name    string
+		network string
+		address string
+	}{
+		{"base_usdc", "base", "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"},
+		{"base-sepolia_usdc", "base-sepolia", "0x036CbD53842c5426634e7929541eC2318f3dCF7e"},
+		{"polygon_usdc", "polygon", "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359"},
+		{"polygon-amoy_usdc", "polygon-amoy", "0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582"},
+		{"avalanche_usdc", "avalanche", "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E"},
+		{"avalanche-fuji_usdc", "avalanche-fuji", "0x5425890298aed601595a70AB815c96711a31Bc65"},
+		{"lowercase_address", "base", "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"},
+		{"uppercase_address", "base", "0X833589FCD6EDB6E08F4C7C32D4F71B54BDA02913"},
+		{"zero_address", "base", "0x0000000000000000000000000000000000000000"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateTokenAddress(tt.network, tt.address)
+			if err != nil {
+				t.Errorf("ValidateTokenAddress(%s, %s) error = %v, want nil", tt.network, tt.address, err)
+			}
+		})
+	}
+}
+
+// TestValidateTokenAddressSVM tests ValidateTokenAddress for valid Solana addresses
+func TestValidateTokenAddressSVM(t *testing.T) {
+	tests := []struct {
+		name    string
+		network string
+		address string
+	}{
+		{"solana_usdc", "solana", "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"},
+		{"solana-devnet_usdc", "solana-devnet", "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"},
+		{"solana_token_program", "solana", "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"},
+		{"solana_system_program", "solana", "11111111111111111111111111111111"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateTokenAddress(tt.network, tt.address)
+			if err != nil {
+				t.Errorf("ValidateTokenAddress(%s, %s) error = %v, want nil", tt.network, tt.address, err)
+			}
+		})
+	}
+}
+
+// TestValidateTokenAddressInvalidEVM tests invalid EVM addresses
+func TestValidateTokenAddressInvalidEVM(t *testing.T) {
+	tests := []struct {
+		name      string
+		network   string
+		address   string
+		wantError string
+	}{
+		{
+			name:      "solana_address_on_base",
+			network:   "base",
+			address:   "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+			wantError: "token address 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v' is invalid for EVM network 'base', expected 0x-prefixed hex address (42 chars)",
+		},
+		{
+			name:      "missing_0x_prefix",
+			network:   "base",
+			address:   "833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+			wantError: "token address '833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' is invalid for EVM network 'base', expected 0x-prefixed hex address (42 chars)",
+		},
+		{
+			name:      "too_short",
+			network:   "base",
+			address:   "0x833589",
+			wantError: "token address '0x833589' is invalid for EVM network 'base', expected 0x-prefixed hex address (42 chars)",
+		},
+		{
+			name:      "too_long",
+			network:   "base",
+			address:   "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913AAAA",
+			wantError: "token address '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913AAAA' is invalid for EVM network 'base', expected 0x-prefixed hex address (42 chars)",
+		},
+		{
+			name:      "invalid_hex_chars",
+			network:   "polygon",
+			address:   "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA0291Z",
+			wantError: "token address '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA0291Z' is invalid for EVM network 'polygon', expected 0x-prefixed hex address (42 chars)",
+		},
+		{
+			name:      "empty_address",
+			network:   "base",
+			address:   "",
+			wantError: "token address cannot be empty",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateTokenAddress(tt.network, tt.address)
+			if err == nil {
+				t.Fatalf("ValidateTokenAddress(%s, %s) error = nil, want error", tt.network, tt.address)
+			}
+
+			if err.Error() != tt.wantError {
+				t.Errorf("error = %v, want %v", err.Error(), tt.wantError)
+			}
+		})
+	}
+}
+
+// TestValidateTokenAddressInvalidSVM tests invalid Solana addresses
+func TestValidateTokenAddressInvalidSVM(t *testing.T) {
+	tests := []struct {
+		name      string
+		network   string
+		address   string
+		wantError string
+	}{
+		{
+			name:      "evm_address_on_solana",
+			network:   "solana",
+			address:   "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+			wantError: "token address '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' is invalid for Solana network 'solana', expected base58 address (32-44 chars)",
+		},
+		{
+			name:      "invalid_base58_chars",
+			network:   "solana",
+			address:   "0OIl1234567890ABCDEF",
+			wantError: "token address '0OIl1234567890ABCDEF' is invalid for Solana network 'solana', expected base58 address (32-44 chars)",
+		},
+		{
+			name:      "too_short",
+			network:   "solana-devnet",
+			address:   "EPjFWdd5AufqSSqe",
+			wantError: "token address 'EPjFWdd5AufqSSqe' is invalid for Solana network 'solana-devnet', expected base58 address (32-44 chars)",
+		},
+		{
+			name:      "too_long",
+			network:   "solana",
+			address:   "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1vEXTRALONGADDRESS",
+			wantError: "token address 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1vEXTRALONGADDRESS' is invalid for Solana network 'solana', expected base58 address (32-44 chars)",
+		},
+		{
+			name:      "empty_address",
+			network:   "solana",
+			address:   "",
+			wantError: "token address cannot be empty",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateTokenAddress(tt.network, tt.address)
+			if err == nil {
+				t.Fatalf("ValidateTokenAddress(%s, %s) error = nil, want error", tt.network, tt.address)
+			}
+
+			if err.Error() != tt.wantError {
+				t.Errorf("error = %v, want %v", err.Error(), tt.wantError)
+			}
+		})
+	}
+}
+
+// TestValidateTokenAddressInvalidNetwork tests ValidateTokenAddress with invalid network
+func TestValidateTokenAddressInvalidNetwork(t *testing.T) {
+	tests := []struct {
+		name      string
+		network   string
+		address   string
+		wantError string
+	}{
+		{
+			name:      "unknown_network",
+			network:   "ethereum",
+			address:   "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+			wantError: "networkID: unsupported network",
+		},
+		{
+			name:      "empty_network",
+			network:   "",
+			address:   "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+			wantError: "networkID: cannot be empty",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateTokenAddress(tt.network, tt.address)
+			if err == nil {
+				t.Fatalf("ValidateTokenAddress(%s, %s) error = nil, want error", tt.network, tt.address)
+			}
+
+			if err.Error() != tt.wantError {
+				t.Errorf("error = %v, want %v", err.Error(), tt.wantError)
+			}
+		})
+	}
+}

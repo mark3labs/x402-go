@@ -1,3 +1,58 @@
+// Package svm provides a Solana Virtual Machine (SVM) signer for x402 payments.
+// This package implements the x402.Signer interface for Solana blockchain,
+// enabling SPL token transfers as payment for protected resources.
+//
+// # Quick Start
+//
+// Create a signer for Solana payments:
+//
+//	signer, err := svm.NewSigner(
+//		svm.WithPrivateKey("base58PrivateKey"),
+//		svm.WithNetwork("solana"),
+//		svm.WithToken(
+//			"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", // USDC on Solana
+//			"USDC",
+//			6,
+//		),
+//	)
+//
+//	// Or load from Solana CLI keygen file:
+//	signer, err := svm.NewSigner(
+//		svm.WithKeygenFile("/path/to/keypair.json"),
+//		svm.WithNetwork("solana-devnet"),
+//		svm.WithToken(
+//			"4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU", // USDC on devnet
+//			"USDC",
+//			6,
+//		),
+//	)
+//
+// # Supported Networks
+//
+// - Solana Mainnet (solana)
+// - Solana Devnet (solana-devnet)
+//
+// # Payment Protocol
+//
+// This signer creates SPL token transfer transactions:
+// - Builds SPL token transfer instruction
+// - Client signs transaction (partial signature)
+// - Facilitator adds fee payer signature and submits
+//
+// # RPC Endpoints
+//
+// The signer requires access to a Solana RPC endpoint to fetch recent blockhash
+// and token account information. Set the endpoint via:
+// - WithRPCEndpoint() option
+// - SOLANA_RPC_ENDPOINT environment variable
+// - Defaults to public endpoints (rate-limited)
+//
+// # Security
+//
+// Private keys should be loaded from secure sources (env vars, key management systems).
+// Never hardcode private keys in source code.
+//
+// See examples/multichain/ for complete usage examples.
 package svm
 
 import (
@@ -103,6 +158,12 @@ func WithNetwork(network string) SignerOption {
 // WithToken adds a token configuration.
 func WithToken(mintAddress, symbol string, decimals int) SignerOption {
 	return func(s *Signer) error {
+		// Validate token address format if network is already set
+		if s.network != "" {
+			if err := x402.ValidateTokenAddress(s.network, mintAddress); err != nil {
+				return err
+			}
+		}
 		s.tokens = append(s.tokens, x402.TokenConfig{
 			Address:  mintAddress,
 			Symbol:   symbol,
@@ -116,6 +177,12 @@ func WithToken(mintAddress, symbol string, decimals int) SignerOption {
 // WithTokenPriority adds a token configuration with a priority.
 func WithTokenPriority(mintAddress, symbol string, decimals, priority int) SignerOption {
 	return func(s *Signer) error {
+		// Validate token address format if network is already set
+		if s.network != "" {
+			if err := x402.ValidateTokenAddress(s.network, mintAddress); err != nil {
+				return err
+			}
+		}
 		s.tokens = append(s.tokens, x402.TokenConfig{
 			Address:  mintAddress,
 			Symbol:   symbol,
