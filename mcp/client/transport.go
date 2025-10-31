@@ -28,7 +28,7 @@ func WithSigner(signer x402.Signer) TransportOption {
 		if t.paymentHandler == nil {
 			t.paymentHandler = NewPaymentHandler([]x402.Signer{signer}, nil)
 		} else {
-			t.paymentHandler.signers = append(t.paymentHandler.signers, signer)
+			t.paymentHandler.AddSigner(signer)
 		}
 	}
 }

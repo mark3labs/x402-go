@@ -301,11 +301,11 @@ func ValidateTokenAddress(networkID, address string) error {
 
 	switch netType {
 	case NetworkTypeEVM:
-		// EVM addresses must have 0x prefix (go-ethereum accepts both with and without)
+		// Require 0x prefix for x402 protocol before validation
 		if len(address) < 2 || (address[0:2] != "0x" && address[0:2] != "0X") {
-			return fmt.Errorf("token address '%s' is invalid for EVM network '%s', expected valid hex address", address, networkID)
+			return fmt.Errorf("token address '%s' is invalid for EVM network '%s', expected valid hex address with 0x prefix", address, networkID)
 		}
-		// Use go-ethereum's IsHexAddress for proper validation
+		// Validate using go-ethereum's IsHexAddress
 		if !common.IsHexAddress(address) {
 			return fmt.Errorf("token address '%s' is invalid for EVM network '%s', expected valid hex address", address, networkID)
 		}

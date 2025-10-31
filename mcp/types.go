@@ -17,8 +17,10 @@ const (
 	MetaKeyProtocolVersion = "protocol-version"
 )
 
-// Timeout constants for MCP payment operations (FR-017, FR-018)
-// These reference the protocol-level defaults from the x402 package.
+// Timeout constants for MCP payment operations.
+// These reference the protocol-level defaults from the x402 package:
+//   - VerificationTimeout (5s): Quick check if payment exists on-chain
+//   - SettlementTimeout (60s): Wait for full on-chain confirmation
 const (
 	// VerificationTimeout is the maximum time to wait for payment verification
 	VerificationTimeout = x402.DefaultVerifyTimeout

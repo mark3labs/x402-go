@@ -1,6 +1,17 @@
+// Package x402 tests verify chain configuration helpers and validation functions.
+//
+// Test Organization:
+//   - ChainConfig Constants: Validates all 8 mainnet and testnet chain configurations
+//   - Token Configuration: Tests NewUSDCTokenConfig helper for creating TokenConfig
+//   - Payment Requirements: Tests NewUSDCPaymentRequirement with various amounts and configs
+//   - Network Validation: Tests ValidateNetwork for supported EVM and Solana networks
+//   - Token Address Validation: Tests ValidateTokenAddress for EVM (0x...) and Solana (base58) addresses
+//
+// The test suite ensures all exported helpers work correctly and provide clear error messages.
 package x402
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -750,6 +761,7 @@ func TestValidateTokenAddressEVM(t *testing.T) {
 		{"avalanche-fuji_usdc", "avalanche-fuji", "0x5425890298aed601595a70AB815c96711a31Bc65"},
 		{"lowercase_address", "base", "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"},
 		{"uppercase_address", "base", "0X833589FCD6EDB6E08F4C7C32D4F71B54BDA02913"},
+		{"eip55_checksum_address", "base", "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"}, // EIP-55 mixed-case checksum
 		{"zero_address", "base", "0x0000000000000000000000000000000000000000"},
 	}
 
@@ -934,4 +946,38 @@ func TestValidateTokenAddressInvalidNetwork(t *testing.T) {
 			}
 		})
 	}
+}
+
+// ExampleValidateTokenAddress_evm demonstrates validating an EVM token address
+func ExampleValidateTokenAddress_evm() {
+	// Validate Base mainnet USDC address
+	err := ValidateTokenAddress("base", "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913")
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		return
+	}
+	fmt.Println("Valid EVM address")
+	// Output: Valid EVM address
+}
+
+// ExampleValidateTokenAddress_solana demonstrates validating a Solana token address
+func ExampleValidateTokenAddress_solana() {
+	// Validate Solana mainnet USDC mint address
+	err := ValidateTokenAddress("solana", "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		return
+	}
+	fmt.Println("Valid Solana address")
+	// Output: Valid Solana address
+}
+
+// ExampleValidateTokenAddress_invalid demonstrates handling invalid addresses
+func ExampleValidateTokenAddress_invalid() {
+	// Attempt to validate an invalid address
+	err := ValidateTokenAddress("base", "not-a-valid-address")
+	if err != nil {
+		fmt.Println("Address validation failed")
+	}
+	// Output: Address validation failed
 }

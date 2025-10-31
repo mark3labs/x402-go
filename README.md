@@ -352,3 +352,21 @@ signer, _ := svm.NewSigner(
 client, _ := x402http.NewClient(x402http.WithSigner(signer))
 resp, _ := client.Get("https://api.example.com/data")
 ```
+
+## Naming Conventions
+
+The project follows these naming conventions:
+
+- **Module/Package**: `x402-go` (hyphenated lowercase)
+  - Go module: `github.com/mark3labs/x402-go`
+  - Package name: `package x402`
+  
+- **Types/Symbols**: `X402` prefix (no hyphen, capitalized)
+  - Examples: `X402Transport`, `X402Middleware`, `X402Server`
+  
+- **Documentation**: 
+  - Protocol: `x402` (lowercase, no hyphen)
+  - Library: `x402-go` (hyphenated)
+  - Example: "The x402 protocol is implemented by the x402-go library"
+
+This convention distinguishes the Go module/package (x402-go) from exported type names (X402*).

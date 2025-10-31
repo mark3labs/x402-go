@@ -58,3 +58,11 @@ func (h *PaymentHandler) CanFulfillAnyRequirement(requirements []x402.PaymentReq
 func (h *PaymentHandler) GetSigners() []x402.Signer {
 	return h.signers
 }
+
+// AddSigner adds a new signer to the payment handler
+func (h *PaymentHandler) AddSigner(signer x402.Signer) {
+	if signer == nil {
+		return
+	}
+	h.signers = append(h.signers, signer)
+}
