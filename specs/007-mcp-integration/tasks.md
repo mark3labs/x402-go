@@ -27,10 +27,10 @@
 
 **Purpose**: Project initialization and basic MCP integration structure
 
-- [ ] T001 Create mcp/ package directory structure with client/ and server/ subdirectories
-- [ ] T002 Add github.com/mark3labs/mcp-go dependency to go.mod (latest stable release)
-- [ ] T003 [P] Create mcp/errors.go for MCP-specific error types wrapping x402 errors
-- [ ] T004 [P] Create mcp/types.go for MCP-specific type aliases reusing x402.PaymentRequirement, x402.PaymentPayload, etc.
+- [X] T001 Create mcp/ package directory structure with client/ and server/ subdirectories
+- [X] T002 Add github.com/mark3labs/mcp-go dependency to go.mod (latest stable release)
+- [X] T003 [P] Create mcp/errors.go for MCP-specific error types wrapping x402 errors
+- [X] T004 [P] Create mcp/types.go for MCP-specific type aliases reusing x402.PaymentRequirement, x402.PaymentPayload, etc.
 
 ---
 
@@ -40,11 +40,11 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T005 Define timeout constants in mcp/types.go: PaymentVerifyTimeout (5s per FR-017), PaymentSettleTimeout (60s per FR-018)
-- [ ] T006 [P] Create mcp/server/requirements.go with helper functions returning x402.PaymentRequirement: RequireUSDCBase(payTo, amount, desc), RequireUSDCBaseSepolia, RequireUSDCPolygon, RequireUSDCSolana with resource field set to "mcp://tools/{toolName}"
-- [ ] T007 [P] Create mcp/client/config.go defining Config struct with signers []x402.Signer, serverURL string, httpClient *http.Client, OnPaymentAttempt/Success/Failure callbacks, selector x402.PaymentSelector
-- [ ] T008 [P] Create mcp/server/config.go defining Config struct with FacilitatorURL string, VerifyOnly bool, Verbose bool, PaymentTools map[string][]x402.PaymentRequirement
-- [ ] T009 [P] Add validation helpers in mcp/server/requirements.go: validateAmount (amount > 0), validateEVMAddress (^0x[a-fA-F0-9]{40}$), validateNetwork (network in supported list), return descriptive errors for invalid requirements
+- [X] T005 Define timeout constants in mcp/types.go: PaymentVerifyTimeout (5s per FR-017), PaymentSettleTimeout (60s per FR-018)
+- [X] T006 [P] Create mcp/server/requirements.go with helper functions returning x402.PaymentRequirement: RequireUSDCBase(payTo, amount, desc), RequireUSDCBaseSepolia, RequireUSDCPolygon, RequireUSDCSolana with resource field set to "mcp://tools/{toolName}"
+- [X] T007 [P] Create mcp/client/config.go defining Config struct with signers []x402.Signer, serverURL string, httpClient *http.Client, OnPaymentAttempt/Success/Failure callbacks, selector x402.PaymentSelector
+- [X] T008 [P] Create mcp/server/config.go defining Config struct with FacilitatorURL string, VerifyOnly bool, Verbose bool, PaymentTools map[string][]x402.PaymentRequirement
+- [X] T009 [P] Add validation helpers in mcp/server/requirements.go: validateAmount (amount > 0), validateEVMAddress (^0x[a-fA-F0-9]{40}$), validateNetwork (network in supported list), return descriptive errors for invalid requirements
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
@@ -70,15 +70,15 @@
 
 ### Implementation for User Story 1
 
-- [ ] T017 [US1] Create mcp/client/transport.go implementing Transport struct with fields: baseTransport transport.Interface (wraps transport.StreamableHTTP), config Config, selector x402.PaymentSelector; embed and delegate all transport.Interface methods to baseTransport
-- [ ] T018 [US1] Implement NewTransport(serverURL string, opts ...Option) in mcp/client/transport.go: create baseTransport using transport.NewStreamableHTTP(serverURL, httpOpts...), wrap with x402 Transport, apply config options for signers/callbacks, return (*Transport, error) implementing transport.Interface
-- [ ] T019 [US1] Implement Transport.SendRequest(ctx, transport.JSONRPCRequest) in mcp/client/transport.go: override baseTransport method to intercept requests/responses, call baseTransport.SendRequest, check for 402 error (resp.Error != nil && resp.Error.Code == 402), if 402 extract requirements from error.Data, create payment, inject into request.Params._meta["x402/payment"], retry request via baseTransport.SendRequest
-- [ ] T020 [US1] Add Transport.extractPaymentRequirements method in mcp/client/transport.go: cast error.Data to map[string]any, extract x402Version, error message, accepts []PaymentRequirement fields, unmarshal accepts array to []x402.PaymentRequirement, validate structure
-- [ ] T021 [US1] Add Transport.selectPaymentSigner method in mcp/client/transport.go: call config.selector.SelectAndSign(requirements, signers) using x402.DefaultPaymentSelector algorithm, return (*PaymentPayload, error)
-- [ ] T022 [US1] Add Transport.createPayment method in mcp/client/transport.go: call selector.SelectAndSign(requirements, signers) to generate x402.PaymentPayload, handle errors (no valid signer, signing failure), trigger config.OnPaymentAttempt callback with payment details
-- [ ] T023 [US1] Add Transport.injectPaymentMeta method in mcp/client/transport.go: cast request.Params to map[string]any, create/get "_meta" map, add "x402/payment" key with PaymentPayload value, update request.Params with modified map, preserve all existing params fields
-- [ ] T024 [US1] Add Transport.retryWithPayment method in mcp/client/transport.go: clone original request, inject payment via injectPaymentMeta, call baseTransport.SendRequest with modified request, check response success, trigger config.OnPaymentSuccess or OnPaymentFailure callbacks based on result
-- [ ] T025 [US1] Implement Transport.Start, SetNotificationHandler, SendNotification, Close, GetSessionId in mcp/client/transport.go: delegate directly to baseTransport methods (no x402 logic needed for these), preserve transparent wrapper behavior
+- [X] T017 [US1] Create mcp/client/transport.go implementing Transport struct with fields: baseTransport transport.Interface (wraps transport.StreamableHTTP), config Config, selector x402.PaymentSelector; embed and delegate all transport.Interface methods to baseTransport
+- [X] T018 [US1] Implement NewTransport(serverURL string, opts ...Option) in mcp/client/transport.go: create baseTransport using transport.NewStreamableHTTP(serverURL, httpOpts...), wrap with x402 Transport, apply config options for signers/callbacks, return (*Transport, error) implementing transport.Interface
+- [X] T019 [US1] Implement Transport.SendRequest(ctx, transport.JSONRPCRequest) in mcp/client/transport.go: override baseTransport method to intercept requests/responses, call baseTransport.SendRequest, check for 402 error (resp.Error != nil && resp.Error.Code == 402), if 402 extract requirements from error.Data, create payment, inject into request.Params._meta["x402/payment"], retry request via baseTransport.SendRequest
+- [X] T020 [US1] Add Transport.extractPaymentRequirements method in mcp/client/transport.go: cast error.Data to map[string]any, extract x402Version, error message, accepts []PaymentRequirement fields, unmarshal accepts array to []x402.PaymentRequirement, validate structure
+- [X] T021 [US1] Add Transport.selectPaymentSigner method in mcp/client/transport.go: call config.selector.SelectAndSign(requirements, signers) using x402.DefaultPaymentSelector algorithm, return (*PaymentPayload, error)
+- [X] T022 [US1] Add Transport.createPayment method in mcp/client/transport.go: call selector.SelectAndSign(requirements, signers) to generate x402.PaymentPayload, handle errors (no valid signer, signing failure), trigger config.OnPaymentAttempt callback with payment details
+- [X] T023 [US1] Add Transport.injectPaymentMeta method in mcp/client/transport.go: cast request.Params to map[string]any, create/get "_meta" map, add "x402/payment" key with PaymentPayload value, update request.Params with modified map, preserve all existing params fields
+- [X] T024 [US1] Add Transport.retryWithPayment method in mcp/client/transport.go: clone original request, inject payment via injectPaymentMeta, call baseTransport.SendRequest with modified request, check response success, trigger config.OnPaymentSuccess or OnPaymentFailure callbacks based on result
+- [X] T025 [US1] Implement Transport.Start, SetNotificationHandler, SendNotification, Close, GetSessionId in mcp/client/transport.go: delegate directly to baseTransport methods (no x402 logic needed for these), preserve transparent wrapper behavior
 
 **Checkpoint**: Client can connect to x402 MCP servers and automatically handle payment flows for paid tools
 
@@ -106,23 +106,23 @@
 
 ### Implementation for User Story 2
 
-- [ ] T037 [US2] Create mcp/server/server.go implementing X402Server struct with fields: mcpServer *server.MCPServer, config *Config (includes PaymentTools map)
-- [ ] T038 [US2] Implement NewX402Server(name, version string, config *Config) in mcp/server/server.go: call server.NewMCPServer(name, version) to create base MCP server, initialize config.PaymentTools map if nil, return *X402Server wrapping the MCPServer
-- [ ] T039 [US2] Add X402Server.AddTool(tool mcp.Tool, handler server.ToolHandlerFunc) in mcp/server/server.go: call s.mcpServer.AddTool(tool, handler) directly without payment requirements, do not add to PaymentTools map (free tool)
-- [ ] T040 [US2] Add X402Server.AddPayableTool(tool mcp.Tool, handler server.ToolHandlerFunc, requirements ...x402.PaymentRequirement) in mcp/server/server.go: validate len(requirements) > 0, add to config.PaymentTools[tool.Name], call s.mcpServer.AddTool(tool, handler) to register tool
-- [ ] T041 [US2] Add X402Server.Handler() http.Handler method in mcp/server/server.go: create httpServer := server.NewStreamableHTTPServer(s.mcpServer), wrap with NewX402Handler(httpServer, s.config), return wrapped handler
-- [ ] T042 [US2] Add X402Server.Start(addr string) in mcp/server/server.go: call http.ListenAndServe(addr, s.Handler()) to start HTTP server with x402-wrapped handler
-- [ ] T043 [US2] Create mcp/server/handler.go implementing X402Handler struct with fields: mcpHandler http.Handler (wraps MCPServer's HTTP handler), config *Config, facilitator Facilitator
-- [ ] T044 [US2] Implement NewX402Handler(mcpHandler http.Handler, config *Config) in mcp/server/handler.go: create facilitator wrapper, return *X402Handler with mcpHandler (from server.NewStreamableHTTPServer), config, facilitator
-- [ ] T045 [US2] Implement X402Handler.ServeHTTP(w http.ResponseWriter, r *http.Request) in mcp/server/handler.go: intercept POST requests, read body with io.ReadAll, parse as transport.JSONRPCRequest, check method == "tools/call", extract tool name from params, check if tool needs payment, handle payment flow or pass through to mcpHandler
-- [ ] T046 [US2] Add handler.checkPaymentRequired(toolName string) in mcp/server/handler.go: lookup config.PaymentTools[toolName], return (requirements, needsPayment bool), set resource field to "mcp://tools/{toolName}" on requirements
-- [ ] T047 [US2] Add handler.sendPaymentRequiredError(w, id, requirements) in mcp/server/handler.go: construct transport.JSONRPCResponse with Error.Code=402, Error.Data={x402Version:1, error:"Payment required", accepts:requirements}, write JSON response with HTTP 200 (JSON-RPC error, not HTTP error)
-- [ ] T048 [US2] Add handler.extractPayment(params mcp.CallToolParams) in mcp/server/handler.go: check params.Meta != nil && params.Meta.AdditionalFields != nil, extract params.Meta.AdditionalFields["x402/payment"], marshal to PaymentPayload struct, return payment or nil
-- [ ] T049 [US2] Add handler.findMatchingRequirement(payment, requirements) in mcp/server/handler.go: iterate requirements, match on network and scheme, return matched requirement or error
-- [ ] T050 [US2] Create mcp/server/facilitator.go with Facilitator interface (Verify, Settle methods) and HTTPFacilitator struct wrapping http.FacilitatorClient
-- [ ] T051 [US2] Add HTTPFacilitator.Verify(ctx, payment, requirement) in mcp/server/facilitator.go: create context.WithTimeout(ctx, 5*time.Second), call facilitatorClient.VerifyPayment(ctx, payment), return VerifyResponse{IsValid, InvalidReason, Payer} or error
-- [ ] T052 [US2] Add HTTPFacilitator.Settle(ctx, payment, requirement) in mcp/server/facilitator.go: create context.WithTimeout(ctx, 60*time.Second), call facilitatorClient.SettlePayment(ctx, payment), return SettleResponse{Success, Transaction, Network, Payer, ErrorReason} or error
-- [ ] T053 [US2] Add handler.forwardWithSettlementResponse(w, r, reqID, settleResp) in mcp/server/handler.go: create responseRecorder to capture MCP handler response, forward request to mcpHandler.ServeHTTP, parse JSON-RPC response, inject settleResp into result._meta["x402/payment-response"], write modified response
+- [X] T037 [US2] Create mcp/server/server.go implementing X402Server struct with fields: mcpServer *server.MCPServer, config *Config (includes PaymentTools map)
+- [X] T038 [US2] Implement NewX402Server(name, version string, config *Config) in mcp/server/server.go: call server.NewMCPServer(name, version) to create base MCP server, initialize config.PaymentTools map if nil, return *X402Server wrapping the MCPServer
+- [X] T039 [US2] Add X402Server.AddTool(tool mcp.Tool, handler server.ToolHandlerFunc) in mcp/server/server.go: call s.mcpServer.AddTool(tool, handler) directly without payment requirements, do not add to PaymentTools map (free tool)
+- [X] T040 [US2] Add X402Server.AddPayableTool(tool mcp.Tool, handler server.ToolHandlerFunc, requirements ...x402.PaymentRequirement) in mcp/server/server.go: validate len(requirements) > 0, add to config.PaymentTools[tool.Name], call s.mcpServer.AddTool(tool, handler) to register tool
+- [X] T041 [US2] Add X402Server.Handler() http.Handler method in mcp/server/server.go: create httpServer := server.NewStreamableHTTPServer(s.mcpServer), wrap with NewX402Handler(httpServer, s.config), return wrapped handler
+- [X] T042 [US2] Add X402Server.Start(addr string) in mcp/server/server.go: call http.ListenAndServe(addr, s.Handler()) to start HTTP server with x402-wrapped handler
+- [X] T043 [US2] Create mcp/server/handler.go implementing X402Handler struct with fields: mcpHandler http.Handler (wraps MCPServer's HTTP handler), config *Config, facilitator Facilitator
+- [X] T044 [US2] Implement NewX402Handler(mcpHandler http.Handler, config *Config) in mcp/server/handler.go: create facilitator wrapper, return *X402Handler with mcpHandler (from server.NewStreamableHTTPServer), config, facilitator
+- [X] T045 [US2] Implement X402Handler.ServeHTTP(w http.ResponseWriter, r *http.Request) in mcp/server/handler.go: intercept POST requests, read body with io.ReadAll, parse as transport.JSONRPCRequest, check method == "tools/call", extract tool name from params, check if tool needs payment, handle payment flow or pass through to mcpHandler
+- [X] T046 [US2] Add handler.checkPaymentRequired(toolName string) in mcp/server/handler.go: lookup config.PaymentTools[toolName], return (requirements, needsPayment bool), set resource field to "mcp://tools/{toolName}" on requirements
+- [X] T047 [US2] Add handler.sendPaymentRequiredError(w, id, requirements) in mcp/server/handler.go: construct transport.JSONRPCResponse with Error.Code=402, Error.Data={x402Version:1, error:"Payment required", accepts:requirements}, write JSON response with HTTP 200 (JSON-RPC error, not HTTP error)
+- [X] T048 [US2] Add handler.extractPayment(params mcp.CallToolParams) in mcp/server/handler.go: check params.Meta != nil && params.Meta.AdditionalFields != nil, extract params.Meta.AdditionalFields["x402/payment"], marshal to PaymentPayload struct, return payment or nil
+- [X] T049 [US2] Add handler.findMatchingRequirement(payment, requirements) in mcp/server/handler.go: iterate requirements, match on network and scheme, return matched requirement or error
+- [X] T050 [US2] Create mcp/server/facilitator.go with Facilitator interface (Verify, Settle methods) and HTTPFacilitator struct wrapping http.FacilitatorClient
+- [X] T051 [US2] Add HTTPFacilitator.Verify(ctx, payment, requirement) in mcp/server/facilitator.go: create context.WithTimeout(ctx, 5*time.Second), call facilitatorClient.VerifyPayment(ctx, payment), return VerifyResponse{IsValid, InvalidReason, Payer} or error
+- [X] T052 [US2] Add HTTPFacilitator.Settle(ctx, payment, requirement) in mcp/server/facilitator.go: create context.WithTimeout(ctx, 60*time.Second), call facilitatorClient.SettlePayment(ctx, payment), return SettleResponse{Success, Transaction, Network, Payer, ErrorReason} or error
+- [X] T053 [US2] Add handler.forwardWithSettlementResponse(w, r, reqID, settleResp) in mcp/server/handler.go: create responseRecorder to capture MCP handler response, forward request to mcpHandler.ServeHTTP, parse JSON-RPC response, inject settleResp into result._meta["x402/payment-response"], write modified response
 
 **Checkpoint**: Server can protect tools with x402 requirements, send 402 errors, verify payments via facilitator, and execute paid tools
 
@@ -164,18 +164,18 @@
 
 ### Implementation for User Story 4
 
-- [ ] T066 [P] [US4] Create examples/mcp/ directory with go.mod requiring github.com/mark3labs/x402-go (use replace directive pointing to ../.. for development)
-- [ ] T067 [P] [US4] Create examples/mcp/README.md with usage instructions: server mode (./mcp -mode server -pay-to ADDR), client mode (./mcp -mode client -key PRIVATE_KEY -server http://localhost:8080), testnet flags
-- [ ] T068 [US4] Implement examples/mcp/main.go with flag.String for -mode, switch on mode value to call runServer() or runClient()
-- [ ] T069 [US4] Add runServer() in examples/mcp/main.go: call server.NewX402Server(name, version, config), create echo tool with mcp.NewTool("echo", mcp.WithString("message", mcp.Required())), create search tool with mcp.NewTool("search", mcp.WithString("query", mcp.Required()), mcp.WithNumber("max_results")), call srv.AddTool(echoTool, echoHandler) and srv.AddPayableTool(searchTool, searchHandler, server.RequireUSDCBase(payTo, "10000", "0.01 USDC"))
-- [ ] T070 [US4] Add echoHandler(ctx context.Context, req mcp.CallToolRequest) in examples/mcp/main.go: extract message := req.GetString("message", ""), return mcp.NewToolResultText(fmt.Sprintf("Echo: %s", message))
-- [ ] T071 [US4] Add searchHandler(ctx context.Context, req mcp.CallToolRequest) in examples/mcp/main.go: extract query := req.GetString("query", ""), maxResults := req.GetFloat("max_results", 5), generate mock search results, return mcp.NewToolResultText(results)
-- [ ] T072 [US4] Add runClient() in examples/mcp/main.go: create evm.NewPrivateKeySigner(key, evm.WithChain(chain), evm.WithToken(token)), create transport := mcpclient.NewTransport(serverURL, client.WithSigner(signer), client.WithPaymentCallback(paymentLogger)), create mcpClient := client.NewClient(transport)
-- [ ] T073 [US4] Add MCP initialization in runClient() in examples/mcp/main.go: call mcpClient.Start(ctx), call mcpClient.Initialize(ctx, mcp.InitializeRequest{Params: {ProtocolVersion: "2025-06-18", ClientInfo: {Name: "x402-example", Version: "1.0.0"}}}), handle init response
-- [ ] T074 [US4] Add tool operations in runClient() in examples/mcp/main.go: call mcpClient.ListTools(ctx, mcp.ListToolsRequest{}), iterate tools, call mcpClient.CallTool(ctx, mcp.CallToolRequest{Params: {Name: "echo", Arguments: {"message": "test"}}}), call mcpClient.CallTool for search tool with payment
-- [ ] T075 [US4] Add paymentLogger callback in examples/mcp/main.go: implement function logging payment events with log.Printf("Attempting payment: %s %s to %s", event.Amount, event.Asset, event.Recipient) for attempt, "Payment successful: tx=%s" for success, "Payment failed: %v" for failure
-- [ ] T076 [US4] Add command-line flags in examples/mcp/main.go: flag.String("mode", "", "client or server"), flag.String("port", "8080", "server port"), flag.String("server", "http://localhost:8080", "server URL"), flag.String("key", "", "private key"), flag.String("pay-to", "", "payment address"), flag.String("facilitator", "https://facilitator.x402.rs", "facilitator URL"), flag.Bool("verify-only", false, "verify only"), flag.Bool("testnet", false, "use testnet"), flag.String("network", "base", "network name"), flag.Bool("v", false, "verbose")
-- [ ] T077 [US4] Add testnet support in examples/mcp/main.go: if testnet flag, use evm.ChainBaseSepolia and server.RequireUSDCBaseSepolia for payment requirements
+- [X] T066 [P] [US4] Create examples/mcp/ directory with go.mod requiring github.com/mark3labs/x402-go (use replace directive pointing to ../.. for development)
+- [X] T067 [P] [US4] Create examples/mcp/README.md with usage instructions: server mode (./mcp -mode server -pay-to ADDR), client mode (./mcp -mode client -key PRIVATE_KEY -server http://localhost:8080), testnet flags
+- [X] T068 [US4] Implement examples/mcp/main.go with flag.String for -mode, switch on mode value to call runServer() or runClient()
+- [X] T069 [US4] Add runServer() in examples/mcp/main.go: call server.NewX402Server(name, version, config), create echo tool with mcp.NewTool("echo", mcp.WithString("message", mcp.Required())), create search tool with mcp.NewTool("search", mcp.WithString("query", mcp.Required()), mcp.WithNumber("max_results")), call srv.AddTool(echoTool, echoHandler) and srv.AddPayableTool(searchTool, searchHandler, server.RequireUSDCBase(payTo, "10000", "0.01 USDC"))
+- [X] T070 [US4] Add echoHandler(ctx context.Context, req mcp.CallToolRequest) in examples/mcp/main.go: extract message := req.GetString("message", ""), return mcp.NewToolResultText(fmt.Sprintf("Echo: %s", message))
+- [X] T071 [US4] Add searchHandler(ctx context.Context, req mcp.CallToolRequest) in examples/mcp/main.go: extract query := req.GetString("query", ""), maxResults := req.GetFloat("max_results", 5), generate mock search results, return mcp.NewToolResultText(results)
+- [X] T072 [US4] Add runClient() in examples/mcp/main.go: create evm.NewPrivateKeySigner(key, evm.WithChain(chain), evm.WithToken(token)), create transport := mcpclient.NewTransport(serverURL, client.WithSigner(signer), client.WithPaymentCallback(paymentLogger)), create mcpClient := client.NewClient(transport)
+- [X] T073 [US4] Add MCP initialization in runClient() in examples/mcp/main.go: call mcpClient.Start(ctx), call mcpClient.Initialize(ctx, mcp.InitializeRequest{Params: {ProtocolVersion: "2025-06-18", ClientInfo: {Name: "x402-example", Version: "1.0.0"}}}), handle init response
+- [X] T074 [US4] Add tool operations in runClient() in examples/mcp/main.go: call mcpClient.ListTools(ctx, mcp.ListToolsRequest{}), iterate tools, call mcpClient.CallTool(ctx, mcp.CallToolRequest{Params: {Name: "echo", Arguments: {"message": "test"}}}), call mcpClient.CallTool for search tool with payment
+- [X] T075 [US4] Add paymentLogger callback in examples/mcp/main.go: implement function logging payment events with log.Printf("Attempting payment: %s %s to %s", event.Amount, event.Asset, event.Recipient) for attempt, "Payment successful: tx=%s" for success, "Payment failed: %v" for failure
+- [X] T076 [US4] Add command-line flags in examples/mcp/main.go: flag.String("mode", "", "client or server"), flag.String("port", "8080", "server port"), flag.String("server", "http://localhost:8080", "server URL"), flag.String("key", "", "private key"), flag.String("pay-to", "", "payment address"), flag.String("facilitator", "https://facilitator.x402.rs", "facilitator URL"), flag.Bool("verify-only", false, "verify only"), flag.Bool("testnet", false, "use testnet"), flag.String("network", "base", "network name"), flag.Bool("v", false, "verbose")
+- [X] T077 [US4] Add testnet support in examples/mcp/main.go: if testnet flag, use evm.ChainBaseSepolia and server.RequireUSDCBaseSepolia for payment requirements
 
 **Checkpoint**: Working example demonstrates full x402 MCP integration for both client and server modes
 
@@ -207,12 +207,12 @@
 - [ ] T089 [P] Verify error messages are clear and actionable across mcp/client/ and mcp/server/
 - [ ] T090 [P] Add verbose logging for payment lifecycle in mcp/client/transport.go
 - [ ] T091 [P] Add verbose logging for payment verification in mcp/server/handler.go
-- [ ] T092 [P] Run go fmt ./mcp/... on all MCP package code
-- [ ] T093 [P] Run go vet ./mcp/... on all MCP package code
-- [ ] T094 [P] Run golangci-lint run ./mcp/... on all MCP package code
-- [ ] T095 [P] Validate examples/mcp/main.go builds without errors: go build ./examples/mcp
+- [X] T092 [P] Run go fmt ./mcp/... on all MCP package code
+- [X] T093 [P] Run go vet ./mcp/... on all MCP package code
+- [X] T094 [P] Run golangci-lint run ./mcp/... on all MCP package code
+- [X] T095 [P] Validate examples/mcp/main.go builds without errors: go build ./examples/mcp
 - [ ] T096 Verify quickstart.md code examples match actual implementation and update if needed
-- [ ] T097 Run full test suite with race detection: go test -race -cover ./mcp/...
+- [X] T097 Run full test suite with race detection: go test -race -cover ./mcp/...
 - [ ] T098 Validate all success criteria from spec.md are met (SC-001 through SC-008)
 
 ---
