@@ -10,29 +10,28 @@ import (
 	"github.com/mark3labs/x402-go"
 )
 
-func getPayerWithSolana(payment x402.PaymentPayload) string {
-	logger := slog.Default()
+func getPayerWithSolana(payment x402.PaymentPayload, logger *slog.Logger) (string, error) {
 	payload, ok := payment.Payload.(map[string]any)
 	if !ok {
 		logger.Error("invalid payload type")
-		return ""
+		return "", fmt.Errorf("invalid payload type")
 	}
 	transaction, ok := payload["transaction"]
 	if !ok {
 		logger.Error("transaction not found in payload")
-		return ""
+		return "", fmt.Errorf("transaction not found in payload")
 	}
 
 	base64Transaction, ok := transaction.(string)
 	if !ok {
 		logger.Error("transaction is not a string")
-		return ""
+		return "", fmt.Errorf("transaction is not a string")
 	}
 
 	tx, err := solana.TransactionFromBase64(base64Transaction)
 	if err != nil {
 		logger.Error("failed to decode transaction", "error", err)
-		return ""
+		return "", fmt.Errorf("failed to decode transaction: %w", err)
 	}
 
 	for _, inst := range tx.Message.Instructions {
@@ -42,7 +41,7 @@ func getPayerWithSolana(payment x402.PaymentPayload) string {
 			continue
 		}
 		switch {
-		case prog.Equals(solana.SystemProgramID): // support ?
+		case prog.Equals(solana.SystemProgramID):
 			accountsMeta, err := inst.ResolveInstructionAccounts(&tx.Message)
 			if err != nil {
 				logger.Error("failed to resolve instruction accounts", "index", inst.ProgramIDIndex, "error", err)
@@ -58,7 +57,7 @@ func getPayerWithSolana(payment x402.PaymentPayload) string {
 				logger.Error("failed to decode system transfer instruction", "index", inst.ProgramIDIndex)
 				break
 			}
-			return t.GetFundingAccount().PublicKey.String()
+			return t.GetFundingAccount().PublicKey.String(), nil
 		case prog.Equals(solana.TokenProgramID):
 			accountsMeta, err := inst.ResolveInstructionAccounts(&tx.Message)
 			if err != nil {
@@ -74,14 +73,14 @@ func getPayerWithSolana(payment x402.PaymentPayload) string {
 
 			switch t := ix.Impl.(type) {
 			case *token.Transfer:
-				return t.GetOwnerAccount().PublicKey.String()
+				return t.GetOwnerAccount().PublicKey.String(), nil
 			case *token.TransferChecked:
-				return t.GetOwnerAccount().PublicKey.String()
+				return t.GetOwnerAccount().PublicKey.String(), nil
 			default:
 				logger.Error("unhandled token instruction type", "index", inst.ProgramIDIndex, "type", fmt.Sprintf("%T", t))
 			}
 		default:
 		}
 	}
-	return ""
+	return "", nil
 }

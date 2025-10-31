@@ -80,9 +80,11 @@ func (c *FacilitatorClient) Verify(payment x402.PaymentPayload, requirement x402
 			return nil, fmt.Errorf("failed to decode verify response: %w", err)
 		}
 
-		if verifyResp.Payer == "" {
-			verifyResp.Payer = helpers.GetPayer(payment)
+		if verifyResp.Payer != "" {
+			return &verifyResp, nil
 		}
+
+		verifyResp.Payer = helpers.GetPayer(payment)
 
 		return &verifyResp, nil
 	})
