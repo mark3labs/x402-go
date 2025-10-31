@@ -28,7 +28,7 @@ type HTTPFacilitator struct {
 func NewHTTPFacilitator(facilitatorURL string) *HTTPFacilitator {
 	client := &http.FacilitatorClient{
 		BaseURL:       facilitatorURL,
-		Client:        &nethttp.Client{Timeout: mcp.PaymentVerifyTimeout},
+		Client:        &nethttp.Client{Timeout: mcp.PaymentSettleTimeout},
 		VerifyTimeout: mcp.PaymentVerifyTimeout,
 		SettleTimeout: mcp.PaymentSettleTimeout,
 		MaxRetries:    2,

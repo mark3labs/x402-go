@@ -99,8 +99,14 @@ func IsPaymentError(err error) bool {
 	return errors.As(err, &paymentErr) ||
 		errors.Is(err, ErrPaymentRequired) ||
 		errors.Is(err, ErrNoMatchingSigner) ||
+		errors.Is(err, ErrInsufficientBalance) ||
 		errors.Is(err, ErrPaymentRejected) ||
 		errors.Is(err, ErrSettlementFailed) ||
+		errors.Is(err, ErrInvalidPaymentPayload) ||
+		errors.Is(err, ErrNoPaymentRequirements) ||
+		errors.Is(err, ErrFacilitatorUnavailable) ||
+		errors.Is(err, ErrVerificationTimeout) ||
+		errors.Is(err, ErrSettlementTimeout) ||
 		errors.Is(err, x402.ErrNoValidSigner) ||
 		errors.Is(err, x402.ErrSigningFailed) ||
 		errors.Is(err, x402.ErrVerificationFailed)

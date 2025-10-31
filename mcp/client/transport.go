@@ -215,7 +215,7 @@ func (t *Transport) retryWithPayment(ctx context.Context, req transport.JSONRPCR
 
 	// Check if payment succeeded
 	if resp.Error != nil {
-		if t.config.OnPaymentFailure != nil {
+		if resp.Error.Code == 402 && t.config.OnPaymentFailure != nil {
 			t.config.OnPaymentFailure(PaymentEvent{
 				Type:    PaymentFailure,
 				Error:   fmt.Errorf("payment rejected: %s", resp.Error.Message),

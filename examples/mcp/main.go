@@ -55,13 +55,26 @@ func runServer() {
 	}
 
 	// Determine network and payment requirements
-	var requirement func(string, string, string) x402.PaymentRequirement
-	networkName := *network
-	if *testnet {
+	var (
+		requirement func(string, string, string) x402.PaymentRequirement
+		networkName string
+	)
+
+	switch {
+	case *testnet:
 		requirement = server.RequireUSDCBaseSepolia
 		networkName = "base-sepolia"
-	} else {
+	case *network == "base":
 		requirement = server.RequireUSDCBase
+		networkName = "base"
+	case *network == "polygon":
+		requirement = server.RequireUSDCPolygon
+		networkName = "polygon"
+	case *network == "solana":
+		requirement = server.RequireUSDCSolana
+		networkName = "solana"
+	default:
+		log.Fatalf("unsupported network: %s", *network)
 	}
 
 	// Create x402 MCP server
@@ -158,10 +171,17 @@ func runClient() {
 
 	// Determine chain configuration
 	var chain x402.ChainConfig
-	if *testnet {
+	switch {
+	case *testnet:
 		chain = x402.BaseSepolia
-	} else {
+	case *network == "base":
 		chain = x402.BaseMainnet
+	case *network == "polygon":
+		chain = x402.PolygonMainnet
+	case *network == "solana":
+		chain = x402.SolanaMainnet
+	default:
+		log.Fatalf("unsupported network: %s", *network)
 	}
 
 	// Create EVM signer with network and USDC token

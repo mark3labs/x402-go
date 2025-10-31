@@ -188,14 +188,17 @@ func (h *X402Handler) checkPaymentRequired(toolName string) ([]x402.PaymentRequi
 		return nil, false
 	}
 
-	// Set resource field on requirements
-	for i := range requirements {
-		if requirements[i].Resource == "" {
-			requirements[i].Resource = fmt.Sprintf("mcp://tools/%s", toolName)
+	// Work on a copy to avoid mutating shared config
+	reqCopy := make([]x402.PaymentRequirement, len(requirements))
+	copy(reqCopy, requirements)
+
+	for i := range reqCopy {
+		if reqCopy[i].Resource == "" {
+			reqCopy[i].Resource = fmt.Sprintf("mcp://tools/%s", toolName)
 		}
 	}
 
-	return requirements, true
+	return reqCopy, true
 }
 
 // extractPayment extracts payment from params._meta["x402/payment"]
