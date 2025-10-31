@@ -31,6 +31,8 @@ type ServerTool struct {
 }
 
 // withTimeoutContext creates a context with timeout for payment operations.
+//
+//nolint:unused // Reserved for future server implementation
 func withTimeoutContext(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
 	if timeout > 0 {
 		return context.WithTimeout(ctx, timeout)
@@ -39,6 +41,8 @@ func withTimeoutContext(ctx context.Context, timeout time.Duration) (context.Con
 }
 
 // extractPaymentFromMeta extracts x402 payment from MCP request metadata.
+//
+//nolint:unused // Reserved for future server implementation
 func extractPaymentFromMeta(meta map[string]interface{}) (*x402.PaymentPayload, error) {
 	if meta == nil {
 		return nil, mcp.ErrPaymentRequired

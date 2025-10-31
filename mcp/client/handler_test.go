@@ -436,11 +436,14 @@ func TestPaymentFallbackTimeout(t *testing.T) {
 }
 
 // Mock facilitator for testing
+//
+//nolint:unused // Reserved for future handler tests
 type mockFacilitator struct {
 	verifyResponse bool
 	verifyError    error
 }
 
+//nolint:unused // Reserved for future handler tests
 func (m *mockFacilitator) Verify(payment x402.PaymentPayload, requirement x402.PaymentRequirement) (*VerifyResponse, error) {
 	if m.verifyError != nil {
 		return nil, m.verifyError

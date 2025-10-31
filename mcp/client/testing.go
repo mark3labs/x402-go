@@ -7,6 +7,8 @@ import (
 )
 
 // testSigner implements x402.Signer for testing
+//
+//nolint:unused // Reserved for future test implementations
 type testSigner struct {
 	network  string
 	tokens   []x402.TokenConfig
@@ -14,6 +16,7 @@ type testSigner struct {
 	canSign  bool
 }
 
+//nolint:unused // Reserved for future test implementations
 func newTestSigner(network string, tokens []x402.TokenConfig, priority int, canSign bool) *testSigner {
 	return &testSigner{
 		network:  network,

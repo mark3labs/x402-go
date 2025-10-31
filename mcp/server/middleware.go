@@ -26,6 +26,8 @@ func NewPaymentMiddleware(facilitator *http.FacilitatorClient, verifyOnly bool) 
 }
 
 // extractPayment extracts x402 payment from params._meta["x402/payment"]
+//
+//nolint:unused // Reserved for future middleware implementation
 func (m *PaymentMiddleware) extractPayment(params map[string]interface{}) (*x402.PaymentPayload, error) {
 	// TODO: Extract _meta from params
 	meta, ok := params["_meta"].(map[string]interface{})
@@ -54,6 +56,8 @@ func (m *PaymentMiddleware) extractPayment(params map[string]interface{}) (*x402
 }
 
 // verifyPayment verifies payment with facilitator
+//
+//nolint:unused // Reserved for future middleware implementation
 func (m *PaymentMiddleware) verifyPayment(ctx context.Context, payment *x402.PaymentPayload, requirement *x402.PaymentRequirement) (*http.VerifyResponse, error) {
 	// TODO: Create context with 5-second timeout (FR-017)
 	// TODO: Call facilitator.Verify()
@@ -61,6 +65,8 @@ func (m *PaymentMiddleware) verifyPayment(ctx context.Context, payment *x402.Pay
 }
 
 // settlePayment settles payment with facilitator
+//
+//nolint:unused // Reserved for future middleware implementation
 func (m *PaymentMiddleware) settlePayment(ctx context.Context, payment *x402.PaymentPayload, requirement *x402.PaymentRequirement) (*x402.SettlementResponse, error) {
 	if m.verifyOnly {
 		return &x402.SettlementResponse{
@@ -75,6 +81,8 @@ func (m *PaymentMiddleware) settlePayment(ctx context.Context, payment *x402.Pay
 }
 
 // injectSettlement adds settlement response to result._meta["x402/payment-response"]
+//
+//nolint:unused // Reserved for future middleware implementation
 func (m *PaymentMiddleware) injectSettlement(result map[string]interface{}, settlement *x402.SettlementResponse) error {
 	// TODO: Ensure _meta exists in result
 	// TODO: Add settlement to _meta["x402/payment-response"]

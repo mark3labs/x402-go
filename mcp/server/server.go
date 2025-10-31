@@ -8,7 +8,8 @@ import (
 // X402Server wraps an MCP server with x402 payment capabilities
 type X402Server struct {
 	// TODO: Add underlying MCP server from mcp-go
-	paymentTools      map[string][]x402.PaymentRequirement
+	paymentTools map[string][]x402.PaymentRequirement
+	//nolint:unused // Reserved for future server implementation
 	facilitatorClient *http.FacilitatorClient
 	verifyOnly        bool
 }
@@ -54,6 +55,8 @@ func (s *X402Server) Start(addr string) error {
 
 // generate402Error creates a JSON-RPC 402 error with payment requirements
 // TODO: Implement error generation per MCP spec
+//
+//nolint:unused // Reserved for future server implementation
 func (s *X402Server) generate402Error(toolName string) interface{} {
 	// TODO: Create JSONRPCError with code 402
 	// TODO: Include PaymentRequirementsResponse in error.data

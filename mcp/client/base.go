@@ -23,6 +23,8 @@ type BidirectionalTransportWrapper interface {
 
 // withTimeoutContext wraps a context with the specified timeout.
 // Returns the new context and a cancel function that should be called when done.
+//
+//nolint:unused // Reserved for future transport implementation
 func withTimeoutContext(ctx context.Context, timeout interface{}) (context.Context, context.CancelFunc) {
 	// timeout can be a time.Duration or similar
 	// For now, return the context as-is; this will be used in transport implementation

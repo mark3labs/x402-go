@@ -49,11 +49,15 @@ func (f *FacilitatorWrapper) Settle(ctx context.Context, payment x402.PaymentPay
 }
 
 // withVerifyTimeout wraps context with verification timeout
+//
+//nolint:unused // Reserved for future facilitator implementation
 func withVerifyTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(ctx, mcp.VerificationTimeout)
 }
 
 // withSettleTimeout wraps context with settlement timeout
+//
+//nolint:unused // Reserved for future facilitator implementation
 func withSettleTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(ctx, mcp.SettlementTimeout)
 }
@@ -65,6 +69,8 @@ var (
 )
 
 // timeoutError wraps an error indicating which operation timed out
+//
+//nolint:unused // Reserved for future error handling
 func timeoutError(err error, operation string) error {
 	if err == context.DeadlineExceeded {
 		switch operation {
@@ -78,6 +84,8 @@ func timeoutError(err error, operation string) error {
 }
 
 // verifyWithTimeout calls verify with automatic timeout handling
+//
+//nolint:unused // Reserved for future facilitator implementation
 func (f *FacilitatorWrapper) verifyWithTimeout(payment x402.PaymentPayload, requirement x402.PaymentRequirement) (*http.VerifyResponse, error) {
 	verifyCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -90,6 +98,8 @@ func (f *FacilitatorWrapper) verifyWithTimeout(payment x402.PaymentPayload, requ
 }
 
 // settleWithTimeout calls settle with automatic timeout handling
+//
+//nolint:unused // Reserved for future facilitator implementation
 func (f *FacilitatorWrapper) settleWithTimeout(payment x402.PaymentPayload, requirement x402.PaymentRequirement) (*x402.SettlementResponse, error) {
 	settleCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()

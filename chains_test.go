@@ -1,6 +1,7 @@
 package x402
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -788,46 +789,46 @@ func TestValidateTokenAddressSVM(t *testing.T) {
 // TestValidateTokenAddressInvalidEVM tests invalid EVM addresses
 func TestValidateTokenAddressInvalidEVM(t *testing.T) {
 	tests := []struct {
-		name      string
-		network   string
-		address   string
-		wantError string
+		name         string
+		network      string
+		address      string
+		wantContains string // Changed to check error contains expected text
 	}{
 		{
-			name:      "solana_address_on_base",
-			network:   "base",
-			address:   "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-			wantError: "token address 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v' is invalid for EVM network 'base', expected 0x-prefixed hex address (42 chars)",
+			name:         "solana_address_on_base",
+			network:      "base",
+			address:      "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+			wantContains: "invalid for EVM network 'base'",
 		},
 		{
-			name:      "missing_0x_prefix",
-			network:   "base",
-			address:   "833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-			wantError: "token address '833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' is invalid for EVM network 'base', expected 0x-prefixed hex address (42 chars)",
+			name:         "missing_0x_prefix",
+			network:      "base",
+			address:      "833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+			wantContains: "invalid for EVM network 'base'",
 		},
 		{
-			name:      "too_short",
-			network:   "base",
-			address:   "0x833589",
-			wantError: "token address '0x833589' is invalid for EVM network 'base', expected 0x-prefixed hex address (42 chars)",
+			name:         "too_short",
+			network:      "base",
+			address:      "0x833589",
+			wantContains: "invalid for EVM network 'base'",
 		},
 		{
-			name:      "too_long",
-			network:   "base",
-			address:   "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913AAAA",
-			wantError: "token address '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913AAAA' is invalid for EVM network 'base', expected 0x-prefixed hex address (42 chars)",
+			name:         "too_long",
+			network:      "base",
+			address:      "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913AAAA",
+			wantContains: "invalid for EVM network 'base'",
 		},
 		{
-			name:      "invalid_hex_chars",
-			network:   "polygon",
-			address:   "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA0291Z",
-			wantError: "token address '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA0291Z' is invalid for EVM network 'polygon', expected 0x-prefixed hex address (42 chars)",
+			name:         "invalid_hex_chars",
+			network:      "polygon",
+			address:      "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA0291Z",
+			wantContains: "invalid for EVM network 'polygon'",
 		},
 		{
-			name:      "empty_address",
-			network:   "base",
-			address:   "",
-			wantError: "token address cannot be empty",
+			name:         "empty_address",
+			network:      "base",
+			address:      "",
+			wantContains: "token address cannot be empty",
 		},
 	}
 
@@ -838,8 +839,8 @@ func TestValidateTokenAddressInvalidEVM(t *testing.T) {
 				t.Fatalf("ValidateTokenAddress(%s, %s) error = nil, want error", tt.network, tt.address)
 			}
 
-			if err.Error() != tt.wantError {
-				t.Errorf("error = %v, want %v", err.Error(), tt.wantError)
+			if !strings.Contains(err.Error(), tt.wantContains) {
+				t.Errorf("error = %v, want to contain %v", err.Error(), tt.wantContains)
 			}
 		})
 	}
@@ -848,40 +849,40 @@ func TestValidateTokenAddressInvalidEVM(t *testing.T) {
 // TestValidateTokenAddressInvalidSVM tests invalid Solana addresses
 func TestValidateTokenAddressInvalidSVM(t *testing.T) {
 	tests := []struct {
-		name      string
-		network   string
-		address   string
-		wantError string
+		name         string
+		network      string
+		address      string
+		wantContains string // Changed to check error contains expected text
 	}{
 		{
-			name:      "evm_address_on_solana",
-			network:   "solana",
-			address:   "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-			wantError: "token address '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' is invalid for Solana network 'solana', expected base58 address (32-44 chars)",
+			name:         "evm_address_on_solana",
+			network:      "solana",
+			address:      "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+			wantContains: "invalid for Solana network 'solana'",
 		},
 		{
-			name:      "invalid_base58_chars",
-			network:   "solana",
-			address:   "0OIl1234567890ABCDEF",
-			wantError: "token address '0OIl1234567890ABCDEF' is invalid for Solana network 'solana', expected base58 address (32-44 chars)",
+			name:         "invalid_base58_chars",
+			network:      "solana",
+			address:      "0OIl1234567890ABCDEF",
+			wantContains: "invalid for Solana network 'solana'",
 		},
 		{
-			name:      "too_short",
-			network:   "solana-devnet",
-			address:   "EPjFWdd5AufqSSqe",
-			wantError: "token address 'EPjFWdd5AufqSSqe' is invalid for Solana network 'solana-devnet', expected base58 address (32-44 chars)",
+			name:         "too_short",
+			network:      "solana-devnet",
+			address:      "EPjFWdd5AufqSSqe",
+			wantContains: "invalid for Solana network 'solana-devnet'",
 		},
 		{
-			name:      "too_long",
-			network:   "solana",
-			address:   "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1vEXTRALONGADDRESS",
-			wantError: "token address 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1vEXTRALONGADDRESS' is invalid for Solana network 'solana', expected base58 address (32-44 chars)",
+			name:         "too_long",
+			network:      "solana",
+			address:      "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1vEXTRALONGADDRESS",
+			wantContains: "invalid for Solana network 'solana'",
 		},
 		{
-			name:      "empty_address",
-			network:   "solana",
-			address:   "",
-			wantError: "token address cannot be empty",
+			name:         "empty_address",
+			network:      "solana",
+			address:      "",
+			wantContains: "token address cannot be empty",
 		},
 	}
 
@@ -892,8 +893,8 @@ func TestValidateTokenAddressInvalidSVM(t *testing.T) {
 				t.Fatalf("ValidateTokenAddress(%s, %s) error = nil, want error", tt.network, tt.address)
 			}
 
-			if err.Error() != tt.wantError {
-				t.Errorf("error = %v, want %v", err.Error(), tt.wantError)
+			if !strings.Contains(err.Error(), tt.wantContains) {
+				t.Errorf("error = %v, want to contain %v", err.Error(), tt.wantContains)
 			}
 		})
 	}

@@ -81,26 +81,32 @@ func TestX402Transport_UniquePaymentProofs(t *testing.T) {
 }
 
 // mockSigner implements x402.Signer for testing
+//
+//nolint:unused // Reserved for future transport tests
 type mockSigner struct {
 	network string
 	address string
 	balance string
 }
 
+//nolint:unused // Reserved for future transport tests
 func (m *mockSigner) CreatePayment(ctx context.Context, req x402.PaymentRequirement) (*x402.PaymentPayload, error) {
 	// Mock implementation
 	return nil, nil
 }
 
+//nolint:unused // Reserved for future transport tests
 func (m *mockSigner) CanPay(ctx context.Context, req x402.PaymentRequirement) (bool, error) {
 	// Mock implementation
 	return true, nil
 }
 
+//nolint:unused // Reserved for future transport tests
 func (m *mockSigner) GetNetwork() string {
 	return m.network
 }
 
+//nolint:unused // Reserved for future transport tests
 func (m *mockSigner) GetAddress() string {
 	return m.address
 }
