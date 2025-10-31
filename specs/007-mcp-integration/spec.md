@@ -111,18 +111,17 @@ Developers need working examples demonstrating both client and server implementa
 - **FR-004**: Server MUST support both free and paid tools in the same instance with per-tool payment configuration in code
 - **FR-005**: Client MUST support fallback across multiple payment signers when primary options fail
 - **FR-006**: Server MUST verify payments through the facilitator before executing paid tools
-- **FR-015**: Server MUST NOT refund payments when tool execution fails after successful payment verification
 - **FR-007**: System MUST reuse existing signer implementations without duplication
 - **FR-008**: System MUST reuse existing facilitator client for payment verification
-- **FR-009**: Client MUST support both HTTP header and JSON-RPC parameter payment transports
-- **FR-010**: Server MUST extract payments from both X-PAYMENT headers and request parameters
-- **FR-011**: System MUST provide comprehensive examples demonstrating client-server interaction
-- **FR-012**: Examples MUST support both command-line client and server modes
-- **FR-013**: System MUST include unit tests for core payment handling logic
-- **FR-014**: System MUST support concurrent payment attempts without race conditions
-- **FR-016**: Each concurrent request to a paid tool MUST include its own independent payment
-- **FR-017**: Payment verification with facilitator MUST timeout after 5 seconds
-- **FR-018**: Payment settlement with facilitator MUST timeout after 60 seconds
+- **FR-009**: System MUST follow official x402 MCP transport specification using _meta fields for payment transmission per https://github.com/coinbase/x402/blob/main/specs/transports/mcp.md
+- **FR-010**: System MUST provide comprehensive examples demonstrating client-server interaction
+- **FR-011**: Examples MUST support both command-line client and server modes
+- **FR-012**: System MUST include unit tests for core payment handling logic
+- **FR-013**: System MUST support concurrent payment attempts without race conditions
+- **FR-014**: Each concurrent request to a paid tool MUST include its own independent payment
+- **FR-015**: Payment verification with facilitator MUST timeout after 5 seconds
+- **FR-016**: Payment settlement with facilitator MUST timeout after 60 seconds
+- **FR-017**: Server MUST NOT refund payments when tool execution fails after successful payment verification
 
 ### Key Entities *(include if feature involves data)*
 

@@ -1,11 +1,13 @@
 # Tasks: MCP Integration
 
 **Input**: Design documents from `/specs/007-mcp-integration/`
-**Prerequisites**: plan.md (required), spec.md (required for user stories), research.md, data-model.md, contracts/
+**Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/mcp-x402-api.yaml
 
-**Tests**: Tests are included as requested in the original specification ("Add tests").
+**Tests**: Tests are included as part of the feature implementation per spec requirements.
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
+
+**Context**: This implementation leverages existing x402-go components (signers, facilitator, types) and integrates with mark3labs/mcp-go for MCP protocol support. We are NOT building new MCP functionality - only adding x402 payment gating to MCP tools. Reference implementations from mcp-go-x402 will guide the patterns, but adapted to use our existing components.
 
 ## Format: `[ID] [P?] [Story] Description`
 
@@ -15,22 +17,20 @@
 
 ## Path Conventions
 
-- **Single project**: Repository root with subpackages
-- Main code: `mcp/client/`, `mcp/server/` at repository root
+- Root-level packages: `mcp/client/`, `mcp/server/`
 - Examples: `examples/mcp/`
-- Tests: Alongside source files with `_test.go` suffix
+- Tests: `mcp/client/*_test.go`, `mcp/server/*_test.go`
 
 ---
 
 ## Phase 1: Setup (Shared Infrastructure)
 
-**Purpose**: Project initialization and basic structure
+**Purpose**: Project initialization and basic MCP integration structure
 
-- [ ] T001 Create MCP package directory structure at mcp/ in repository root
-- [ ] T002 [P] Create mcp/types.go for MCP-specific type aliases and constants
-- [ ] T003 [P] Create mcp/errors.go for MCP-specific error types
-- [ ] T004 [P] Create mcp/client and mcp/server subdirectories
-- [ ] T005 Update go.mod to include github.com/mark3labs/mcp-go dependency
+- [ ] T001 Create mcp/ package directory structure with client/ and server/ subdirectories
+- [ ] T002 Add github.com/mark3labs/mcp-go dependency to go.mod (latest stable release)
+- [ ] T003 [P] Create mcp/errors.go for MCP-specific error types wrapping x402 errors
+- [ ] T004 [P] Create mcp/types.go for MCP-specific type aliases reusing x402.PaymentRequirement, x402.PaymentPayload, etc.
 
 ---
 
@@ -40,15 +40,11 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T006 Create base transport interface wrapper in mcp/client/base.go
-- [ ] T007 Create base server wrapper interface in mcp/server/base.go
-- [ ] T008 [P] Create payment context structure in mcp/types.go for request lifecycle
-- [ ] T009 [P] Define MCP-specific constants for payment metadata keys in mcp/types.go
-- [ ] T010 Create payment requirement builder helpers in mcp/server/requirements.go
-- [ ] T010a [P] Implement 5-second verification timeout constant in mcp/types.go (FR-017)
-- [ ] T010b [P] Implement 60-second settlement timeout constant in mcp/types.go (FR-018)
-- [ ] T010c Create timeout context wrapper utilities in mcp/client/transport.go
-- [ ] T010d Create timeout context wrapper utilities in mcp/server/facilitator.go
+- [ ] T005 Define timeout constants in mcp/types.go: PaymentVerifyTimeout (5s per FR-017), PaymentSettleTimeout (60s per FR-018)
+- [ ] T006 [P] Create mcp/server/requirements.go with helper functions returning x402.PaymentRequirement: RequireUSDCBase(payTo, amount, desc), RequireUSDCBaseSepolia, RequireUSDCPolygon, RequireUSDCSolana with resource field set to "mcp://tools/{toolName}"
+- [ ] T007 [P] Create mcp/client/config.go defining Config struct with signers []x402.Signer, serverURL string, httpClient *http.Client, OnPaymentAttempt/Success/Failure callbacks, selector x402.PaymentSelector
+- [ ] T008 [P] Create mcp/server/config.go defining Config struct with FacilitatorURL string, VerifyOnly bool, Verbose bool, PaymentTools map[string][]x402.PaymentRequirement
+- [ ] T009 [P] Add validation helpers in mcp/server/requirements.go: validateAmount (amount > 0), validateEVMAddress (^0x[a-fA-F0-9]{40}$), validateNetwork (network in supported list), return descriptive errors for invalid requirements
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
@@ -56,139 +52,168 @@
 
 ## Phase 3: User Story 1 - MCP Client with x402 Payments (Priority: P1) 🎯 MVP
 
-**Goal**: Enable MCP clients to automatically handle x402 payment requirements when interacting with paid MCP servers
+**Goal**: Enable MCP clients to automatically handle x402 payment flows when calling paid tools on MCP servers
 
-**Independent Test**: Client connects to x402 MCP server, receives payment requirements, signs payments, and accesses paid tools
+**Independent Test**: Create a client with signers, connect to an x402 MCP server, receive 402 error with payment requirements, automatically sign payment, retry with payment in params._meta, and successfully access paid tool
 
 ### Tests for User Story 1 ⚠️
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T011 [P] [US1] Test X402Transport initialization with multiple signers in mcp/client/transport_test.go
-- [ ] T012 [P] [US1] Test payment handler orchestration with fallback logic in mcp/client/handler_test.go
-- [ ] T013 [P] [US1] Test 402 error detection and payment flow in mcp/client/transport_test.go
-- [ ] T014 [P] [US1] Test payment injection into params._meta["x402/payment"] field per MCP spec in mcp/client/transport_test.go
-- [ ] T015 [P] [US1] Test concurrent payment handling with independent payments per request (FR-016) in mcp/client/transport_test.go
-- [ ] T016 [P] [US1] Test free tool access without payment in mcp/client/transport_test.go
-- [ ] T016a [P] [US1] Test that 10 concurrent requests each generate unique payment proofs (FR-016) in mcp/client/transport_test.go
+- [ ] T010 [P] [US1] Test Transport initialization with multiple signers in mcp/client/transport_test.go
+- [ ] T011 [P] [US1] Test 402 error detection and payment requirement extraction in mcp/client/transport_test.go
+- [ ] T012 [P] [US1] Test payment creation using x402.Signer for EVM and Solana in mcp/client/transport_test.go
+- [ ] T013 [P] [US1] Test payment injection into params._meta["x402/payment"] per MCP spec in mcp/client/transport_test.go
+- [ ] T014 [P] [US1] Test free tool access without payment (no params._meta) in mcp/client/transport_test.go
+- [ ] T015 [P] [US1] Test concurrent payment handling where 10 requests each generate unique payments (FR-014) in mcp/client/transport_test.go
+- [ ] T016 [P] [US1] Test multi-signer fallback when primary signer fails in mcp/client/transport_test.go
 
 ### Implementation for User Story 1
 
-- [ ] T017 [US1] Implement X402Transport type in mcp/client/transport.go implementing transport.Interface
-- [ ] T018 [US1] Implement payment handler orchestration in mcp/client/handler.go with signer selection
-- [ ] T019 [US1] Add JSON-RPC 402 error detection in mcp/client/transport.go
-- [ ] T020 [US1] Implement payment requirement matching logic in mcp/client/handler.go
-- [ ] T021 [US1] Add payment injection into params._meta["x402/payment"] field per MCP spec in mcp/client/transport.go
-- [ ] T022 [US1] Implement payment event callbacks in mcp/client/transport.go
-- [ ] T023 [US1] Add session management and protocol negotiation in mcp/client/transport.go
-- [ ] T024 [US1] Implement MCP protocol negotiation and transport selection in mcp/client/transport.go
+- [ ] T017 [US1] Create mcp/client/transport.go implementing Transport struct with fields: baseTransport transport.Interface (wraps transport.StreamableHTTP), config Config, selector x402.PaymentSelector; embed and delegate all transport.Interface methods to baseTransport
+- [ ] T018 [US1] Implement NewTransport(serverURL string, opts ...Option) in mcp/client/transport.go: create baseTransport using transport.NewStreamableHTTP(serverURL, httpOpts...), wrap with x402 Transport, apply config options for signers/callbacks, return (*Transport, error) implementing transport.Interface
+- [ ] T019 [US1] Implement Transport.SendRequest(ctx, transport.JSONRPCRequest) in mcp/client/transport.go: override baseTransport method to intercept requests/responses, call baseTransport.SendRequest, check for 402 error (resp.Error != nil && resp.Error.Code == 402), if 402 extract requirements from error.Data, create payment, inject into request.Params._meta["x402/payment"], retry request via baseTransport.SendRequest
+- [ ] T020 [US1] Add Transport.extractPaymentRequirements method in mcp/client/transport.go: cast error.Data to map[string]any, extract x402Version, error message, accepts []PaymentRequirement fields, unmarshal accepts array to []x402.PaymentRequirement, validate structure
+- [ ] T021 [US1] Add Transport.selectPaymentSigner method in mcp/client/transport.go: call config.selector.SelectAndSign(requirements, signers) using x402.DefaultPaymentSelector algorithm, return (*PaymentPayload, error)
+- [ ] T022 [US1] Add Transport.createPayment method in mcp/client/transport.go: call selector.SelectAndSign(requirements, signers) to generate x402.PaymentPayload, handle errors (no valid signer, signing failure), trigger config.OnPaymentAttempt callback with payment details
+- [ ] T023 [US1] Add Transport.injectPaymentMeta method in mcp/client/transport.go: cast request.Params to map[string]any, create/get "_meta" map, add "x402/payment" key with PaymentPayload value, update request.Params with modified map, preserve all existing params fields
+- [ ] T024 [US1] Add Transport.retryWithPayment method in mcp/client/transport.go: clone original request, inject payment via injectPaymentMeta, call baseTransport.SendRequest with modified request, check response success, trigger config.OnPaymentSuccess or OnPaymentFailure callbacks based on result
+- [ ] T025 [US1] Implement Transport.Start, SetNotificationHandler, SendNotification, Close, GetSessionId in mcp/client/transport.go: delegate directly to baseTransport methods (no x402 logic needed for these), preserve transparent wrapper behavior
 
-**Checkpoint**: At this point, User Story 1 should be fully functional and testable independently
+**Checkpoint**: Client can connect to x402 MCP servers and automatically handle payment flows for paid tools
 
 ---
 
 ## Phase 4: User Story 2 - MCP Server with x402 Protection (Priority: P1)
 
-**Goal**: Enable MCP servers to protect their tools with x402 payment requirements and verify payments
+**Goal**: Enable MCP servers to protect tools with x402 payment requirements, sending 402 errors to unpaid requests and verifying payments through facilitator before tool execution
 
-**Independent Test**: Server exposes free and paid tools, sends payment requirements for paid tools, validates payments via facilitator
+**Independent Test**: Create server with free (echo) and paid (search) tools, send request without payment (receives 402 with payment requirements), send request with valid payment in params._meta (tool executes after facilitator verification), verify payment through facilitator
 
 ### Tests for User Story 2 ⚠️
 
-- [ ] T025 [P] [US2] Test X402Server initialization with tool configuration in mcp/server/server_test.go
-- [ ] T026 [P] [US2] Test middleware payment extraction from params._meta["x402/payment"] field per MCP spec in mcp/server/middleware_test.go
-- [ ] T027 [P] [US2] Test 402 error generation with payment requirements in mcp/server/server_test.go
-- [ ] T028 [P] [US2] Test facilitator payment verification in mcp/server/middleware_test.go
-- [ ] T029 [P] [US2] Test mixed free/paid tool handling in mcp/server/server_test.go
-- [ ] T030 [P] [US2] Test settlement response in result._meta in mcp/server/middleware_test.go
-- [ ] T030a [P] [US2] Test non-refundable payment when tool execution fails after verification (FR-015) in mcp/server/server_test.go
+- [ ] T026 [P] [US2] Test X402Server initialization and tool registration in mcp/server/server_test.go
+- [ ] T027 [P] [US2] Test AddTool for free tools (no payment requirement) in mcp/server/server_test.go
+- [ ] T028 [P] [US2] Test AddPayableTool with single payment requirement in mcp/server/server_test.go
+- [ ] T029 [P] [US2] Test HTTP handler 402 error generation with payment requirements in error.data per MCP spec in mcp/server/handler_test.go
+- [ ] T030 [P] [US2] Test HTTP handler payment extraction from params._meta["x402/payment"] in mcp/server/handler_test.go
+- [ ] T031 [P] [US2] Test facilitator payment verification with 5s timeout (FR-015) in mcp/server/handler_test.go
+- [ ] T032 [P] [US2] Test facilitator payment settlement with 60s timeout (FR-016) in mcp/server/handler_test.go
+- [ ] T033 [P] [US2] Test settlement response injection in result._meta["x402/payment-response"] per MCP spec in mcp/server/handler_test.go
+- [ ] T034 [P] [US2] Test verify-only mode (skips settlement) in mcp/server/handler_test.go
+- [ ] T035 [P] [US2] Test non-refundable payment when tool execution fails after successful verification (FR-017) in mcp/server/handler_test.go
+- [ ] T036 [P] [US2] Test settlement response extraction from error.data["x402/payment-response"] when payment settlement fails after verification succeeds per x402 MCP spec in mcp/server/handler_test.go
 
 ### Implementation for User Story 2
 
-- [ ] T031 [US2] Implement X402Server wrapper in mcp/server/server.go wrapping mcp.MCPServer
-- [ ] T032 [US2] Implement payment middleware in mcp/server/middleware.go for tool interception
-- [ ] T033 [US2] Add tool payment configuration methods in mcp/server/server.go (AddPayableTool)
-- [ ] T034 [US2] Implement payment extraction from params._meta["x402/payment"] field per MCP spec in mcp/server/middleware.go
-- [ ] T035 [US2] Add facilitator client integration with 5s verify and 60s settle timeouts (FR-017, FR-018) in mcp/server/facilitator.go
-- [ ] T036 [US2] Implement 402 JSON-RPC error generation with code:402 and PaymentRequirementsResponse in error.data per MCP spec in mcp/server/server.go
-- [ ] T037 [US2] Add settlement response injection in result._meta["x402/payment-response"] field per MCP spec in mcp/server/middleware.go
-- [ ] T038 [US2] Implement verify-only mode support in mcp/server/server.go
+- [ ] T037 [US2] Create mcp/server/server.go implementing X402Server struct with fields: mcpServer *server.MCPServer, config *Config (includes PaymentTools map)
+- [ ] T038 [US2] Implement NewX402Server(name, version string, config *Config) in mcp/server/server.go: call server.NewMCPServer(name, version) to create base MCP server, initialize config.PaymentTools map if nil, return *X402Server wrapping the MCPServer
+- [ ] T039 [US2] Add X402Server.AddTool(tool mcp.Tool, handler server.ToolHandlerFunc) in mcp/server/server.go: call s.mcpServer.AddTool(tool, handler) directly without payment requirements, do not add to PaymentTools map (free tool)
+- [ ] T040 [US2] Add X402Server.AddPayableTool(tool mcp.Tool, handler server.ToolHandlerFunc, requirements ...x402.PaymentRequirement) in mcp/server/server.go: validate len(requirements) > 0, add to config.PaymentTools[tool.Name], call s.mcpServer.AddTool(tool, handler) to register tool
+- [ ] T041 [US2] Add X402Server.Handler() http.Handler method in mcp/server/server.go: create httpServer := server.NewStreamableHTTPServer(s.mcpServer), wrap with NewX402Handler(httpServer, s.config), return wrapped handler
+- [ ] T042 [US2] Add X402Server.Start(addr string) in mcp/server/server.go: call http.ListenAndServe(addr, s.Handler()) to start HTTP server with x402-wrapped handler
+- [ ] T043 [US2] Create mcp/server/handler.go implementing X402Handler struct with fields: mcpHandler http.Handler (wraps MCPServer's HTTP handler), config *Config, facilitator Facilitator
+- [ ] T044 [US2] Implement NewX402Handler(mcpHandler http.Handler, config *Config) in mcp/server/handler.go: create facilitator wrapper, return *X402Handler with mcpHandler (from server.NewStreamableHTTPServer), config, facilitator
+- [ ] T045 [US2] Implement X402Handler.ServeHTTP(w http.ResponseWriter, r *http.Request) in mcp/server/handler.go: intercept POST requests, read body with io.ReadAll, parse as transport.JSONRPCRequest, check method == "tools/call", extract tool name from params, check if tool needs payment, handle payment flow or pass through to mcpHandler
+- [ ] T046 [US2] Add handler.checkPaymentRequired(toolName string) in mcp/server/handler.go: lookup config.PaymentTools[toolName], return (requirements, needsPayment bool), set resource field to "mcp://tools/{toolName}" on requirements
+- [ ] T047 [US2] Add handler.sendPaymentRequiredError(w, id, requirements) in mcp/server/handler.go: construct transport.JSONRPCResponse with Error.Code=402, Error.Data={x402Version:1, error:"Payment required", accepts:requirements}, write JSON response with HTTP 200 (JSON-RPC error, not HTTP error)
+- [ ] T048 [US2] Add handler.extractPayment(params mcp.CallToolParams) in mcp/server/handler.go: check params.Meta != nil && params.Meta.AdditionalFields != nil, extract params.Meta.AdditionalFields["x402/payment"], marshal to PaymentPayload struct, return payment or nil
+- [ ] T049 [US2] Add handler.findMatchingRequirement(payment, requirements) in mcp/server/handler.go: iterate requirements, match on network and scheme, return matched requirement or error
+- [ ] T050 [US2] Create mcp/server/facilitator.go with Facilitator interface (Verify, Settle methods) and HTTPFacilitator struct wrapping http.FacilitatorClient
+- [ ] T051 [US2] Add HTTPFacilitator.Verify(ctx, payment, requirement) in mcp/server/facilitator.go: create context.WithTimeout(ctx, 5*time.Second), call facilitatorClient.VerifyPayment(ctx, payment), return VerifyResponse{IsValid, InvalidReason, Payer} or error
+- [ ] T052 [US2] Add HTTPFacilitator.Settle(ctx, payment, requirement) in mcp/server/facilitator.go: create context.WithTimeout(ctx, 60*time.Second), call facilitatorClient.SettlePayment(ctx, payment), return SettleResponse{Success, Transaction, Network, Payer, ErrorReason} or error
+- [ ] T053 [US2] Add handler.forwardWithSettlementResponse(w, r, reqID, settleResp) in mcp/server/handler.go: create responseRecorder to capture MCP handler response, forward request to mcpHandler.ServeHTTP, parse JSON-RPC response, inject settleResp into result._meta["x402/payment-response"], write modified response
 
-**Checkpoint**: At this point, User Stories 1 AND 2 should both work independently
+**Checkpoint**: Server can protect tools with x402 requirements, send 402 errors, verify payments via facilitator, and execute paid tools
 
 ---
 
 ## Phase 5: User Story 3 - Multi-Chain Payment Support (Priority: P2)
 
-**Goal**: Support payments using different blockchain networks with automatic selection
+**Goal**: Support payments using different blockchain networks (EVM chains, Solana) with automatic selection based on DefaultPaymentSelector priority algorithm
 
-**Independent Test**: Client with multiple signers selects optimal payment option based on server requirements
+**Independent Test**: Configure client with EVM (Base) and Solana signers, configure server to accept both networks, verify client selects based on signer priority → token priority → configuration order per DefaultPaymentSelector
 
 ### Tests for User Story 3 ⚠️
 
-- [ ] T039 [P] [US3] Test DefaultPaymentSelector priority algorithm in mcp/client/handler_test.go
-- [ ] T040 [P] [US3] Test EVM signer integration with MCP in mcp/client/handler_test.go
-- [ ] T041 [P] [US3] Test Solana signer integration with MCP in mcp/client/handler_test.go
-- [ ] T042 [P] [US3] Test multi-network payment requirement matching in mcp/client/handler_test.go
-- [ ] T043 [P] [US3] Test fallback when primary network insufficient balance in mcp/client/handler_test.go
-- [ ] T043a [P] [US3] Test that payment fallback completes within 5 seconds (SC-003) in mcp/client/handler_test.go
+- [ ] T054 [P] [US3] Test DefaultPaymentSelector priority algorithm (signer priority → token priority → config order) in mcp/client/transport_test.go
+- [ ] T055 [P] [US3] Test EVM payment creation for Base network in mcp/client/transport_test.go
+- [ ] T056 [P] [US3] Test Solana payment creation in mcp/client/transport_test.go
+- [ ] T057 [P] [US3] Test fallback from Base to Solana when primary fails in mcp/client/transport_test.go
+- [ ] T058 [P] [US3] Test payment fallback completes within 5 seconds (SC-003) in mcp/client/transport_test.go
+- [ ] T059 [P] [US3] Test server accepting multiple network payment requirements in mcp/server/server_test.go
 
 ### Implementation for User Story 3
 
-- [ ] T044 [US3] Integrate DefaultPaymentSelector from x402 in mcp/client/handler.go
-- [ ] T045 [US3] Add EVM payment creation support in mcp/client/handler.go
-- [ ] T046 [US3] Add Solana payment creation support in mcp/client/handler.go
-- [ ] T047 [US3] Implement network-specific payment validation in mcp/server/middleware.go
-- [ ] T048 [US3] Add multi-network requirement helpers in mcp/server/requirements.go (RequireUSDCBase, RequireUSDCPolygon, RequireUSDCSolana)
+- [ ] T060 [US3] Integrate x402.DefaultPaymentSelector in mcp/client/transport.go for signer selection logic
+- [ ] T061 [US3] Add support for multiple payment signers with priority ordering in mcp/client/transport.go
+- [ ] T062 [US3] Add EVM-specific payment handling in mcp/client/transport.go using existing evm.Signer
+- [ ] T063 [US3] Add Solana-specific payment handling in mcp/client/transport.go using existing svm.Signer
+- [ ] T064 [US3] Add multi-network requirement support in mcp/server/requirements.go (RequireUSDCBase, RequireUSDCPolygon, RequireUSDCSolana, RequireUSDCBaseSepolia)
+- [ ] T065 [US3] Update handler.findMatchingRequirement in mcp/server/handler.go to handle multiple payment options per tool
 
-**Checkpoint**: Multi-chain payment support should now be fully functional
+**Checkpoint**: Multi-chain payment support working with automatic selection and fallback across EVM and Solana
 
 ---
 
 ## Phase 6: User Story 4 - Example Implementation (Priority: P3)
 
-**Goal**: Provide working examples demonstrating client and server implementations
+**Goal**: Provide working examples demonstrating both client and server implementations with x402 payment flows, similar to examples/x402demo
 
-**Independent Test**: Example runs in both client and server modes with successful payment flows
-
-### Tests for User Story 4 ⚠️
-
-- [ ] T049 [P] [US4] Test example server mode startup in examples/mcp/main_test.go
-- [ ] T050 [P] [US4] Test example client mode connection in examples/mcp/main_test.go
-- [ ] T051 [P] [US4] Test example payment flow end-to-end in examples/mcp/main_test.go
+**Independent Test**: Run example in server mode, verify echo (free) and search (paid) tools are served; run example in client mode, verify successful connection and access to both tool types with automatic payment handling
 
 ### Implementation for User Story 4
 
-- [ ] T052 [US4] Create examples/mcp directory and go.mod
-- [ ] T053 [US4] Implement main.go with client/server mode selection in examples/mcp/main.go
-- [ ] T054 [US4] Add server mode with free and paid tools in examples/mcp/main.go
-- [ ] T055 [US4] Add client mode with payment signers in examples/mcp/main.go
-- [ ] T056 [US4] Implement echo tool handler (free) in examples/mcp/main.go
-- [ ] T057 [US4] Implement premium search tool handler (paid) in examples/mcp/main.go
-- [ ] T058 [P] [US4] Create README.md with usage instructions in examples/mcp/README.md
-- [ ] T059 [US4] Add environment variable configuration support in examples/mcp/main.go
+- [ ] T066 [P] [US4] Create examples/mcp/ directory with go.mod requiring github.com/mark3labs/x402-go (use replace directive pointing to ../.. for development)
+- [ ] T067 [P] [US4] Create examples/mcp/README.md with usage instructions: server mode (./mcp -mode server -pay-to ADDR), client mode (./mcp -mode client -key PRIVATE_KEY -server http://localhost:8080), testnet flags
+- [ ] T068 [US4] Implement examples/mcp/main.go with flag.String for -mode, switch on mode value to call runServer() or runClient()
+- [ ] T069 [US4] Add runServer() in examples/mcp/main.go: call server.NewX402Server(name, version, config), create echo tool with mcp.NewTool("echo", mcp.WithString("message", mcp.Required())), create search tool with mcp.NewTool("search", mcp.WithString("query", mcp.Required()), mcp.WithNumber("max_results")), call srv.AddTool(echoTool, echoHandler) and srv.AddPayableTool(searchTool, searchHandler, server.RequireUSDCBase(payTo, "10000", "0.01 USDC"))
+- [ ] T070 [US4] Add echoHandler(ctx context.Context, req mcp.CallToolRequest) in examples/mcp/main.go: extract message := req.GetString("message", ""), return mcp.NewToolResultText(fmt.Sprintf("Echo: %s", message))
+- [ ] T071 [US4] Add searchHandler(ctx context.Context, req mcp.CallToolRequest) in examples/mcp/main.go: extract query := req.GetString("query", ""), maxResults := req.GetFloat("max_results", 5), generate mock search results, return mcp.NewToolResultText(results)
+- [ ] T072 [US4] Add runClient() in examples/mcp/main.go: create evm.NewPrivateKeySigner(key, evm.WithChain(chain), evm.WithToken(token)), create transport := mcpclient.NewTransport(serverURL, client.WithSigner(signer), client.WithPaymentCallback(paymentLogger)), create mcpClient := client.NewClient(transport)
+- [ ] T073 [US4] Add MCP initialization in runClient() in examples/mcp/main.go: call mcpClient.Start(ctx), call mcpClient.Initialize(ctx, mcp.InitializeRequest{Params: {ProtocolVersion: "2025-06-18", ClientInfo: {Name: "x402-example", Version: "1.0.0"}}}), handle init response
+- [ ] T074 [US4] Add tool operations in runClient() in examples/mcp/main.go: call mcpClient.ListTools(ctx, mcp.ListToolsRequest{}), iterate tools, call mcpClient.CallTool(ctx, mcp.CallToolRequest{Params: {Name: "echo", Arguments: {"message": "test"}}}), call mcpClient.CallTool for search tool with payment
+- [ ] T075 [US4] Add paymentLogger callback in examples/mcp/main.go: implement function logging payment events with log.Printf("Attempting payment: %s %s to %s", event.Amount, event.Asset, event.Recipient) for attempt, "Payment successful: tx=%s" for success, "Payment failed: %v" for failure
+- [ ] T076 [US4] Add command-line flags in examples/mcp/main.go: flag.String("mode", "", "client or server"), flag.String("port", "8080", "server port"), flag.String("server", "http://localhost:8080", "server URL"), flag.String("key", "", "private key"), flag.String("pay-to", "", "payment address"), flag.String("facilitator", "https://facilitator.x402.rs", "facilitator URL"), flag.Bool("verify-only", false, "verify only"), flag.Bool("testnet", false, "use testnet"), flag.String("network", "base", "network name"), flag.Bool("v", false, "verbose")
+- [ ] T077 [US4] Add testnet support in examples/mcp/main.go: if testnet flag, use evm.ChainBaseSepolia and server.RequireUSDCBaseSepolia for payment requirements
 
-**Checkpoint**: Example implementation should demonstrate all features
+**Checkpoint**: Working example demonstrates full x402 MCP integration for both client and server modes
 
 ---
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-**Purpose**: Improvements that affect multiple user stories
+**Purpose**: Improvements that affect multiple user stories, edge cases, and finalization
 
-- [ ] T060 [P] Add comprehensive error handling and logging across all components
-- [ ] T061 [P] Implement request/response tracing for debugging
-- [ ] T062 [P] Add metrics collection hooks for monitoring
-- [ ] T063 [P] Create integration tests covering all user stories in mcp/integration_test.go
-- [ ] T064 [P] Add benchmark tests for concurrent payment handling in mcp/benchmark_test.go
-- [ ] T065 Run quickstart.md validation and update if needed
-- [ ] T066 Ensure all tests pass with race detector enabled
-- [ ] T067 Verify example builds and runs successfully
-- [ ] T068 [P] Test behavior when all configured signers fail in mcp/client/handler_test.go
-- [ ] T069 [P] Test network timeout handling during payment verification in mcp/server/middleware_test.go
-- [ ] T070 [P] Test behavior when facilitator is unavailable after valid payment in mcp/server/middleware_test.go
-- [ ] T071 [P] Test client handling of malformed payment requirements from server in mcp/client/transport_test.go
-- [ ] T072 [P] Test behavior when server requirements exceed all client limits in mcp/client/handler_test.go
+### Edge Case Tests
+
+- [ ] T078 [P] Test behavior when all configured signers fail to create valid payment in mcp/client/transport_test.go
+- [ ] T079 [P] Test network timeout handling during payment verification in mcp/server/handler_test.go
+- [ ] T080 [P] Test behavior when facilitator is unavailable after valid payment in mcp/server/handler_test.go
+- [ ] T081 [P] Test client handling of malformed payment requirements from server in mcp/client/transport_test.go
+- [ ] T082 [P] Test behavior when server requirements exceed all client-configured limits in mcp/client/transport_test.go
+
+### Protocol Error Tests (JSON-RPC Standard Errors)
+
+- [ ] T083 [P] Test JSON-RPC parse error (-32700) when _meta["x402/payment"] contains invalid JSON in mcp/client/transport_test.go
+- [ ] T084 [P] Test JSON-RPC invalid params error (-32602) when payment payload is malformed in mcp/server/handler_test.go
+- [ ] T085 [P] Test JSON-RPC internal error (-32603) when facilitator is unreachable during verification in mcp/server/handler_test.go
+- [ ] T086 [P] Test JSON-RPC method not found error (-32601) when server doesn't support x402 payments in mcp/client/transport_test.go
+
+### Documentation and Polish
+
+- [ ] T087 [P] Add comprehensive godoc comments to all exported types in mcp/client/ package
+- [ ] T088 [P] Add comprehensive godoc comments to all exported types in mcp/server/ package
+- [ ] T089 [P] Verify error messages are clear and actionable across mcp/client/ and mcp/server/
+- [ ] T090 [P] Add verbose logging for payment lifecycle in mcp/client/transport.go
+- [ ] T091 [P] Add verbose logging for payment verification in mcp/server/handler.go
+- [ ] T092 [P] Run go fmt ./mcp/... on all MCP package code
+- [ ] T093 [P] Run go vet ./mcp/... on all MCP package code
+- [ ] T094 [P] Run golangci-lint run ./mcp/... on all MCP package code
+- [ ] T095 [P] Validate examples/mcp/main.go builds without errors: go build ./examples/mcp
+- [ ] T096 Verify quickstart.md code examples match actual implementation and update if needed
+- [ ] T097 Run full test suite with race detection: go test -race -cover ./mcp/...
+- [ ] T098 Validate all success criteria from spec.md are met (SC-001 through SC-008)
 
 ---
 
@@ -199,104 +224,132 @@
 - **Setup (Phase 1)**: No dependencies - can start immediately
 - **Foundational (Phase 2)**: Depends on Setup completion - BLOCKS all user stories
 - **User Stories (Phase 3-6)**: All depend on Foundational phase completion
-  - US1 and US2 are both P1 priority and can proceed in parallel
-  - US3 (P2) can start after Foundational, integrates with US1
-  - US4 (P3) depends on US1 and US2 being complete
+  - User Story 1 (Client) and User Story 2 (Server) can proceed in parallel after Phase 2
+  - User Story 3 (Multi-chain) depends on User Story 1 completion (extends client)
+  - User Story 4 (Examples) depends on User Story 1 and 2 completion (demonstrates both)
 - **Polish (Phase 7)**: Depends on all user stories being complete
 
 ### User Story Dependencies
 
-- **User Story 1 (P1)**: Can start after Foundational - No dependencies on other stories
-- **User Story 2 (P1)**: Can start after Foundational - No dependencies on other stories
-- **User Story 3 (P2)**: Can start after Foundational - Enhances US1 but independently testable
-- **User Story 4 (P3)**: Depends on US1 and US2 - Demonstrates their functionality
+- **User Story 1 (P1 - Client)**: Can start after Foundational (Phase 2) - No dependencies on other stories
+- **User Story 2 (P1 - Server)**: Can start after Foundational (Phase 2) - No dependencies on other stories (can develop in parallel with US1)
+- **User Story 3 (P2 - Multi-chain)**: Depends on User Story 1 completion - Extends client signer selection
+- **User Story 4 (P3 - Examples)**: Depends on User Story 1 and 2 completion - Demonstrates client + server integration
 
 ### Within Each User Story
 
-- Tests MUST be written and FAIL before implementation
-- Base types before complex implementations
-- Core logic before integration points
-- Story complete before moving to next priority
+- **User Story 1**: Tests first (T010-T016) → Config (T017-T018) → Transport implementation (T019-T024) → Delegation (T025)
+- **User Story 2**: Tests first (T026-T036) → Server struct (T037-T042) → Handler (T043-T049) → Facilitator (T050-T052) → Integration (T053)
+- **User Story 3**: Tests first (T054-T059) → Selector integration (T060-T061) → Network-specific handling (T062-T065)
+- **User Story 4**: Structure (T066-T067) → Implementation (T068-T077) sequentially
 
 ### Parallel Opportunities
 
-- All Setup tasks marked [P] can run in parallel
-- Foundational tasks T008, T009 can run in parallel
-- US1 and US2 can be developed in parallel (both P1)
-- All tests within a user story can run in parallel
-- Polish phase tasks can all run in parallel
+- **Phase 1**: T003 and T004 can run in parallel (different files)
+- **Phase 2**: T006, T007, T008, T009 can run in parallel after T005 (different files)
+- **User Story 1**: Tests T010-T016 can all run in parallel (independent test cases)
+- **User Story 2**: Tests T026-T036 can all run in parallel (independent test cases)
+- **User Story 3**: Tests T054-T059 can all run in parallel (independent test cases)
+- **Phase 7**: All edge case tests T078-T082 can run in parallel; protocol error tests T083-T086 can run in parallel; all polish tasks T087-T095 can run in parallel
+- **MAJOR PARALLELISM**: After Phase 2, User Story 1 and User Story 2 can be developed completely in parallel by different developers
 
 ---
 
-## Parallel Example: User Story 1
+## Parallel Example: User Story 1 (Client Implementation)
 
 ```bash
-# Launch all tests for User Story 1 together:
-Task: "Test X402Transport initialization with multiple signers in mcp/client/transport_test.go"
-Task: "Test payment handler orchestration with fallback logic in mcp/client/handler_test.go"
-Task: "Test 402 error detection and payment flow in mcp/client/transport_test.go"
-Task: "Test payment injection into params._meta in mcp/client/transport_test.go"
-Task: "Test concurrent payment handling in mcp/client/transport_test.go"
-Task: "Test free tool access without payment in mcp/client/transport_test.go"
+# After Phase 2 completes, launch tests in parallel:
+Task: T010 "Test Transport initialization" 
+Task: T011 "Test 402 error detection"
+Task: T012 "Test payment creation"
+Task: T013 "Test payment injection"
+Task: T014 "Test free tool access"
+Task: T015 "Test concurrent payments"
+Task: T016 "Test multi-signer fallback"
+
+# All 7 tests run simultaneously (different test cases)
 ```
 
----
-
-## Parallel Example: User Story 2
+## Parallel Example: User Story 1 + User Story 2
 
 ```bash
-# Launch all tests for User Story 2 together:
-Task: "Test X402Server initialization with tool configuration in mcp/server/server_test.go"
-Task: "Test middleware payment extraction from params._meta in mcp/server/middleware_test.go"
-Task: "Test 402 error generation with payment requirements in mcp/server/server_test.go"
-Task: "Test facilitator payment verification in mcp/server/middleware_test.go"
-Task: "Test mixed free/paid tool handling in mcp/server/server_test.go"
-Task: "Test settlement response in result._meta in mcp/server/middleware_test.go"
+# After Phase 2 (T009) completes, launch both stories in parallel:
+
+# Team A: User Story 1 (Client) - mcp/client/*
+Task: T010-T016 "Client tests"
+Task: T017-T025 "Client implementation"
+
+# Team B: User Story 2 (Server) - mcp/server/* - runs CONCURRENTLY
+Task: T026-T036 "Server tests"
+Task: T037-T053 "Server implementation"
+
+# These can proceed completely independently!
 ```
 
 ---
 
 ## Implementation Strategy
 
-### MVP First (User Stories 1 & 2 Only)
+### MVP First (User Story 1 + User Story 2)
 
 1. Complete Phase 1: Setup
 2. Complete Phase 2: Foundational (CRITICAL - blocks all stories)
-3. Complete Phase 3 & 4 in parallel: User Story 1 (Client) and User Story 2 (Server)
-4. **STOP and VALIDATE**: Test client-server interaction
-5. Deploy/demo if ready
+3. Complete Phase 3: User Story 1 (Client) - Can run parallel with US2
+4. Complete Phase 4: User Story 2 (Server) - Can run parallel with US1
+5. **STOP and VALIDATE**: Test client against server independently
+6. Integration test: Client calling paid (search) and free (echo) tools on Server
+7. Deploy/demo if ready (this is the MVP!)
 
 ### Incremental Delivery
 
 1. Complete Setup + Foundational → Foundation ready
-2. Add User Story 1 & 2 → Test independently → Deploy/Demo (MVP!)
-3. Add User Story 3 → Test multi-chain → Deploy/Demo
-4. Add User Story 4 → Provide examples → Deploy/Demo
+2. Add User Story 1 + 2 (Client + Server) → Test together → Deploy/Demo (MVP!)
+3. Add User Story 3 (Multi-chain) → Test independently → Deploy/Demo
+4. Add User Story 4 (Examples) → Validate with examples → Deploy/Demo
 5. Each story adds value without breaking previous stories
 
 ### Parallel Team Strategy
 
 With multiple developers:
 
-1. Team completes Setup + Foundational together
+1. Team completes Setup + Foundational together (Phase 1-2)
 2. Once Foundational is done:
-   - Developer A: User Story 1 (Client)
-   - Developer B: User Story 2 (Server)
-   - Developer C: Can start User Story 3 tests
-3. After US1 & US2 complete:
-   - Any developer: User Story 4 (Examples)
-   - All developers: Polish phase
+   - Developer A: User Story 1 (Client) - mcp/client/
+   - Developer B: User Story 2 (Server) - mcp/server/
+   - Both work independently on separate packages
+3. After US1 + US2 complete:
+   - Developer A: User Story 3 (Multi-chain) - extends client
+   - Developer B: User Story 4 (Examples)
+4. Team does Phase 7 (Polish) together
 
 ---
 
 ## Notes
 
-- [P] tasks = different files, no dependencies
+- [P] tasks = different files, no dependencies, can run concurrently
 - [Story] label maps task to specific user story for traceability
 - Each user story should be independently completable and testable
-- Tests included as requested in original specification
-- US1 and US2 are both P1 priority and form the MVP together
-- Verify tests fail before implementing
+- US1 and US2 are both P1 priority and can be developed in parallel (different packages: mcp/client/ vs mcp/server/)
 - Commit after each task or logical group
-- Stop at any checkpoint to validate story independently
-- Total tasks: 78 (excluding parallel markers) - includes timeout, concurrent payment, edge case, and non-refundable payment tasks
+- Stop at checkpoints to validate story independently
+- **Reference implementations**: Use mcp-go-x402 examples as patterns but adapt to use existing x402-go components
+- **Reuse existing components**: All signers (evm, svm, coinbase) work without modification; use http.FacilitatorClient for all payment operations
+- **MCP integration**: Use mark3labs/mcp-go for all MCP protocol types and functionality (transport.Interface, server.MCPServer, mcp.Tool, etc.)
+- **Testing**: Follow go test -race ./... throughout development
+- **Timeouts**: Ensure all payment timeouts match spec: 5s verify (FR-015), 60s settle (FR-016)
+- **Total tasks**: 98 (T001-T098) organized by user story for independent development
+
+---
+
+## Success Criteria Validation
+
+After completing all tasks, verify these measurable outcomes from spec.md:
+
+- **SC-001**: Developers can protect MCP tools with x402 in under 10 lines per tool (validate in examples/mcp/main.go)
+- **SC-002**: Client handles payment flow with zero additional code beyond signer config (validate in examples/mcp/main.go client mode)
+- **SC-003**: Payment fallback completes within 5 seconds when primary signer fails (T058 test)
+- **SC-004**: Example runs successfully with both EVM and Solana payment options (examples/mcp/main.go)
+- **SC-005**: 100% of existing signer types work with MCP integration (evm, svm, coinbase)
+- **SC-006**: Server processes mixed free/paid tool requests without payment overhead on free tools (T027, T039 tests)
+- **SC-007**: All payment verification flows complete within 5 seconds (T031 test)
+- **SC-008**: Integration adds fewer than 1000 lines of new code by reusing existing components (measure after completion)
