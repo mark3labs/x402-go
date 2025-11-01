@@ -1,6 +1,7 @@
 package x402
 
 import (
+	"errors"
 	"math/big"
 	"strings"
 	"testing"
@@ -874,6 +875,195 @@ func TestDefaultPaymentSelector_SelectAndSign_MultipleRequirements(t *testing.T)
 
 			// Verify the selected requirement by checking which signer was used
 			// (the payment should match the expected asset indirectly through the network)
+		})
+	}
+}
+
+func TestFindMatchingRequirement(t *testing.T) {
+	tests := []struct {
+		name         string
+		payment      PaymentPayload
+		requirements []PaymentRequirement
+		wantNetwork  string
+		wantScheme   string
+		wantErr      bool
+		errCode      ErrorCode
+	}{
+		{
+			name: "exact match found",
+			payment: PaymentPayload{
+				Network: "base",
+				Scheme:  "eip3009",
+			},
+			requirements: []PaymentRequirement{
+				{Network: "polygon", Scheme: "eip3009", Asset: "0x123"},
+				{Network: "base", Scheme: "eip3009", Asset: "0x456"},
+			},
+			wantNetwork: "base",
+			wantScheme:  "eip3009",
+			wantErr:     false,
+		},
+		{
+			name: "match with multiple requirements",
+			payment: PaymentPayload{
+				Network: "solana",
+				Scheme:  "exact",
+			},
+			requirements: []PaymentRequirement{
+				{Network: "ethereum", Scheme: "exact", Asset: "0xabc"},
+				{Network: "solana", Scheme: "exact", Asset: "So11111"},
+				{Network: "polygon", Scheme: "exact", Asset: "0xdef"},
+			},
+			wantNetwork: "solana",
+			wantScheme:  "exact",
+			wantErr:     false,
+		},
+		{
+			name: "no match - wrong network",
+			payment: PaymentPayload{
+				Network: "ethereum",
+				Scheme:  "eip3009",
+			},
+			requirements: []PaymentRequirement{
+				{Network: "base", Scheme: "eip3009", Asset: "0x123"},
+				{Network: "polygon", Scheme: "eip3009", Asset: "0x456"},
+			},
+			wantErr: true,
+			errCode: ErrCodeUnsupportedScheme,
+		},
+		{
+			name: "no match - wrong scheme",
+			payment: PaymentPayload{
+				Network: "base",
+				Scheme:  "exact",
+			},
+			requirements: []PaymentRequirement{
+				{Network: "base", Scheme: "eip3009", Asset: "0x123"},
+			},
+			wantErr: true,
+			errCode: ErrCodeUnsupportedScheme,
+		},
+		{
+			name: "no match - both wrong",
+			payment: PaymentPayload{
+				Network: "optimism",
+				Scheme:  "exact",
+			},
+			requirements: []PaymentRequirement{
+				{Network: "base", Scheme: "eip3009", Asset: "0x123"},
+				{Network: "polygon", Scheme: "eip3009", Asset: "0x456"},
+			},
+			wantErr: true,
+			errCode: ErrCodeUnsupportedScheme,
+		},
+		{
+			name: "empty requirements list",
+			payment: PaymentPayload{
+				Network: "base",
+				Scheme:  "eip3009",
+			},
+			requirements: []PaymentRequirement{},
+			wantErr:      true,
+			errCode:      ErrCodeUnsupportedScheme,
+		},
+		{
+			name: "case sensitive network match",
+			payment: PaymentPayload{
+				Network: "BASE",
+				Scheme:  "eip3009",
+			},
+			requirements: []PaymentRequirement{
+				{Network: "base", Scheme: "eip3009", Asset: "0x123"},
+			},
+			wantErr: true, // Should not match - case sensitive
+			errCode: ErrCodeUnsupportedScheme,
+		},
+		{
+			name: "case sensitive scheme match",
+			payment: PaymentPayload{
+				Network: "base",
+				Scheme:  "EIP3009",
+			},
+			requirements: []PaymentRequirement{
+				{Network: "base", Scheme: "eip3009", Asset: "0x123"},
+			},
+			wantErr: true, // Should not match - case sensitive
+			errCode: ErrCodeUnsupportedScheme,
+		},
+		{
+			name: "first matching requirement returned",
+			payment: PaymentPayload{
+				Network: "base",
+				Scheme:  "eip3009",
+			},
+			requirements: []PaymentRequirement{
+				{Network: "base", Scheme: "eip3009", Asset: "0x111", MaxAmountRequired: "100"},
+				{Network: "base", Scheme: "eip3009", Asset: "0x222", MaxAmountRequired: "200"},
+			},
+			wantNetwork: "base",
+			wantScheme:  "eip3009",
+			wantErr:     false,
+			// Should return the first match (0x111)
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req, err := FindMatchingRequirement(tt.payment, tt.requirements)
+
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error but got nil")
+				}
+
+				// Check if it's a PaymentError with the correct code
+				var paymentErr *PaymentError
+				if !errors.As(err, &paymentErr) {
+					t.Fatalf("expected PaymentError, got %T", err)
+				}
+
+				if paymentErr.Code != tt.errCode {
+					t.Errorf("expected error code %s, got %s", tt.errCode, paymentErr.Code)
+				}
+
+				// Verify error details contain network and scheme
+				if _, ok := paymentErr.Details["network"]; !ok {
+					t.Error("error details missing network")
+				}
+				if _, ok := paymentErr.Details["scheme"]; !ok {
+					t.Error("error details missing scheme")
+				}
+
+				// Verify it wraps ErrUnsupportedScheme
+				if !errors.Is(err, ErrUnsupportedScheme) {
+					t.Error("error should wrap ErrUnsupportedScheme")
+				}
+
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if req == nil {
+				t.Fatal("expected requirement but got nil")
+			}
+
+			if req.Network != tt.wantNetwork {
+				t.Errorf("expected network %s, got %s", tt.wantNetwork, req.Network)
+			}
+
+			if req.Scheme != tt.wantScheme {
+				t.Errorf("expected scheme %s, got %s", tt.wantScheme, req.Scheme)
+			}
+
+			// For the "first matching" test, verify we got the first one
+			if tt.name == "first matching requirement returned" {
+				if req.Asset != "0x111" {
+					t.Errorf("expected first matching requirement with asset 0x111, got %s", req.Asset)
+				}
+			}
 		})
 	}
 }

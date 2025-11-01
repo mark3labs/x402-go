@@ -137,3 +137,24 @@ func (s *DefaultPaymentSelector) SelectAndSign(requirements []PaymentRequirement
 
 	return payment, nil
 }
+
+// FindMatchingRequirement finds a payment requirement that matches the given payment's scheme and network.
+// Returns a pointer to the matching requirement, or an error if no match is found.
+//
+// This is useful for both middleware (verifying incoming payments) and clients (creating payments)
+// to ensure the payment matches one of the server's accepted requirements.
+//
+// Returns ErrUnsupportedScheme if no matching requirement is found.
+func FindMatchingRequirement(payment PaymentPayload, requirements []PaymentRequirement) (*PaymentRequirement, error) {
+	for i := range requirements {
+		req := &requirements[i]
+		if req.Network == payment.Network && req.Scheme == payment.Scheme {
+			return req, nil
+		}
+	}
+	return nil, NewPaymentError(
+		ErrCodeUnsupportedScheme,
+		"no matching requirement for network and scheme",
+		ErrUnsupportedScheme,
+	).WithDetails("network", payment.Network).WithDetails("scheme", payment.Scheme)
+}

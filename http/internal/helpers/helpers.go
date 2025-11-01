@@ -44,16 +44,16 @@ func ParsePaymentHeaderFromRequest(r *http.Request) (x402.PaymentPayload, error)
 }
 
 // FindMatchingRequirement finds a payment requirement that matches the provided payment's scheme and network.
+// This is a wrapper around x402.FindMatchingRequirement that returns a value instead of a pointer
+// for backwards compatibility with existing HTTP middleware code.
 //
 // Returns x402.ErrUnsupportedScheme if no matching requirement is found.
 func FindMatchingRequirement(payment x402.PaymentPayload, requirements []x402.PaymentRequirement) (x402.PaymentRequirement, error) {
-	for _, req := range requirements {
-		if req.Scheme == payment.Scheme && req.Network == payment.Network {
-			return req, nil
-		}
+	req, err := x402.FindMatchingRequirement(payment, requirements)
+	if err != nil {
+		return x402.PaymentRequirement{}, err
 	}
-	return x402.PaymentRequirement{}, fmt.Errorf("%w: no matching requirement for scheme=%s, network=%s",
-		x402.ErrUnsupportedScheme, payment.Scheme, payment.Network)
+	return *req, nil
 }
 
 // SendPaymentRequired sends a 402 Payment Required response with payment requirements in JSON format.

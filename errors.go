@@ -92,6 +92,9 @@ const (
 
 	// ErrCodeNetworkError indicates network communication error.
 	ErrCodeNetworkError ErrorCode = "NETWORK_ERROR"
+
+	// ErrCodeUnsupportedScheme indicates unsupported payment scheme or network.
+	ErrCodeUnsupportedScheme ErrorCode = "UNSUPPORTED_SCHEME"
 )
 
 // Error implements the error interface.

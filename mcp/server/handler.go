@@ -229,14 +229,9 @@ func (h *X402Handler) extractPayment(meta *struct {
 }
 
 // findMatchingRequirement finds a requirement that matches the payment
+// This delegates to x402.FindMatchingRequirement for consistent matching logic across packages.
 func (h *X402Handler) findMatchingRequirement(payment *x402.PaymentPayload, requirements []x402.PaymentRequirement) (*x402.PaymentRequirement, error) {
-	for i := range requirements {
-		req := &requirements[i]
-		if req.Network == payment.Network && req.Scheme == payment.Scheme {
-			return req, nil
-		}
-	}
-	return nil, fmt.Errorf("no matching requirement for network %s and scheme %s", payment.Network, payment.Scheme)
+	return x402.FindMatchingRequirement(*payment, requirements)
 }
 
 // sendPaymentRequiredError sends a 402 error with payment requirements
