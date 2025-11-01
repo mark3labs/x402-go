@@ -129,10 +129,10 @@ func NewGinX402Middleware(config *httpx402.Config) gin.HandlerFunc {
 
 		// Verify payment with facilitator
 		logger.Info("verifying payment", "scheme", payment.Scheme, "network", payment.Network)
-		verifyResp, err := facilitator.Verify(payment, requirement)
+		verifyResp, err := facilitator.Verify(c.Request.Context(), payment, requirement)
 		if err != nil && fallbackFacilitator != nil {
 			logger.Warn("primary facilitator failed, trying fallback", "error", err)
-			verifyResp, err = fallbackFacilitator.Verify(payment, requirement)
+			verifyResp, err = fallbackFacilitator.Verify(c.Request.Context(), payment, requirement)
 		}
 		if err != nil {
 			logger.Error("facilitator verification failed", "error", err)
@@ -156,10 +156,10 @@ func NewGinX402Middleware(config *httpx402.Config) gin.HandlerFunc {
 		var settlementResp *x402.SettlementResponse
 		if !config.VerifyOnly {
 			logger.Info("settling payment", "payer", verifyResp.Payer)
-			settlementResp, err = facilitator.Settle(payment, requirement)
+			settlementResp, err = facilitator.Settle(c.Request.Context(), payment, requirement)
 			if err != nil && fallbackFacilitator != nil {
 				logger.Warn("primary facilitator settlement failed, trying fallback", "error", err)
-				settlementResp, err = fallbackFacilitator.Settle(payment, requirement)
+				settlementResp, err = fallbackFacilitator.Settle(c.Request.Context(), payment, requirement)
 			}
 			if err != nil {
 				logger.Error("settlement failed", "error", err)

@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/mark3labs/x402-go"
+	"github.com/mark3labs/x402-go/facilitator"
 	x402http "github.com/mark3labs/x402-go/http"
 )
 
@@ -43,8 +44,8 @@ func main() {
 			return
 		}
 
-		// Cast to VerifyResponse to get payer info
-		verifyResp, ok := paymentInfo.(*x402http.VerifyResponse)
+		// Cast to facilitator.VerifyResponse to get payer info
+		verifyResp, ok := paymentInfo.(*facilitator.VerifyResponse)
 		if !ok {
 			http.Error(w, "Invalid payment info", http.StatusInternalServerError)
 			return

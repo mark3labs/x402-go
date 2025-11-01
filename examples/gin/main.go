@@ -14,6 +14,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/mark3labs/x402-go"
+	"github.com/mark3labs/x402-go/facilitator"
 	x402http "github.com/mark3labs/x402-go/http"
 	ginx402 "github.com/mark3labs/x402-go/http/gin"
 	"github.com/mark3labs/x402-go/signers/evm"
@@ -143,7 +144,7 @@ func runServer(args []string) {
 		}
 
 		if paymentInfo, exists := c.Get("x402_payment"); exists {
-			verifyResp := paymentInfo.(*x402http.VerifyResponse)
+			verifyResp := paymentInfo.(*facilitator.VerifyResponse)
 			response["payer"] = verifyResp.Payer
 		}
 

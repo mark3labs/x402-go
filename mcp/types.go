@@ -39,10 +39,3 @@ type PaymentRequirements struct {
 	Error       string               `json:"error"`
 	Accepts     []PaymentRequirement `json:"accepts"`
 }
-
-// VerifyResponse represents the response from facilitator payment verification
-type VerifyResponse struct {
-	IsValid       bool   `json:"isValid"`
-	InvalidReason string `json:"invalidReason,omitempty"`
-	Payer         string `json:"payer,omitempty"`
-}

@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/mark3labs/x402-go"
+	"github.com/mark3labs/x402-go/facilitator"
 	x402http "github.com/mark3labs/x402-go/http"
 )
 
@@ -115,7 +116,7 @@ func main() {
 
 			// Get payment info from context
 			if paymentInfo := r.Context().Value(x402http.PaymentContextKey); paymentInfo != nil {
-				verifyResp := paymentInfo.(*x402http.VerifyResponse)
+				verifyResp := paymentInfo.(*facilitator.VerifyResponse)
 				response["payer"] = verifyResp.Payer
 			}
 
