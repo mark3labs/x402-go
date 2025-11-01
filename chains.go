@@ -57,6 +57,9 @@ type USDCRequirementConfig struct {
 	// RecipientAddress is the payment recipient address (required).
 	RecipientAddress string
 
+	// Description is a human-readable description of the payment (optional).
+	Description string
+
 	// Scheme is the payment scheme (optional, defaults to "exact").
 	Scheme string
 
@@ -225,6 +228,7 @@ func NewUSDCPaymentRequirement(config USDCRequirementConfig) (PaymentRequirement
 		MaxAmountRequired: atomicString,
 		Asset:             config.Chain.USDCAddress,
 		PayTo:             config.RecipientAddress,
+		Description:       config.Description,
 		MimeType:          mimeType,
 		MaxTimeoutSeconds: int(maxTimeout),
 	}
