@@ -12,6 +12,7 @@ import (
 	"github.com/mark3labs/x402-go"
 	"github.com/mark3labs/x402-go/facilitator"
 	"github.com/mark3labs/x402-go/http/internal/helpers"
+	"github.com/mark3labs/x402-go/retry"
 )
 
 // FacilitatorClient is a client for communicating with x402 facilitator services.
@@ -46,7 +47,25 @@ func (c *FacilitatorClient) Verify(ctx context.Context, payment x402.PaymentPayl
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	return c.doWithRetry(func() (*facilitator.VerifyResponse, error) {
+	// Configure retry with exponential backoff
+	retryDelay := c.RetryDelay
+	if retryDelay <= 0 {
+		retryDelay = 100 * time.Millisecond
+	}
+
+	maxRetries := c.MaxRetries
+	if maxRetries < 0 {
+		maxRetries = 0
+	}
+
+	config := retry.Config{
+		MaxAttempts:  maxRetries + 1, // +1 because MaxRetries is retry count, not attempt count
+		InitialDelay: retryDelay,
+		MaxDelay:     retryDelay * 4,
+		Multiplier:   2.0,
+	}
+
+	return retry.WithRetry(ctx, config, isFacilitatorUnavailableError, func() (*facilitator.VerifyResponse, error) {
 		// Use provided context, apply timeout only if not already set
 		reqCtx := ctx
 		if _, hasDeadline := ctx.Deadline(); !hasDeadline && c.VerifyTimeout > 0 {
@@ -138,7 +157,25 @@ func (c *FacilitatorClient) Settle(ctx context.Context, payment x402.PaymentPayl
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	return c.doSettleWithRetry(func() (*x402.SettlementResponse, error) {
+	// Configure retry with exponential backoff
+	retryDelay := c.RetryDelay
+	if retryDelay <= 0 {
+		retryDelay = 100 * time.Millisecond
+	}
+
+	maxRetries := c.MaxRetries
+	if maxRetries < 0 {
+		maxRetries = 0
+	}
+
+	config := retry.Config{
+		MaxAttempts:  maxRetries + 1, // +1 because MaxRetries is retry count, not attempt count
+		InitialDelay: retryDelay,
+		MaxDelay:     retryDelay * 4,
+		Multiplier:   2.0,
+	}
+
+	return retry.WithRetry(ctx, config, isFacilitatorUnavailableError, func() (*x402.SettlementResponse, error) {
 		// Use provided context, apply timeout only if not already set
 		reqCtx := ctx
 		if _, hasDeadline := ctx.Deadline(); !hasDeadline && c.SettleTimeout > 0 {
@@ -212,75 +249,6 @@ func (c *FacilitatorClient) EnrichRequirements(requirements []x402.PaymentRequir
 	}
 
 	return enriched, nil
-}
-
-// doWithRetry executes a function with exponential backoff retry logic for transient failures.
-// It automatically retries on facilitator unavailable errors up to MaxRetries times.
-func (c *FacilitatorClient) doWithRetry(fn func() (*facilitator.VerifyResponse, error)) (*facilitator.VerifyResponse, error) {
-	maxRetries := c.MaxRetries
-	if maxRetries < 0 {
-		maxRetries = 0
-	}
-
-	retryDelay := c.RetryDelay
-	if retryDelay <= 0 {
-		retryDelay = 100 * time.Millisecond
-	}
-
-	var lastErr error
-	for attempt := 0; attempt <= maxRetries; attempt++ {
-		if attempt > 0 {
-			time.Sleep(retryDelay)
-		}
-
-		result, err := fn()
-		if err == nil {
-			return result, nil
-		}
-
-		lastErr = err
-
-		// Only retry on facilitator unavailable errors
-		if !isFacilitatorUnavailableError(err) {
-			return nil, err
-		}
-	}
-
-	return nil, lastErr
-}
-
-// doSettleWithRetry executes a settle function with retry logic for transient failures.
-func (c *FacilitatorClient) doSettleWithRetry(fn func() (*x402.SettlementResponse, error)) (*x402.SettlementResponse, error) {
-	maxRetries := c.MaxRetries
-	if maxRetries < 0 {
-		maxRetries = 0
-	}
-
-	retryDelay := c.RetryDelay
-	if retryDelay <= 0 {
-		retryDelay = 100 * time.Millisecond
-	}
-
-	var lastErr error
-	for attempt := 0; attempt <= maxRetries; attempt++ {
-		if attempt > 0 {
-			time.Sleep(retryDelay)
-		}
-
-		result, err := fn()
-		if err == nil {
-			return result, nil
-		}
-
-		lastErr = err
-
-		// Only retry on facilitator unavailable errors
-		if !isFacilitatorUnavailableError(err) {
-			return nil, err
-		}
-	}
-
-	return nil, lastErr
 }
 
 // isFacilitatorUnavailableError checks if an error is a facilitator unavailable error.
