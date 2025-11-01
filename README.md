@@ -10,10 +10,12 @@ Go implementation of the x402 payment standard for paywalled HTTP endpoints.
 
 x402-go makes it simple to add crypto payments to HTTP APIs. This library provides:
 
-- **USDC helpers** for easy payment setup across 8+ chains (Base, Polygon, Avalanche, Solana)
+- **USDC helpers** for easy payment setup across 8+ chains (Base, Polygon, Avalanche, Solana, Ethereum)
 - **Middleware** for standard `net/http`, Chi, Gin, and PocketBase frameworks
 - **HTTP client** with automatic payment handling
 - **Multi-chain support** with automatic wallet selection
+- **MCP (Model Context Protocol)** integration for AI tool payments
+- **Multiple signer options**: Local wallets (EVM, Solana) or managed wallets (Coinbase CDP)
 
 ## Quick Start
 
@@ -59,7 +61,8 @@ That's it! The helper automatically:
 
 ```go
 import (
-    "github.com/mark3labs/x402-go/evm"
+    "github.com/mark3labs/x402-go"
+    "github.com/mark3labs/x402-go/signers/evm"
     x402http "github.com/mark3labs/x402-go/http"
 )
 
@@ -90,6 +93,10 @@ The library includes pre-configured USDC constants for these chains:
 | Solana | `SolanaMainnet` | `SolanaDevnet` |
 
 All USDC addresses are verified and include EIP-3009 parameters for EVM chains.
+
+**Additional supported networks** (for custom token configurations):
+- Ethereum Mainnet (`ethereum`)
+- Ethereum Sepolia (`sepolia`)
 
 ## Server Examples
 
@@ -277,20 +284,35 @@ requirement, _ := x402.NewUSDCPaymentRequirement(x402.USDCRequirementConfig{
 
 ## Client Examples
 
-### Single Chain Client
+### Single Chain Client (EVM)
 
 ```go
 import (
     "github.com/mark3labs/x402-go"
-    "github.com/mark3labs/x402-go/evm"
+    "github.com/mark3labs/x402-go/signers/evm"
     x402http "github.com/mark3labs/x402-go/http"
 )
 
 // Use USDC helper for token config
 token := x402.NewUSDCTokenConfig(x402.BaseMainnet, 1)
 
+// Option 1: From private key
 signer, _ := evm.NewSigner(
     evm.WithPrivateKey("0xYourPrivateKey"),
+    evm.WithNetwork("base"),
+    evm.WithToken(token.Address, token.Symbol, token.Decimals),
+)
+
+// Option 2: From encrypted keystore
+signer, _ := evm.NewSigner(
+    evm.WithKeystore("/path/to/keystore.json", "password"),
+    evm.WithNetwork("base"),
+    evm.WithToken(token.Address, token.Symbol, token.Decimals),
+)
+
+// Option 3: From mnemonic
+signer, _ := evm.NewSigner(
+    evm.WithMnemonic("your twelve word mnemonic phrase...", "m/44'/60'/0'/0/0"),
     evm.WithNetwork("base"),
     evm.WithToken(token.Address, token.Symbol, token.Decimals),
 )
@@ -304,6 +326,13 @@ resp, _ := client.Get("https://api.example.com/data")
 Configure multiple wallets and the client will automatically choose the best one:
 
 ```go
+import (
+    "github.com/mark3labs/x402-go"
+    "github.com/mark3labs/x402-go/signers/evm"
+    "github.com/mark3labs/x402-go/signers/svm"
+    x402http "github.com/mark3labs/x402-go/http"
+)
+
 // Setup Base wallet
 baseToken := x402.NewUSDCTokenConfig(x402.BaseMainnet, 1)  // Priority 1 (highest)
 baseSigner, _ := evm.NewSigner(
@@ -335,16 +364,23 @@ resp, _ := client.Get("https://api.example.com/data")
 ```go
 import (
     "github.com/mark3labs/x402-go"
-    "github.com/mark3labs/x402-go/svm"
+    "github.com/mark3labs/x402-go/signers/svm"
     x402http "github.com/mark3labs/x402-go/http"
 )
 
 // Use USDC helper for token config
 token := x402.NewUSDCTokenConfig(x402.SolanaMainnet, 1)
 
+// Option 1: From private key
 signer, _ := svm.NewSigner(
     svm.WithPrivateKey("Base58PrivateKey"),
-    // Or load from file: svm.WithKeygenFile("~/.config/solana/id.json")
+    svm.WithNetwork("solana"),
+    svm.WithToken(token.Address, token.Symbol, token.Decimals),
+)
+
+// Option 2: Load from Solana CLI keygen file
+signer, _ := svm.NewSigner(
+    svm.WithKeygenFile("~/.config/solana/id.json"),
     svm.WithNetwork("solana"),
     svm.WithToken(token.Address, token.Symbol, token.Decimals),
 )
@@ -352,3 +388,105 @@ signer, _ := svm.NewSigner(
 client, _ := x402http.NewClient(x402http.WithSigner(signer))
 resp, _ := client.Get("https://api.example.com/data")
 ```
+
+### Coinbase CDP Wallets
+
+Use Coinbase Developer Platform to manage wallets securely without storing private keys:
+
+```go
+import (
+    "github.com/mark3labs/x402-go"
+    "github.com/mark3labs/x402-go/signers/coinbase"
+    x402http "github.com/mark3labs/x402-go/http"
+)
+
+// Create signer with CDP credentials
+signer, _ := coinbase.NewSigner(
+    coinbase.WithCDPCredentials("your-api-key-name", "your-private-key"),
+    // Or load from environment: coinbase.WithCDPCredentialsFromEnv()
+    coinbase.WithNetwork("base"),  // Supports both EVM and Solana networks
+)
+
+client, _ := x402http.NewClient(x402http.WithSigner(signer))
+resp, _ := client.Get("https://api.example.com/data")
+```
+
+Benefits of CDP wallets:
+- No local private key management
+- Automatic wallet creation and recovery
+- Supports both EVM and Solana networks
+- Enterprise-grade security
+
+See `examples/coinbase/` for complete setup instructions.
+
+## MCP Integration
+
+x402-go includes Model Context Protocol (MCP) support for protecting AI tools with payments.
+
+### MCP Server: Protect AI Tools
+
+```go
+import (
+    "github.com/mark3labs/x402-go"
+    "github.com/mark3labs/x402-go/mcp/server"
+)
+
+func main() {
+    // Create payment requirement
+    requirement, _ := x402.NewUSDCPaymentRequirement(x402.USDCRequirementConfig{
+        Chain:            x402.BaseSepolia,
+        Amount:           "0.01",
+        RecipientAddress: "0xYourAddress",
+    })
+
+    // Create MCP server
+    s := server.NewX402Server("my-tools", "1.0.0", &server.Config{
+        FacilitatorURL: "https://facilitator.x402.rs",
+        PaymentRequirements: []x402.PaymentRequirement{requirement},
+    })
+
+    // Add free tools (no payment required)
+    s.AddTool(server.Tool{
+        Name:        "free_tool",
+        Description: "A free tool",
+        Handler:     freeToolHandler,
+    })
+
+    // Add paid tools (payment required)
+    s.AddPayableTool(server.Tool{
+        Name:        "premium_tool",
+        Description: "A tool that requires payment",
+        Handler:     premiumToolHandler,
+    })
+
+    // Start server
+    s.Start(":8080")
+}
+```
+
+### MCP Client: Auto-Pay for Tools
+
+```go
+import (
+    "github.com/mark3labs/x402-go"
+    "github.com/mark3labs/x402-go/signers/evm"
+    x402http "github.com/mark3labs/x402-go/http"
+    "github.com/mark3labs/x402-go/mcp/client"
+)
+
+// Setup signer
+token := x402.NewUSDCTokenConfig(x402.BaseSepolia, 1)
+signer, _ := evm.NewSigner(
+    evm.WithPrivateKey("0xYourKey"),
+    evm.WithNetwork("base-sepolia"),
+    evm.WithToken(token.Address, token.Symbol, token.Decimals),
+)
+
+// Create HTTP client with automatic payments
+httpClient, _ := x402http.NewClient(x402http.WithSigner(signer))
+
+// Use with MCP client (payments handled automatically)
+// Configure your MCP client to use this HTTP client
+```
+
+See `examples/mcp/` for complete MCP server and client examples.
