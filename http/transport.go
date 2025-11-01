@@ -2,13 +2,13 @@ package http
 
 import (
 	"bytes"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 
 	"github.com/mark3labs/x402-go"
+	"github.com/mark3labs/x402-go/encoding"
 )
 
 // X402Transport is a custom RoundTripper that handles x402 payment flows.
@@ -141,30 +141,14 @@ func parsePaymentRequirements(resp *http.Response) ([]x402.PaymentRequirement, e
 
 // buildPaymentHeader creates the X-PAYMENT header value from a payment payload.
 func buildPaymentHeader(payment *x402.PaymentPayload) (string, error) {
-	// Serialize payment to JSON
-	paymentJSON, err := json.Marshal(payment)
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal payment: %w", err)
-	}
-
-	// Encode to base64
-	paymentBase64 := base64.StdEncoding.EncodeToString(paymentJSON)
-
-	return paymentBase64, nil
+	return encoding.EncodePayment(*payment)
 }
 
 // parseSettlement extracts settlement information from the X-PAYMENT-RESPONSE header.
 func parseSettlement(headerValue string) (*x402.SettlementResponse, error) {
-	// Decode base64
-	settlementJSON, err := base64.StdEncoding.DecodeString(headerValue)
+	settlement, err := encoding.DecodeSettlement(headerValue)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode settlement header: %w", err)
-	}
-
-	// Parse JSON
-	var settlement x402.SettlementResponse
-	if err := json.Unmarshal(settlementJSON, &settlement); err != nil {
-		return nil, fmt.Errorf("failed to parse settlement JSON: %w", err)
+		return nil, err
 	}
 
 	return &settlement, nil

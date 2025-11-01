@@ -3,12 +3,12 @@
 package helpers
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
 
 	"github.com/mark3labs/x402-go"
+	"github.com/mark3labs/x402-go/encoding"
 )
 
 // ParsePaymentHeaderFromRequest parses the X-PAYMENT header from an http.Request and returns the payment payload.
@@ -24,15 +24,10 @@ func ParsePaymentHeaderFromRequest(r *http.Request) (x402.PaymentPayload, error)
 		return payment, x402.ErrMalformedHeader
 	}
 
-	// Decode base64
-	decoded, err := base64.StdEncoding.DecodeString(headerValue)
+	// Decode base64-encoded JSON
+	payment, err := encoding.DecodePayment(headerValue)
 	if err != nil {
-		return payment, fmt.Errorf("%w: invalid base64 encoding", x402.ErrMalformedHeader)
-	}
-
-	// Parse JSON
-	if err := json.Unmarshal(decoded, &payment); err != nil {
-		return payment, fmt.Errorf("%w: invalid JSON", x402.ErrMalformedHeader)
+		return payment, fmt.Errorf("%w: %v", x402.ErrMalformedHeader, err)
 	}
 
 	// Validate version
@@ -75,16 +70,13 @@ func SendPaymentRequired(w http.ResponseWriter, requirements []x402.PaymentRequi
 // AddPaymentResponseHeader adds the X-PAYMENT-RESPONSE header with base64-encoded settlement information.
 // The header contains JSON-encoded SettlementResponse data.
 //
-// Returns an error if JSON marshaling fails.
+// Returns an error if encoding fails.
 func AddPaymentResponseHeader(w http.ResponseWriter, settlement *x402.SettlementResponse) error {
-	// Marshal settlement response to JSON
-	data, err := json.Marshal(settlement)
+	// Encode settlement response
+	encoded, err := encoding.EncodeSettlement(*settlement)
 	if err != nil {
-		return fmt.Errorf("failed to marshal settlement response: %w", err)
+		return err
 	}
-
-	// Encode as base64
-	encoded := base64.StdEncoding.EncodeToString(data)
 
 	// Set header
 	w.Header().Set("X-PAYMENT-RESPONSE", encoded)
