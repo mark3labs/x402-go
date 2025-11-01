@@ -131,7 +131,7 @@ func (t *Transport) extractPaymentRequirements(data json.RawMessage) ([]x402.Pay
 // createPayment creates a payment using the configured signers
 func (t *Transport) createPayment(ctx context.Context, requirements []x402.PaymentRequirement) (*x402.PaymentPayload, error) {
 	if len(t.config.Signers) == 0 {
-		return nil, mcp.ErrNoMatchingSigner
+		return nil, x402.ErrNoValidSigner
 	}
 
 	// Trigger payment attempt callback
