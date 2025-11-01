@@ -177,20 +177,19 @@ The repository includes a complete example that can run as both client and serve
 
 ```bash
 # Build the example
-cd examples/x402demo
-go build -o x402demo
+cd examples/http
+go build -o http-example
 
-# Run as server (accepts USDC payments)
-./x402demo server --network base --payTo 0xYourAddress
+./http-example server --network base --pay-to 0xYourAddress
 
 # Run as client (makes payment)
-./x402demo client --network base --key 0xYourPrivateKey --url http://localhost:8080/data
+./http-example client --network base --key 0xYourPrivateKey --url http://localhost:8080/data
 ```
 
 ### Server Mode
 
 ```bash
-./x402demo server \
+./http-example server \
   --network base \
   --payTo 0x209693Bc6afc0C5328bA36FaF03C514EF312287C \
   --port 8080
@@ -204,7 +203,7 @@ The server:
 ### Client Mode
 
 ```bash
-./x402demo client \
+./http-example client \
   --network base \
   --key 0xYourPrivateKey \
   --url http://localhost:8080/data
@@ -321,5 +320,5 @@ client := x402http.NewClient(
 ## Next Steps
 
 - Review the [full API documentation](./contracts/client-api.yaml)
-- See [examples](../../examples/x402demo) for complete working code
+- See [examples](../../examples/http) for complete working code
 - Read the [x402 specification](https://github.com/coinbase/x402) for protocol details

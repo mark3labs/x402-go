@@ -1,23 +1,30 @@
-# Gin x402 Example
+# HTTP x402 Example
 
-This example demonstrates how to use the x402 Gin middleware to protect API endpoints with payment requirements. It includes both a server and client implementation.
+This example demonstrates basic usage of the x402 payment protocol with Go's standard `net/http` package. It includes both a server and client implementation.
+
+## Features
+
+- **Standard Library**: Uses only Go's `net/http` package (no framework)
+- **Multi-Chain Support**: Works with EVM (Base, Ethereum) and SVM (Solana) networks
+- **Server & Client**: Complete example of both payment provider and consumer
+- **Flexible Signers**: Supports both EVM and Solana wallets
 
 ## Quick Start
 
 ### Running the Server
 
 ```bash
-cd examples/gin
-go build -o gin-example
+cd examples/http
+go build -o http-example
 
 # Run server with Base Sepolia (testnet - default)
-./gin-example server --pay-to YOUR_ADDRESS
+./http-example server --pay-to YOUR_ADDRESS
 
 # Run server with Base network (mainnet)
-./gin-example server --network base --pay-to YOUR_ADDRESS
+./http-example server --network base --pay-to YOUR_ADDRESS
 
 # Custom configuration
-./gin-example server \
+./http-example server \
   --network base-sepolia \
   --pay-to 0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0 \
   --amount 1000 \
@@ -28,27 +35,27 @@ go build -o gin-example
 ### Running the Client
 
 ```bash
-# Make a request to a paywalled endpoint
-./gin-example client \
+# Make a request to a paywalled endpoint (EVM)
+./http-example client \
   --network base-sepolia \
   --key YOUR_PRIVATE_KEY \
   --url http://localhost:8080/data
 
 # With verbose output
-./gin-example client \
+./http-example client \
   --network base-sepolia \
   --key YOUR_PRIVATE_KEY \
   --url http://localhost:8080/data \
   --verbose
 
-# Using Solana
-./gin-example client \
+# Using Solana with keyfile
+./http-example client \
   --network solana-devnet \
   --key-file ~/.config/solana/id.json \
   --url http://localhost:8080/data
 
-# Client (with private key)
-./gin-example client \
+# Using Solana with base58 private key
+./http-example client \
   --network solana-devnet \
   --key YOUR_BASE58_PRIVATE_KEY \
   --url http://localhost:8080/data
@@ -103,7 +110,7 @@ Response:
 curl http://localhost:8080/data
 
 # With x402 client
-./gin-example client --network base-sepolia --key YOUR_KEY --url http://localhost:8080/data
+./http-example client --network base-sepolia --key YOUR_KEY --url http://localhost:8080/data
 ```
 
 Response without payment (402):
@@ -114,7 +121,7 @@ Response without payment (402):
   "accepts": [
     {
       "scheme": "exact",
-      "network": "base",
+      "network": "base-sepolia",
       "maxAmountRequired": "1000",
       "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
       "payTo": "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
@@ -133,7 +140,6 @@ Response with valid payment (200):
     "secret": "This is premium data that requires payment"
   },
   "message": "Successfully accessed paywalled content!",
-  "payer": "0x1234...",
   "timestamp": "2025-01-15T10:30:00Z"
 }
 ```
@@ -144,9 +150,9 @@ Response with valid payment (200):
 
 Terminal 1 - Start the server:
 ```bash
-./gin-example server \
+./http-example server \
   --network base-sepolia \
-  --payTo 0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0 \
+  --pay-to 0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0 \
   --amount 1000
 ```
 
@@ -156,7 +162,7 @@ Terminal 2 - Test the client:
 curl http://localhost:8080/public
 
 # Test paywalled endpoint with client
-./gin-example client \
+./http-example client \
   --network base-sepolia \
   --key YOUR_PRIVATE_KEY \
   --url http://localhost:8080/data
@@ -164,37 +170,37 @@ curl http://localhost:8080/public
 
 ### Network Examples
 
+**Base Sepolia (Testnet - Recommended for testing)**:
+```bash
+# Server
+./http-example server --pay-to YOUR_ADDRESS
+
+# Client
+./http-example client --key YOUR_KEY --url http://server:8080/data
+```
+
 **Base Mainnet**:
 ```bash
 # Server
-./gin-example server --network base --payTo YOUR_ADDRESS
+./http-example server --network base --pay-to YOUR_ADDRESS
 
 # Client
-./gin-example client --network base --key YOUR_KEY --url http://server:8080/data
-```
-
-**Base Sepolia (Testnet)**:
-```bash
-# Server
-./gin-example server --network base-sepolia --payTo YOUR_ADDRESS
-
-# Client
-./gin-example client --network base-sepolia --key YOUR_KEY --url http://server:8080/data
+./http-example client --network base --key YOUR_KEY --url http://server:8080/data
 ```
 
 **Solana Devnet**:
 ```bash
 # Server
-./gin-example server --network solana-devnet --payTo YOUR_SOLANA_ADDRESS
+./http-example server --network solana-devnet --pay-to YOUR_SOLANA_ADDRESS
 
 # Client (with keyfile)
-./gin-example client \
+./http-example client \
   --network solana-devnet \
-  --keyfile ~/.config/solana/id.json \
+  --key-file ~/.config/solana/id.json \
   --url http://server:8080/data
 
 # Client (with private key)
-./gin-example client \
+./http-example client \
   --network solana-devnet \
   --key YOUR_BASE58_PRIVATE_KEY \
   --url http://server:8080/data
@@ -205,73 +211,73 @@ curl http://localhost:8080/public
 ### Basic Server Setup
 
 ```go
+package main
+
 import (
-    "github.com/gin-gonic/gin"
+    "net/http"
     "github.com/mark3labs/x402-go"
     x402http "github.com/mark3labs/x402-go/http"
-    ginx402 "github.com/mark3labs/x402-go/http/gin"
 )
 
-// Create Gin router
-r := gin.Default()
-
-// Configure x402 middleware
-config := &x402http.Config{
-    FacilitatorURL: "https://facilitator.x402.rs",
-    PaymentRequirements: []x402.PaymentRequirement{{
-        Scheme:            "exact",
-        Network:           "base",
-        MaxAmountRequired: "1000", // 0.001 USDC
-        Asset:             "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-        PayTo:             "YOUR_ADDRESS",
-        MaxTimeoutSeconds: 60,
-    }},
-}
-
-// Apply middleware to specific route
-r.GET("/data", ginx402.NewGinX402Middleware(config), func(c *gin.Context) {
-    // Access payment info
-    if payment, exists := c.Get("x402_payment"); exists {
-        verifyResp := payment.(*x402http.VerifyResponse)
-        c.JSON(200, gin.H{"payer": verifyResp.Payer})
+func main() {
+    // Configure x402 middleware
+    config := &x402http.Config{
+        FacilitatorURL: "https://facilitator.x402.rs",
+        PaymentRequirements: []x402.PaymentRequirement{{
+            Scheme:            "exact",
+            Network:           "base-sepolia",
+            MaxAmountRequired: "1000", // 0.001 USDC
+            Asset:             "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+            PayTo:             "YOUR_ADDRESS",
+            MaxTimeoutSeconds: 60,
+        }},
     }
-})
-```
 
-### Route Groups
+    // Create middleware
+    middleware := x402http.NewX402Middleware(config)
 
-```go
-// Public routes (no payment)
-r.GET("/public", publicHandler)
-
-// Protected routes (payment required)
-protected := r.Group("/protected")
-protected.Use(ginx402.NewGinX402Middleware(config))
-{
-    protected.GET("/data", dataHandler)
-    protected.GET("/premium", premiumHandler)
-}
-```
-
-### Accessing Payment Information
-
-```go
-func handler(c *gin.Context) {
-    // Get payment info from Gin context
-    paymentInfo, exists := c.Get("x402_payment")
-    if !exists {
-        c.JSON(500, gin.H{"error": "No payment info"})
-        return
-    }
-    
-    // Type assert to VerifyResponse
-    verifyResp := paymentInfo.(*x402http.VerifyResponse)
-    
-    // Use payment information
-    c.JSON(200, gin.H{
-        "payer": verifyResp.Payer,
-        "data": "protected content",
+    // Create protected handler
+    dataHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        w.Write([]byte("Protected content"))
     })
+
+    // Apply middleware and serve
+    http.Handle("/data", middleware(dataHandler))
+    http.ListenAndServe(":8080", nil)
+}
+```
+
+### Basic Client Setup
+
+```go
+package main
+
+import (
+    "fmt"
+    "io"
+    x402http "github.com/mark3labs/x402-go/http"
+    "github.com/mark3labs/x402-go/signers/evm"
+)
+
+func main() {
+    // Create EVM signer
+    signer, _ := evm.NewSigner(
+        evm.WithPrivateKey("YOUR_PRIVATE_KEY"),
+        evm.WithNetwork("base-sepolia"),
+        evm.WithToken("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", "USDC", 6),
+    )
+
+    // Create x402-enabled HTTP client
+    client, _ := x402http.NewClient(
+        x402http.WithSigner(signer),
+    )
+
+    // Make request (payment handled automatically)
+    resp, _ := client.Get("http://localhost:8080/data")
+    defer resp.Body.Close()
+
+    body, _ := io.ReadAll(resp.Body)
+    fmt.Println(string(body))
 }
 ```
 
@@ -293,28 +299,31 @@ Payment amounts are in atomic units (6 decimals for USDC):
 - `100000` = 0.1 USDC
 - `1000000` = 1 USDC
 
-### Verify-Only Mode
-
-Skip settlement and only verify payment validity:
-
-```go
-config := &x402http.Config{
-    VerifyOnly: true,
-    // ... other fields
-}
-```
-
 ## Production Considerations
 
 1. **Use HTTPS**: Always use TLS in production
-2. **Recipient Address**: Use your actual wallet address for `PayTo`
-3. **Network**: Switch to mainnet (`base`) for production
-4. **Amount**: Set appropriate payment amounts in atomic units (6 decimals for USDC)
+2. **Recipient Address**: Use your actual wallet address for `--pay-to`
+3. **Network**: Switch to mainnet (`base` or `solana`) for production
+4. **Amount**: Set appropriate payment amounts in atomic units
 5. **Timeouts**: Adjust `MaxTimeoutSeconds` based on your requirements
 6. **Monitoring**: Log payment verification and settlement for debugging
+
+## Differences from Framework Examples
+
+This example uses Go's standard library, while other examples use web frameworks:
+
+| Feature | http | gin | chi |
+|---------|------|-----|-----|
+| Framework | None (stdlib) | Gin | Chi |
+| Middleware | Standard http.Handler | Gin-specific | Standard http.Handler |
+| Context | http.Request.Context() | gin.Context | http.Request.Context() |
+| Setup | Simple | Feature-rich | Simple |
+
+For more features (routing, JSON helpers, etc.), see the [Gin](../gin/) or [Chi](../chi/) examples.
 
 ## Learn More
 
 - [x402 Protocol Specification](https://github.com/mark3labs/x402-go)
-- [Gin Framework Documentation](https://gin-gonic.com/)
+- [Go net/http Documentation](https://pkg.go.dev/net/http)
 - [Base Network Documentation](https://docs.base.org/)
+- [Solana Documentation](https://docs.solana.com/)

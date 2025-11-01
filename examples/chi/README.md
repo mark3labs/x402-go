@@ -20,14 +20,14 @@ This example demonstrates how to use the x402 payment protocol with Chi router.
 ### Running the Server
 
 ```bash
-# Basic usage (testnet)
-go run main.go --payTo YOUR_WALLET_ADDRESS
+# Basic usage (testnet - default)
+go run main.go --pay-to YOUR_WALLET_ADDRESS
 
 # With custom settings
 go run main.go \
   --port 8080 \
   --network base-sepolia \
-  --payTo 0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0 \
+  --pay-to 0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0 \
   --amount 10000 \
   --facilitator https://facilitator.x402.rs
 ```
@@ -35,8 +35,8 @@ go run main.go \
 ### Command Line Options
 
 - `--port` - Server port (default: 8080)
-- `--network` - Blockchain network (base, base-sepolia, solana, solana-devnet)
-- `--payTo` - Your wallet address to receive payments (required)
+- `--network` - Blockchain network (base, base-sepolia, solana, solana-devnet) (default: base-sepolia)
+- `--pay-to` - Your wallet address to receive payments (required)
 - `--token` - Token contract address (auto-detected if not specified)
 - `--amount` - Payment amount in atomic units (default: 1000 = 0.001 USDC)
 - `--facilitator` - Facilitator service URL (default: https://facilitator.x402.rs)

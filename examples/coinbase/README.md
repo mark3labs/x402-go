@@ -54,20 +54,20 @@ This example demonstrates how to use the x402 payment protocol with Coinbase Dev
 Start a server that requires x402 payments:
 
 ```bash
-# Using Base testnet
-./coinbase-demo server --payTo 0xYourAddress --network base-sepolia
+# Using Base testnet (default)
+./coinbase-demo server --pay-to 0xYourAddress
 
 # Using Ethereum testnet
-./coinbase-demo server --payTo 0xYourAddress --network ethereum-sepolia
+./coinbase-demo server --pay-to 0xYourAddress --network ethereum-sepolia
 
 # Custom port and payment amount
-./coinbase-demo server --payTo 0xYourAddress --port 8081 --amount 5000
+./coinbase-demo server --pay-to 0xYourAddress --port 8081 --amount 5000
 ```
 
 Server flags:
 - `--port` - Server port (default: 8080)
-- `--network` - Network to accept payments on (default: base)
-- `--payTo` - Address to receive payments (required)
+- `--network` - Network to accept payments on (default: base-sepolia)
+- `--pay-to` - Address to receive payments (required)
 - `--token` - Token address (auto-detected from network)
 - `--amount` - Payment amount in atomic units (default: 1000 = 0.001 USDC)
 - `--facilitator` - Facilitator URL (default: https://facilitator.x402.rs)
@@ -92,12 +92,12 @@ Make requests to paywalled endpoints:
 
 Client flags:
 - `--url` - URL to fetch (required)
-- `--network` - Network to use (default: base)
+- `--network` - Network to use (default: base-sepolia)
 - `--api-key-name` - CDP API Key Name (or set `CDP_API_KEY_NAME` env var)
 - `--api-key-secret` - CDP API Key Secret (or set `CDP_API_KEY_SECRET` env var)
 - `--wallet-secret` - CDP Wallet Secret (optional, or set `CDP_WALLET_SECRET` env var)
 - `--token` - Token address (auto-detected from network)
-- `--max` - Maximum amount per call (optional)
+- `--max-amount` - Maximum amount per call (optional)
 - `--verbose` - Enable debug output
 
 ### Server Endpoints
@@ -124,12 +124,12 @@ Client flags:
 
 1. **Start the server** (in one terminal):
    ```bash
-   ./coinbase-demo server --payTo 0xYourRecipientAddress --network base-sepolia
+   ./coinbase-demo server --pay-to 0xYourRecipientAddress
    ```
 
 2. **Run the client** (in another terminal):
    ```bash
-   ./coinbase-demo client --url http://localhost:8080/data --network base-sepolia --verbose
+   ./coinbase-demo client --url http://localhost:8080/data --verbose
    ```
 
 3. **Expected Output**:
@@ -185,11 +185,11 @@ Client flags:
 - [Coinbase Developer Platform](https://portal.cdp.coinbase.com/)
 - [CDP API Documentation](https://docs.cdp.coinbase.com/)
 
-## Differences from x402demo
+## Differences from http example
 
-This example uses **Coinbase CDP** for wallet management, while `x402demo` uses local private keys:
+This example uses **Coinbase CDP** for wallet management, while the `http` example uses local private keys:
 
-| Feature | coinbase-demo | x402demo |
+| Feature | coinbase-demo | http |
 |---------|---------------|----------|
 | Wallet Management | CDP Managed | Local Private Keys |
 | Key Storage | Remote (CDP) | Local Keystore |
@@ -197,4 +197,4 @@ This example uses **Coinbase CDP** for wallet management, while `x402demo` uses 
 | Security | Enterprise-grade | Self-managed |
 | Chains | EVM Only (CDP limitation) | EVM + Solana |
 
-For Solana support, use the `x402demo` example instead.
+For Solana support, use the `http` example instead.

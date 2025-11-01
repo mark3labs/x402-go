@@ -20,17 +20,17 @@ import (
 func main() {
 	// Parse command line flags
 	port := flag.String("port", "8080", "Server port")
-	network := flag.String("network", "base", "Network to accept payments on (base, base-sepolia, solana, solana-devnet)")
-	payTo := flag.String("payTo", "", "Address to receive payments (required)")
+	network := flag.String("network", "base-sepolia", "Network to accept payments on (base, base-sepolia, solana, solana-devnet)")
+	payTo := flag.String("pay-to", "", "Address to receive payments (required)")
 	tokenAddr := flag.String("token", "", "Token address (auto-detected based on network if not specified)")
-	amount := flag.String("amount", "", "Payment amount in atomic units (auto-detected based on network if not specified)")
+	amount := flag.String("amount", "", "Payment amount in atomic units (default: 1000 = 0.001 USDC)")
 	facilitatorURL := flag.String("facilitator", "https://facilitator.x402.rs", "Facilitator URL")
 
 	flag.Parse()
 
 	// Validate required flags
 	if *payTo == "" {
-		fmt.Println("Error: --payTo is required")
+		fmt.Println("Error: --pay-to is required")
 		fmt.Println()
 		flag.PrintDefaults()
 		os.Exit(1)

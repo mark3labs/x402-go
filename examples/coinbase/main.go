@@ -52,10 +52,10 @@ func printUsage() {
 func runServer(args []string) {
 	fs := flag.NewFlagSet("server", flag.ExitOnError)
 	port := fs.String("port", "8080", "Server port")
-	network := fs.String("network", "base", "Network to accept payments on (base, base-sepolia, ethereum, ethereum-sepolia, polygon)")
-	payTo := fs.String("payTo", "", "Address to receive payments (required)")
+	network := fs.String("network", "base-sepolia", "Network to accept payments on (base, base-sepolia, ethereum, ethereum-sepolia, polygon)")
+	payTo := fs.String("pay-to", "", "Address to receive payments (required)")
 	tokenAddr := fs.String("token", "", "Token address (auto-detected based on network if not specified)")
-	amount := fs.String("amount", "", "Payment amount in atomic units (auto-detected based on network if not specified)")
+	amount := fs.String("amount", "", "Payment amount in atomic units (default: 1000 = 0.001 USDC)")
 	facilitatorURL := fs.String("facilitator", "https://facilitator.x402.rs", "Facilitator URL")
 	verbose := fs.Bool("verbose", false, "Enable verbose debug output")
 
@@ -63,7 +63,7 @@ func runServer(args []string) {
 
 	// Validate required flags
 	if *payTo == "" {
-		fmt.Println("Error: --payTo is required")
+		fmt.Println("Error: --pay-to is required")
 		fmt.Println()
 		fs.PrintDefaults()
 		os.Exit(1)
@@ -185,14 +185,14 @@ func runServer(args []string) {
 
 func runClient(args []string) {
 	fs := flag.NewFlagSet("client", flag.ExitOnError)
-	network := fs.String("network", "base", "Network to use (base, base-sepolia, ethereum, ethereum-sepolia, polygon)")
+	network := fs.String("network", "base-sepolia", "Network to use (base, base-sepolia, ethereum, ethereum-sepolia, polygon)")
 	apiKeyName := fs.String("api-key-name", "", "CDP API Key Name (or set CDP_API_KEY_NAME env var)")
 	apiKeySecret := fs.String("api-key-secret", "", "CDP API Key Secret (or set CDP_API_KEY_SECRET env var)")
 	walletSecret := fs.String("wallet-secret", "", "CDP Wallet Secret (optional, or set CDP_WALLET_SECRET env var)")
 	accountName := fs.String("account-name", "x402-payment-wallet", "CDP account name (unique identifier for your wallet)")
 	url := fs.String("url", "", "URL to fetch (must be paywalled with x402)")
 	tokenAddr := fs.String("token", "", "Token address (auto-detected based on network if not specified)")
-	maxAmount := fs.String("max", "", "Maximum amount per call (optional)")
+	maxAmount := fs.String("max-amount", "", "Maximum amount per call (optional)")
 	verbose := fs.Bool("verbose", false, "Enable verbose debug output")
 
 	_ = fs.Parse(args)

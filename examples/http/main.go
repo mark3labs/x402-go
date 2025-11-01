@@ -37,22 +37,22 @@ func main() {
 }
 
 func printUsage() {
-	fmt.Println("x402demo - Example x402 payment client and server")
+	fmt.Println("http - Example x402 payment client and server")
 	fmt.Println()
 	fmt.Println("Usage:")
-	fmt.Println("  x402demo server [flags]  - Run a test server with paywalled endpoints")
-	fmt.Println("  x402demo client [flags]  - Run client to access paywalled resources")
+	fmt.Println("  http server [flags]  - Run a test server with paywalled endpoints")
+	fmt.Println("  http client [flags]  - Run client to access paywalled resources")
 	fmt.Println()
-	fmt.Println("Run 'x402demo server --help' or 'x402demo client --help' for more information.")
+	fmt.Println("Run 'http server --help' or 'http client --help' for more information.")
 }
 
 func runServer(args []string) {
 	fs := flag.NewFlagSet("server", flag.ExitOnError)
 	port := fs.String("port", "8080", "Server port")
-	network := fs.String("network", "base", "Network to accept payments on (base, base-sepolia, solana, solana-devnet)")
-	payTo := fs.String("payTo", "", "Address to receive payments (required)")
+	network := fs.String("network", "base-sepolia", "Network to accept payments on (base, base-sepolia, solana, solana-devnet)")
+	payTo := fs.String("pay-to", "", "Address to receive payments (required)")
 	tokenAddr := fs.String("token", "", "Token address (auto-detected based on network if not specified)")
-	amount := fs.String("amount", "", "Payment amount in atomic units (auto-detected based on network if not specified)")
+	amount := fs.String("amount", "", "Payment amount in atomic units (default: 1000 = 0.001 USDC)")
 	facilitatorURL := fs.String("facilitator", "https://facilitator.x402.rs", "Facilitator URL")
 	verbose := fs.Bool("verbose", false, "Enable verbose debug output")
 
@@ -60,7 +60,7 @@ func runServer(args []string) {
 
 	// Validate required flags
 	if *payTo == "" {
-		fmt.Println("Error: --payTo is required")
+		fmt.Println("Error: --pay-to is required")
 		fmt.Println()
 		fs.PrintDefaults()
 		os.Exit(1)
@@ -84,7 +84,7 @@ func runServer(args []string) {
 		*amount = "1000" // Default: 0.001 USDC (6 decimals)
 	}
 
-	fmt.Printf("Starting x402 demo server on port %s\n", *port)
+	fmt.Printf("Starting HTTP x402 server on port %s\n", *port)
 	fmt.Printf("Network: %s\n", *network)
 	fmt.Printf("Payment recipient: %s\n", *payTo)
 	fmt.Printf("Payment amount: %s atomic units\n", *amount)
@@ -148,7 +148,7 @@ func runServer(args []string) {
 	mux.Handle("/public", publicHandler)         // Free endpoint
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
-		fmt.Fprintf(w, "x402 Demo Server\n\n")
+		fmt.Fprintf(w, "HTTP x402 Server\n\n")
 		fmt.Fprintf(w, "Endpoints:\n")
 		fmt.Fprintf(w, "  GET /data    - Paywalled endpoint (requires x402 payment)\n")
 		fmt.Fprintf(w, "  GET /public  - Free public endpoint\n")
@@ -169,19 +169,19 @@ func runServer(args []string) {
 
 func runClient(args []string) {
 	fs := flag.NewFlagSet("client", flag.ExitOnError)
-	network := fs.String("network", "base", "Network to use (base, base-sepolia, solana, solana-devnet)")
+	network := fs.String("network", "base-sepolia", "Network to use (base, base-sepolia, solana, solana-devnet)")
 	key := fs.String("key", "", "Private key (hex for EVM, base58 for Solana)")
-	keyFile := fs.String("keyfile", "", "Solana keygen JSON file (alternative to --key for Solana)")
+	keyFile := fs.String("key-file", "", "Solana keygen JSON file (alternative to --key for Solana)")
 	url := fs.String("url", "", "URL to fetch (must be paywalled with x402)")
 	tokenAddr := fs.String("token", "", "Token address (auto-detected based on network if not specified)")
-	maxAmount := fs.String("max", "", "Maximum amount per call (optional)")
+	maxAmount := fs.String("max-amount", "", "Maximum amount per call (optional)")
 	verbose := fs.Bool("verbose", false, "Enable verbose debug output")
 
 	_ = fs.Parse(args)
 
 	// Validate inputs
 	if *key == "" && *keyFile == "" {
-		fmt.Println("Error: --key or --keyfile is required")
+		fmt.Println("Error: --key or --key-file is required")
 		fmt.Println()
 		fs.PrintDefaults()
 		os.Exit(1)
