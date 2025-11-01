@@ -19,13 +19,13 @@ type Config struct {
 	HTTPClient *http.Client
 
 	// OnPaymentAttempt is called when a payment attempt is made
-	OnPaymentAttempt func(PaymentEvent)
+	OnPaymentAttempt func(x402.PaymentEvent)
 
 	// OnPaymentSuccess is called when a payment succeeds
-	OnPaymentSuccess func(PaymentEvent)
+	OnPaymentSuccess func(x402.PaymentEvent)
 
 	// OnPaymentFailure is called when a payment fails
-	OnPaymentFailure func(PaymentEvent)
+	OnPaymentFailure func(x402.PaymentEvent)
 
 	// Selector is the payment selector for choosing which signer to use (optional, uses default if nil)
 	Selector mcp.PaymentSelector
@@ -33,50 +33,6 @@ type Config struct {
 	// Verbose enables detailed logging
 	Verbose bool
 }
-
-// PaymentEvent represents a payment lifecycle event
-type PaymentEvent struct {
-	// Type is the event type
-	Type PaymentEventType
-
-	// Tool is the tool name that required payment
-	Tool string
-
-	// Amount is the payment amount in atomic units
-	Amount string
-
-	// Asset is the token address
-	Asset string
-
-	// Network is the blockchain network
-	Network string
-
-	// Recipient is the payment recipient address
-	Recipient string
-
-	// Transaction is the blockchain transaction hash (for success events)
-	Transaction string
-
-	// Error is the error details (for failure events)
-	Error error
-
-	// Payer is the address that made the payment
-	Payer string
-}
-
-// PaymentEventType represents the type of payment event
-type PaymentEventType string
-
-const (
-	// PaymentAttempt indicates a payment is being attempted
-	PaymentAttempt PaymentEventType = "attempt"
-
-	// PaymentSuccess indicates a payment succeeded
-	PaymentSuccess PaymentEventType = "success"
-
-	// PaymentFailure indicates a payment failed
-	PaymentFailure PaymentEventType = "failure"
-)
 
 // Option is a functional option for configuring the Transport
 type Option func(*Config)
@@ -96,7 +52,7 @@ func WithHTTPClient(client *http.Client) Option {
 }
 
 // WithPaymentCallback sets a unified payment callback for all events
-func WithPaymentCallback(callback func(PaymentEvent)) Option {
+func WithPaymentCallback(callback func(x402.PaymentEvent)) Option {
 	return func(c *Config) {
 		c.OnPaymentAttempt = callback
 		c.OnPaymentSuccess = callback
@@ -105,21 +61,21 @@ func WithPaymentCallback(callback func(PaymentEvent)) Option {
 }
 
 // WithPaymentAttemptCallback sets the payment attempt callback
-func WithPaymentAttemptCallback(callback func(PaymentEvent)) Option {
+func WithPaymentAttemptCallback(callback func(x402.PaymentEvent)) Option {
 	return func(c *Config) {
 		c.OnPaymentAttempt = callback
 	}
 }
 
 // WithPaymentSuccessCallback sets the payment success callback
-func WithPaymentSuccessCallback(callback func(PaymentEvent)) Option {
+func WithPaymentSuccessCallback(callback func(x402.PaymentEvent)) Option {
 	return func(c *Config) {
 		c.OnPaymentSuccess = callback
 	}
 }
 
 // WithPaymentFailureCallback sets the payment failure callback
-func WithPaymentFailureCallback(callback func(PaymentEvent)) Option {
+func WithPaymentFailureCallback(callback func(x402.PaymentEvent)) Option {
 	return func(c *Config) {
 		c.OnPaymentFailure = callback
 	}

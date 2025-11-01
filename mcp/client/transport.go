@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/mark3labs/mcp-go/client/transport"
 	mcpproto "github.com/mark3labs/mcp-go/mcp"
@@ -72,7 +73,7 @@ func (t *Transport) SendRequest(ctx context.Context, req transport.JSONRPCReques
 		}
 
 		// Create payment
-		payment, err := t.createPayment(ctx, requirements)
+		payment, startTime, err := t.createPayment(ctx, requirements)
 		if err != nil {
 			return resp, mcp.WrapX402Error(err, req.Method)
 		}
@@ -84,7 +85,7 @@ func (t *Transport) SendRequest(ctx context.Context, req transport.JSONRPCReques
 		}
 
 		// Retry with payment
-		return t.retryWithPayment(ctx, modifiedReq, payment)
+		return t.retryWithPayment(ctx, modifiedReq, payment, startTime)
 	}
 
 	return resp, nil
@@ -129,21 +130,27 @@ func (t *Transport) extractPaymentRequirements(data json.RawMessage) ([]x402.Pay
 }
 
 // createPayment creates a payment using the configured signers
-func (t *Transport) createPayment(ctx context.Context, requirements []x402.PaymentRequirement) (*x402.PaymentPayload, error) {
+// Returns the payment payload and the start time for duration tracking
+func (t *Transport) createPayment(ctx context.Context, requirements []x402.PaymentRequirement) (*x402.PaymentPayload, time.Time, error) {
+	startTime := time.Now()
+
 	if len(t.config.Signers) == 0 {
-		return nil, x402.ErrNoValidSigner
+		return nil, startTime, x402.ErrNoValidSigner
 	}
 
 	// Trigger payment attempt callback
 	if t.config.OnPaymentAttempt != nil {
 		if len(requirements) > 0 {
 			req := requirements[0]
-			t.config.OnPaymentAttempt(PaymentEvent{
-				Type:      PaymentAttempt,
+			t.config.OnPaymentAttempt(x402.PaymentEvent{
+				Type:      x402.PaymentEventAttempt,
+				Timestamp: startTime,
+				Method:    "MCP",
 				Amount:    req.MaxAmountRequired,
 				Asset:     req.Asset,
 				Network:   req.Network,
 				Recipient: req.PayTo,
+				Scheme:    req.Scheme,
 			})
 		}
 	}
@@ -152,15 +159,18 @@ func (t *Transport) createPayment(ctx context.Context, requirements []x402.Payme
 	payment, err := t.config.Selector.SelectAndSign(requirements, t.config.Signers)
 	if err != nil {
 		if t.config.OnPaymentFailure != nil {
-			t.config.OnPaymentFailure(PaymentEvent{
-				Type:  PaymentFailure,
-				Error: err,
+			t.config.OnPaymentFailure(x402.PaymentEvent{
+				Type:      x402.PaymentEventFailure,
+				Timestamp: time.Now(),
+				Method:    "MCP",
+				Error:     err,
+				Duration:  time.Since(startTime),
 			})
 		}
-		return nil, err
+		return nil, startTime, err
 	}
 
-	return payment, nil
+	return payment, startTime, nil
 }
 
 // injectPaymentMeta injects payment into request params._meta
@@ -200,14 +210,20 @@ func (t *Transport) injectPaymentMeta(req transport.JSONRPCRequest, payment *x40
 }
 
 // retryWithPayment retries the request with payment
-func (t *Transport) retryWithPayment(ctx context.Context, req transport.JSONRPCRequest, payment *x402.PaymentPayload) (*transport.JSONRPCResponse, error) {
+func (t *Transport) retryWithPayment(ctx context.Context, req transport.JSONRPCRequest, payment *x402.PaymentPayload, startTime time.Time) (*transport.JSONRPCResponse, error) {
 	resp, err := t.baseTransport.SendRequest(ctx, req)
+	duration := time.Since(startTime)
+
 	if err != nil {
 		if t.config.OnPaymentFailure != nil {
-			t.config.OnPaymentFailure(PaymentEvent{
-				Type:    PaymentFailure,
-				Error:   err,
-				Network: payment.Network,
+			t.config.OnPaymentFailure(x402.PaymentEvent{
+				Type:      x402.PaymentEventFailure,
+				Timestamp: time.Now(),
+				Method:    "MCP",
+				Error:     err,
+				Network:   payment.Network,
+				Scheme:    payment.Scheme,
+				Duration:  duration,
 			})
 		}
 		return resp, err
@@ -216,10 +232,14 @@ func (t *Transport) retryWithPayment(ctx context.Context, req transport.JSONRPCR
 	// Check if payment succeeded
 	if resp.Error != nil {
 		if resp.Error.Code == 402 && t.config.OnPaymentFailure != nil {
-			t.config.OnPaymentFailure(PaymentEvent{
-				Type:    PaymentFailure,
-				Error:   fmt.Errorf("payment rejected: %s", resp.Error.Message),
-				Network: payment.Network,
+			t.config.OnPaymentFailure(x402.PaymentEvent{
+				Type:      x402.PaymentEventFailure,
+				Timestamp: time.Now(),
+				Method:    "MCP",
+				Error:     fmt.Errorf("payment rejected: %s", resp.Error.Message),
+				Network:   payment.Network,
+				Scheme:    payment.Scheme,
+				Duration:  duration,
 			})
 		}
 		return resp, nil
@@ -227,9 +247,16 @@ func (t *Transport) retryWithPayment(ctx context.Context, req transport.JSONRPCR
 
 	// Payment succeeded
 	if t.config.OnPaymentSuccess != nil {
-		t.config.OnPaymentSuccess(PaymentEvent{
-			Type:    PaymentSuccess,
-			Network: payment.Network,
+		// Extract tool name from request method
+		toolName := req.Method
+		t.config.OnPaymentSuccess(x402.PaymentEvent{
+			Type:      x402.PaymentEventSuccess,
+			Timestamp: time.Now(),
+			Method:    "MCP",
+			Tool:      toolName,
+			Network:   payment.Network,
+			Scheme:    payment.Scheme,
+			Duration:  duration,
 		})
 	}
 
