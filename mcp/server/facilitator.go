@@ -8,7 +8,6 @@ import (
 	"github.com/mark3labs/x402-go"
 	"github.com/mark3labs/x402-go/facilitator"
 	"github.com/mark3labs/x402-go/http"
-	"github.com/mark3labs/x402-go/mcp"
 )
 
 // Facilitator interface for payment verification and settlement
@@ -27,12 +26,12 @@ type HTTPFacilitator struct {
 
 // NewHTTPFacilitator creates a new HTTP facilitator client
 func NewHTTPFacilitator(facilitatorURL string) *HTTPFacilitator {
+	timeouts := x402.DefaultTimeouts
 	client := &http.FacilitatorClient{
-		BaseURL:       facilitatorURL,
-		Client:        &nethttp.Client{Timeout: mcp.PaymentSettleTimeout},
-		VerifyTimeout: mcp.PaymentVerifyTimeout,
-		SettleTimeout: mcp.PaymentSettleTimeout,
-		MaxRetries:    2,
+		BaseURL:    facilitatorURL,
+		Client:     &nethttp.Client{Timeout: timeouts.RequestTimeout},
+		Timeouts:   timeouts,
+		MaxRetries: 2,
 	}
 	return &HTTPFacilitator{
 		client: client,

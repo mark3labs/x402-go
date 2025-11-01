@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/mark3labs/x402-go"
 	"github.com/mark3labs/x402-go/facilitator"
@@ -32,10 +31,9 @@ func TestFacilitatorClient_Verify(t *testing.T) {
 	defer mockServer.Close()
 
 	client := &FacilitatorClient{
-		BaseURL:       mockServer.URL,
-		Client:        &http.Client{},
-		VerifyTimeout: 5 * time.Second,
-		SettleTimeout: 60 * time.Second,
+		BaseURL:  mockServer.URL,
+		Client:   &http.Client{},
+		Timeouts: x402.DefaultTimeouts,
 	}
 
 	payload := x402.PaymentPayload{
@@ -91,10 +89,9 @@ func TestFacilitatorClient_Settle(t *testing.T) {
 	defer mockServer.Close()
 
 	client := &FacilitatorClient{
-		BaseURL:       mockServer.URL,
-		Client:        &http.Client{},
-		VerifyTimeout: 5 * time.Second,
-		SettleTimeout: 60 * time.Second,
+		BaseURL:  mockServer.URL,
+		Client:   &http.Client{},
+		Timeouts: x402.DefaultTimeouts,
 	}
 
 	payload := x402.PaymentPayload{

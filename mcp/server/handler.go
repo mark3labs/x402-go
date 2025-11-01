@@ -9,7 +9,6 @@ import (
 	"net/http"
 
 	"github.com/mark3labs/x402-go"
-	"github.com/mark3labs/x402-go/mcp"
 )
 
 // X402Handler wraps an MCP HTTP handler and adds x402 payment verification
@@ -120,7 +119,7 @@ func (h *X402Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Verify payment with facilitator
-	ctx, cancel := context.WithTimeout(r.Context(), mcp.PaymentVerifyTimeout)
+	ctx, cancel := context.WithTimeout(r.Context(), x402.DefaultTimeouts.VerifyTimeout)
 	defer cancel()
 
 	verifyResp, err := h.facilitator.Verify(ctx, payment, *requirement)
@@ -143,7 +142,7 @@ func (h *X402Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Payment verified - settle if not verify-only mode
 	var settleResp *x402.SettlementResponse
 	if !h.config.VerifyOnly {
-		settleCtx, settleCancel := context.WithTimeout(r.Context(), mcp.PaymentSettleTimeout)
+		settleCtx, settleCancel := context.WithTimeout(r.Context(), x402.DefaultTimeouts.SettleTimeout)
 		defer settleCancel()
 
 		settleResp, err = h.facilitator.Settle(settleCtx, payment, *requirement)

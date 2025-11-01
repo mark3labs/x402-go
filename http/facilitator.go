@@ -17,12 +17,11 @@ import (
 
 // FacilitatorClient is a client for communicating with x402 facilitator services.
 type FacilitatorClient struct {
-	BaseURL       string
-	Client        *http.Client
-	VerifyTimeout time.Duration // Timeout for verify operations
-	SettleTimeout time.Duration // Timeout for settle operations (longer due to blockchain tx)
-	MaxRetries    int           // Maximum number of retry attempts for failed requests (default: 0)
-	RetryDelay    time.Duration // Delay between retry attempts (default: 100ms)
+	BaseURL    string
+	Client     *http.Client
+	Timeouts   x402.TimeoutConfig // Timeout configuration for payment operations
+	MaxRetries int                // Maximum number of retry attempts for failed requests (default: 0)
+	RetryDelay time.Duration      // Delay between retry attempts (default: 100ms)
 }
 
 // FacilitatorRequest is the request payload sent to the facilitator.
@@ -68,9 +67,9 @@ func (c *FacilitatorClient) Verify(ctx context.Context, payment x402.PaymentPayl
 	return retry.WithRetry(ctx, config, isFacilitatorUnavailableError, func() (*facilitator.VerifyResponse, error) {
 		// Use provided context, apply timeout only if not already set
 		reqCtx := ctx
-		if _, hasDeadline := ctx.Deadline(); !hasDeadline && c.VerifyTimeout > 0 {
+		if _, hasDeadline := ctx.Deadline(); !hasDeadline && c.Timeouts.VerifyTimeout > 0 {
 			var cancel context.CancelFunc
-			reqCtx, cancel = context.WithTimeout(ctx, c.VerifyTimeout)
+			reqCtx, cancel = context.WithTimeout(ctx, c.Timeouts.VerifyTimeout)
 			defer cancel()
 		}
 
@@ -111,9 +110,9 @@ func (c *FacilitatorClient) Verify(ctx context.Context, payment x402.PaymentPayl
 func (c *FacilitatorClient) Supported(ctx context.Context) (*facilitator.SupportedResponse, error) {
 	// Use provided context, apply timeout only if not already set
 	reqCtx := ctx
-	if _, hasDeadline := ctx.Deadline(); !hasDeadline && c.VerifyTimeout > 0 {
+	if _, hasDeadline := ctx.Deadline(); !hasDeadline && c.Timeouts.VerifyTimeout > 0 {
 		var cancel context.CancelFunc
-		reqCtx, cancel = context.WithTimeout(ctx, c.VerifyTimeout)
+		reqCtx, cancel = context.WithTimeout(ctx, c.Timeouts.VerifyTimeout)
 		defer cancel()
 	}
 
@@ -178,9 +177,9 @@ func (c *FacilitatorClient) Settle(ctx context.Context, payment x402.PaymentPayl
 	return retry.WithRetry(ctx, config, isFacilitatorUnavailableError, func() (*x402.SettlementResponse, error) {
 		// Use provided context, apply timeout only if not already set
 		reqCtx := ctx
-		if _, hasDeadline := ctx.Deadline(); !hasDeadline && c.SettleTimeout > 0 {
+		if _, hasDeadline := ctx.Deadline(); !hasDeadline && c.Timeouts.SettleTimeout > 0 {
 			var cancel context.CancelFunc
-			reqCtx, cancel = context.WithTimeout(ctx, c.SettleTimeout)
+			reqCtx, cancel = context.WithTimeout(ctx, c.Timeouts.SettleTimeout)
 			defer cancel()
 		}
 

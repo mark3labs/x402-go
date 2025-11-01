@@ -5,7 +5,6 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
-	"time"
 
 	"github.com/mark3labs/x402-go"
 )
@@ -38,20 +37,18 @@ const PaymentContextKey = contextKey("x402_payment")
 func NewX402Middleware(config *Config) func(http.Handler) http.Handler {
 	// Create facilitator client
 	facilitator := &FacilitatorClient{
-		BaseURL:       config.FacilitatorURL,
-		Client:        &http.Client{},
-		VerifyTimeout: 5 * time.Second,  // Quick verification
-		SettleTimeout: 60 * time.Second, // Longer for blockchain tx execution
+		BaseURL:  config.FacilitatorURL,
+		Client:   &http.Client{},
+		Timeouts: x402.DefaultTimeouts,
 	}
 
 	// Create fallback facilitator client if configured
 	var fallbackFacilitator *FacilitatorClient
 	if config.FallbackFacilitatorURL != "" {
 		fallbackFacilitator = &FacilitatorClient{
-			BaseURL:       config.FallbackFacilitatorURL,
-			Client:        &http.Client{},
-			VerifyTimeout: 5 * time.Second,
-			SettleTimeout: 60 * time.Second,
+			BaseURL:  config.FallbackFacilitatorURL,
+			Client:   &http.Client{},
+			Timeouts: x402.DefaultTimeouts,
 		}
 	}
 
