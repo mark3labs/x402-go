@@ -60,18 +60,41 @@ func runServer() {
 		networkName string
 	)
 
+	// Helper to create USDC requirements using root package helpers
+	createUSDCRequirement := func(chain x402.ChainConfig, payTo, amount, description string) x402.PaymentRequirement {
+		req, err := x402.NewUSDCPaymentRequirement(x402.USDCRequirementConfig{
+			Chain:             chain,
+			RecipientAddress:  payTo,
+			Amount:            amount,
+			Description:       description,
+			MaxTimeoutSeconds: 60,
+		})
+		if err != nil {
+			log.Fatalf("Failed to create payment requirement: %v", err)
+		}
+		return req
+	}
+
 	switch {
 	case *testnet:
-		requirement = server.RequireUSDCBaseSepolia
+		requirement = func(payTo, amount, desc string) x402.PaymentRequirement {
+			return createUSDCRequirement(x402.BaseSepolia, payTo, amount, desc)
+		}
 		networkName = "base-sepolia"
 	case *network == "base":
-		requirement = server.RequireUSDCBase
+		requirement = func(payTo, amount, desc string) x402.PaymentRequirement {
+			return createUSDCRequirement(x402.BaseMainnet, payTo, amount, desc)
+		}
 		networkName = "base"
 	case *network == "polygon":
-		requirement = server.RequireUSDCPolygon
+		requirement = func(payTo, amount, desc string) x402.PaymentRequirement {
+			return createUSDCRequirement(x402.PolygonMainnet, payTo, amount, desc)
+		}
 		networkName = "polygon"
 	case *network == "solana":
-		requirement = server.RequireUSDCSolana
+		requirement = func(payTo, amount, desc string) x402.PaymentRequirement {
+			return createUSDCRequirement(x402.SolanaMainnet, payTo, amount, desc)
+		}
 		networkName = "solana"
 	default:
 		log.Fatalf("unsupported network: %s", *network)
@@ -104,7 +127,7 @@ func runServer() {
 	err := srv.AddPayableTool(
 		searchTool,
 		searchHandler,
-		requirement(*payTo, "10000", "Premium search - 0.01 USDC"),
+		requirement(*payTo, "0.01", "Premium search - 0.01 USDC"),
 	)
 	if err != nil {
 		log.Fatalf("Failed to add payable tool: %v", err)
@@ -279,17 +302,17 @@ func runClient() {
 	log.Println("\n=== Example completed successfully ===")
 }
 
-func paymentLogger(event client.PaymentEvent) {
+func paymentLogger(event x402.PaymentEvent) {
 	switch event.Type {
-	case client.PaymentAttempt:
-		log.Printf("[PAYMENT] Attempting payment: %s %s on %s to %s",
-			event.Amount, event.Asset, event.Network, event.Recipient)
-	case client.PaymentSuccess:
+	case x402.PaymentEventAttempt:
+		log.Printf("[PAYMENT] Attempting payment for tool: %s",
+			event.Tool)
+	case x402.PaymentEventSuccess:
 		log.Printf("[PAYMENT] Payment successful on %s", event.Network)
 		if event.Transaction != "" {
 			log.Printf("[PAYMENT] Transaction: %s", event.Transaction)
 		}
-	case client.PaymentFailure:
+	case x402.PaymentEventFailure:
 		log.Printf("[PAYMENT] Payment failed: %v", event.Error)
 	}
 }

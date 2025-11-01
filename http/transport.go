@@ -2,13 +2,14 @@ package http
 
 import (
 	"bytes"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/mark3labs/x402-go"
+	"github.com/mark3labs/x402-go/encoding"
 )
 
 // X402Transport is a custom RoundTripper that handles x402 payment flows.
@@ -22,6 +23,15 @@ type X402Transport struct {
 
 	// Selector is used to choose the appropriate signer and create payments.
 	Selector x402.PaymentSelector
+
+	// OnPaymentAttempt is called when a payment attempt is made.
+	OnPaymentAttempt x402.PaymentCallback
+
+	// OnPaymentSuccess is called when a payment succeeds.
+	OnPaymentSuccess x402.PaymentCallback
+
+	// OnPaymentFailure is called when a payment fails.
+	OnPaymentFailure x402.PaymentCallback
 }
 
 // RoundTrip implements http.RoundTripper.
@@ -63,9 +73,51 @@ func (t *X402Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 		return nil, err
 	}
 
+	// Get the selected requirement for callback data
+	// Match on network and scheme since those are available in PaymentPayload
+	var selectedRequirement *x402.PaymentRequirement
+	for i := range requirements {
+		if requirements[i].Network == payment.Network &&
+			requirements[i].Scheme == payment.Scheme {
+			selectedRequirement = &requirements[i]
+			break
+		}
+	}
+
+	// Record start time for duration tracking
+	startTime := time.Now()
+
+	// Trigger payment attempt callback
+	if t.OnPaymentAttempt != nil && selectedRequirement != nil {
+		event := x402.PaymentEvent{
+			Type:      x402.PaymentEventAttempt,
+			Timestamp: startTime,
+			Method:    "HTTP",
+			URL:       req.URL.String(),
+			Network:   payment.Network,
+			Scheme:    payment.Scheme,
+			Amount:    selectedRequirement.MaxAmountRequired,
+			Asset:     selectedRequirement.Asset,
+			Recipient: selectedRequirement.PayTo,
+		}
+		t.OnPaymentAttempt(event)
+	}
+
 	// Build payment header
 	paymentHeader, err := buildPaymentHeader(payment)
 	if err != nil {
+		// Trigger failure callback
+		if t.OnPaymentFailure != nil {
+			event := x402.PaymentEvent{
+				Type:      x402.PaymentEventFailure,
+				Timestamp: time.Now(),
+				Method:    "HTTP",
+				URL:       req.URL.String(),
+				Error:     err,
+				Duration:  time.Since(startTime),
+			}
+			t.OnPaymentFailure(event)
+		}
 		return nil, x402.NewPaymentError(x402.ErrCodeSigningFailed, "failed to build payment header", err)
 	}
 
@@ -77,8 +129,46 @@ func (t *X402Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	// Retry the request with payment
 	respRetry, err := t.Base.RoundTrip(reqRetry)
+	duration := time.Since(startTime)
+
 	if err != nil {
+		// Trigger failure callback
+		if t.OnPaymentFailure != nil {
+			event := x402.PaymentEvent{
+				Type:      x402.PaymentEventFailure,
+				Timestamp: time.Now(),
+				Method:    "HTTP",
+				URL:       req.URL.String(),
+				Error:     err,
+				Duration:  duration,
+			}
+			t.OnPaymentFailure(event)
+		}
 		return nil, err
+	}
+
+	// Parse settlement response
+	settlement, _ := parseSettlement(respRetry.Header.Get("X-PAYMENT-RESPONSE"))
+
+	// Trigger success callback if settlement indicates success
+	if settlement != nil && settlement.Success && t.OnPaymentSuccess != nil {
+		event := x402.PaymentEvent{
+			Type:        x402.PaymentEventSuccess,
+			Timestamp:   time.Now(),
+			Method:      "HTTP",
+			URL:         req.URL.String(),
+			Transaction: settlement.Transaction,
+			Payer:       settlement.Payer,
+			Duration:    duration,
+		}
+		if selectedRequirement != nil {
+			event.Network = selectedRequirement.Network
+			event.Scheme = selectedRequirement.Scheme
+			event.Amount = selectedRequirement.MaxAmountRequired
+			event.Asset = selectedRequirement.Asset
+			event.Recipient = selectedRequirement.PayTo
+		}
+		t.OnPaymentSuccess(event)
 	}
 
 	return respRetry, nil
@@ -141,30 +231,14 @@ func parsePaymentRequirements(resp *http.Response) ([]x402.PaymentRequirement, e
 
 // buildPaymentHeader creates the X-PAYMENT header value from a payment payload.
 func buildPaymentHeader(payment *x402.PaymentPayload) (string, error) {
-	// Serialize payment to JSON
-	paymentJSON, err := json.Marshal(payment)
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal payment: %w", err)
-	}
-
-	// Encode to base64
-	paymentBase64 := base64.StdEncoding.EncodeToString(paymentJSON)
-
-	return paymentBase64, nil
+	return encoding.EncodePayment(*payment)
 }
 
 // parseSettlement extracts settlement information from the X-PAYMENT-RESPONSE header.
 func parseSettlement(headerValue string) (*x402.SettlementResponse, error) {
-	// Decode base64
-	settlementJSON, err := base64.StdEncoding.DecodeString(headerValue)
+	settlement, err := encoding.DecodeSettlement(headerValue)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode settlement header: %w", err)
-	}
-
-	// Parse JSON
-	var settlement x402.SettlementResponse
-	if err := json.Unmarshal(settlementJSON, &settlement); err != nil {
-		return nil, fmt.Errorf("failed to parse settlement JSON: %w", err)
+		return nil, err
 	}
 
 	return &settlement, nil

@@ -8,26 +8,21 @@ import (
 	"github.com/mark3labs/x402-go"
 )
 
-// MCP-specific error types wrapping x402 errors
+// MCP-specific error types
+//
+// This package uses root x402 errors where possible and only defines
+// MCP-specific errors that don't have equivalents in the root package.
+//
+// Error mapping to root package:
+// - ErrNoMatchingSigner -> x402.ErrNoValidSigner
+// - ErrPaymentRejected -> x402.ErrVerificationFailed
+// - ErrSettlementFailed -> x402.ErrSettlementFailed
+// - ErrFacilitatorUnavailable -> x402.ErrFacilitatorUnavailable
+// - ErrInsufficientBalance -> x402.ErrAmountExceeded
 
 var (
-	// ErrPaymentRequired indicates that a payment is required to access the resource
+	// ErrPaymentRequired indicates that a payment is required to access the resource (MCP-specific 402 signaling)
 	ErrPaymentRequired = errors.New("payment required")
-
-	// ErrNoMatchingSigner indicates that no configured signer can fulfill the payment requirements
-	ErrNoMatchingSigner = errors.New("no matching signer for payment requirements")
-
-	// ErrInsufficientBalance indicates that the signer's balance is too low
-	ErrInsufficientBalance = errors.New("insufficient balance")
-
-	// ErrPaymentRejected indicates that the facilitator rejected the payment
-	ErrPaymentRejected = errors.New("payment rejected by facilitator")
-
-	// ErrSettlementFailed indicates that the blockchain transaction failed
-	ErrSettlementFailed = errors.New("payment settlement failed")
-
-	// ErrInvalidPaymentPayload indicates that the payment payload is malformed
-	ErrInvalidPaymentPayload = errors.New("invalid payment payload")
 
 	// ErrNoPaymentRequirements indicates that no payment requirements were found in the 402 error
 	ErrNoPaymentRequirements = errors.New("no payment requirements in 402 error")
@@ -43,9 +38,6 @@ var (
 
 	// ErrToolExecutionFailed indicates that the tool handler returned an error
 	ErrToolExecutionFailed = errors.New("tool execution failed")
-
-	// ErrFacilitatorUnavailable indicates that the facilitator is unreachable
-	ErrFacilitatorUnavailable = errors.New("facilitator unavailable")
 
 	// ErrVerificationTimeout indicates that payment verification took too long
 	ErrVerificationTimeout = errors.New("payment verification timeout")
@@ -97,17 +89,18 @@ func IsPaymentError(err error) bool {
 	}
 	var paymentErr *PaymentError
 	return errors.As(err, &paymentErr) ||
+		// MCP-specific errors
 		errors.Is(err, ErrPaymentRequired) ||
-		errors.Is(err, ErrNoMatchingSigner) ||
-		errors.Is(err, ErrInsufficientBalance) ||
-		errors.Is(err, ErrPaymentRejected) ||
-		errors.Is(err, ErrSettlementFailed) ||
-		errors.Is(err, ErrInvalidPaymentPayload) ||
 		errors.Is(err, ErrNoPaymentRequirements) ||
-		errors.Is(err, ErrFacilitatorUnavailable) ||
 		errors.Is(err, ErrVerificationTimeout) ||
 		errors.Is(err, ErrSettlementTimeout) ||
+		// Root x402 errors
 		errors.Is(err, x402.ErrNoValidSigner) ||
 		errors.Is(err, x402.ErrSigningFailed) ||
-		errors.Is(err, x402.ErrVerificationFailed)
+		errors.Is(err, x402.ErrVerificationFailed) ||
+		errors.Is(err, x402.ErrSettlementFailed) ||
+		errors.Is(err, x402.ErrFacilitatorUnavailable) ||
+		errors.Is(err, x402.ErrAmountExceeded) ||
+		errors.Is(err, x402.ErrInvalidRequirements) ||
+		errors.Is(err, x402.ErrMalformedHeader)
 }

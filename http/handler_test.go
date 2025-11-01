@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/mark3labs/x402-go"
+	"github.com/mark3labs/x402-go/facilitator"
 )
 
 func TestHandler_ParsePaymentHeader(t *testing.T) {
@@ -112,8 +113,8 @@ func TestHandler_PaymentContextStorage(t *testing.T) {
 		paymentInfo := r.Context().Value(PaymentContextKey)
 		if paymentInfo != nil {
 			contextChecked = true
-			// Verify it's the correct type (should be VerifyResponse)
-			if _, ok := paymentInfo.(*VerifyResponse); !ok {
+			// Verify it's the correct type (should be facilitator.VerifyResponse)
+			if _, ok := paymentInfo.(*facilitator.VerifyResponse); !ok {
 				t.Error("Payment context value is not of correct type")
 			}
 		}

@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"time"
 
 	"github.com/mark3labs/x402-go"
 	httpx402 "github.com/mark3labs/x402-go/http"
@@ -55,20 +54,18 @@ import (
 func NewPocketBaseX402Middleware(config *httpx402.Config) func(*core.RequestEvent) error {
 	// Create facilitator client
 	facilitator := &httpx402.FacilitatorClient{
-		BaseURL:       config.FacilitatorURL,
-		Client:        &http.Client{},
-		VerifyTimeout: 5 * time.Second,  // Quick verification
-		SettleTimeout: 60 * time.Second, // Longer for blockchain tx execution
+		BaseURL:  config.FacilitatorURL,
+		Client:   &http.Client{},
+		Timeouts: x402.DefaultTimeouts,
 	}
 
 	// Create fallback facilitator client if configured
 	var fallbackFacilitator *httpx402.FacilitatorClient
 	if config.FallbackFacilitatorURL != "" {
 		fallbackFacilitator = &httpx402.FacilitatorClient{
-			BaseURL:       config.FallbackFacilitatorURL,
-			Client:        &http.Client{},
-			VerifyTimeout: 5 * time.Second,
-			SettleTimeout: 60 * time.Second,
+			BaseURL:  config.FallbackFacilitatorURL,
+			Client:   &http.Client{},
+			Timeouts: x402.DefaultTimeouts,
 		}
 	}
 
@@ -136,10 +133,10 @@ func NewPocketBaseX402Middleware(config *httpx402.Config) func(*core.RequestEven
 
 		// Verify payment with facilitator
 		logger.Info("verifying payment", "scheme", payment.Scheme, "network", payment.Network)
-		verifyResp, err := facilitator.Verify(payment, requirement)
+		verifyResp, err := facilitator.Verify(e.Request.Context(), payment, requirement)
 		if err != nil && fallbackFacilitator != nil {
 			logger.Warn("primary facilitator failed, trying fallback", "error", err)
-			verifyResp, err = fallbackFacilitator.Verify(payment, requirement)
+			verifyResp, err = fallbackFacilitator.Verify(e.Request.Context(), payment, requirement)
 		}
 		if err != nil {
 			logger.Error("facilitator verification failed", "error", err)
@@ -163,10 +160,10 @@ func NewPocketBaseX402Middleware(config *httpx402.Config) func(*core.RequestEven
 		// Settle payment if not verify-only mode
 		if !config.VerifyOnly {
 			logger.Info("settling payment", "payer", verifyResp.Payer)
-			settlementResp, err := facilitator.Settle(payment, requirement)
+			settlementResp, err := facilitator.Settle(e.Request.Context(), payment, requirement)
 			if err != nil && fallbackFacilitator != nil {
 				logger.Warn("primary facilitator settlement failed, trying fallback", "error", err)
-				settlementResp, err = fallbackFacilitator.Settle(payment, requirement)
+				settlementResp, err = fallbackFacilitator.Settle(e.Request.Context(), payment, requirement)
 			}
 			if err != nil {
 				logger.Error("settlement failed", "error", err)

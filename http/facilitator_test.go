@@ -1,13 +1,14 @@
 package http
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/mark3labs/x402-go"
+	"github.com/mark3labs/x402-go/facilitator"
 )
 
 func TestFacilitatorClient_Verify(t *testing.T) {
@@ -17,7 +18,7 @@ func TestFacilitatorClient_Verify(t *testing.T) {
 			t.Errorf("Expected path /verify, got %s", r.URL.Path)
 		}
 
-		response := VerifyResponse{
+		response := facilitator.VerifyResponse{
 			IsValid: true,
 			Payer:   "0x857b06519E91e3A54538791bDbb0E22373e36b66",
 		}
@@ -30,10 +31,9 @@ func TestFacilitatorClient_Verify(t *testing.T) {
 	defer mockServer.Close()
 
 	client := &FacilitatorClient{
-		BaseURL:       mockServer.URL,
-		Client:        &http.Client{},
-		VerifyTimeout: 5 * time.Second,
-		SettleTimeout: 60 * time.Second,
+		BaseURL:  mockServer.URL,
+		Client:   &http.Client{},
+		Timeouts: x402.DefaultTimeouts,
 	}
 
 	payload := x402.PaymentPayload{
@@ -53,7 +53,7 @@ func TestFacilitatorClient_Verify(t *testing.T) {
 		MaxTimeoutSeconds: 60,
 	}
 
-	resp, err := client.Verify(payload, requirement)
+	resp, err := client.Verify(context.Background(), payload, requirement)
 	if err != nil {
 		t.Fatalf("Verify failed: %v", err)
 	}
@@ -89,10 +89,9 @@ func TestFacilitatorClient_Settle(t *testing.T) {
 	defer mockServer.Close()
 
 	client := &FacilitatorClient{
-		BaseURL:       mockServer.URL,
-		Client:        &http.Client{},
-		VerifyTimeout: 5 * time.Second,
-		SettleTimeout: 60 * time.Second,
+		BaseURL:  mockServer.URL,
+		Client:   &http.Client{},
+		Timeouts: x402.DefaultTimeouts,
 	}
 
 	payload := x402.PaymentPayload{
@@ -112,7 +111,7 @@ func TestFacilitatorClient_Settle(t *testing.T) {
 		MaxTimeoutSeconds: 60,
 	}
 
-	resp, err := client.Settle(payload, requirement)
+	resp, err := client.Settle(context.Background(), payload, requirement)
 	if err != nil {
 		t.Fatalf("Settle failed: %v", err)
 	}

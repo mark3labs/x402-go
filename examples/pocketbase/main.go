@@ -8,6 +8,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/mark3labs/x402-go"
+	"github.com/mark3labs/x402-go/facilitator"
 	httpx402 "github.com/mark3labs/x402-go/http"
 	pbx402 "github.com/mark3labs/x402-go/http/pocketbase"
 )
@@ -36,7 +37,7 @@ func main() {
 		// Protect a single route
 		se.Router.GET("/api/premium/data", func(e *core.RequestEvent) error {
 			// Access payment details (optional)
-			payment := e.Get("x402_payment").(*httpx402.VerifyResponse)
+			payment := e.Get("x402_payment").(*facilitator.VerifyResponse)
 
 			return e.JSON(http.StatusOK, map[string]any{
 				"data":  "Premium content here",

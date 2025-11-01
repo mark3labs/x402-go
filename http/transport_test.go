@@ -1309,3 +1309,425 @@ func TestRoundTrip_MultiplePaymentRequirements(t *testing.T) {
 		})
 	}
 }
+// Test payment callbacks are triggered correctly
+func TestRoundTrip_PaymentCallbacks(t *testing.T) {
+	t.Run("all callbacks triggered on successful payment", func(t *testing.T) {
+		var (
+			attemptCalled bool
+			successCalled bool
+			failureCalled bool
+			mu            sync.Mutex
+		)
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Header.Get("X-PAYMENT") == "" {
+				requirements := x402.PaymentRequirement{
+					Scheme:            "exact",
+					Network:           "base",
+					Asset:             "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+					MaxAmountRequired: "100000",
+					PayTo:             "0x1234567890123456789012345678901234567890",
+					MaxTimeoutSeconds: 60,
+				}
+				body := makePaymentRequirementsResponse(requirements)
+				w.WriteHeader(http.StatusPaymentRequired)
+				_, _ = w.Write(body)
+			} else {
+				// Return success with settlement
+				settlement := x402.SettlementResponse{
+					Success:     true,
+					Transaction: "0xabcdef",
+					Network:     "base",
+					Payer:       "0x9876543210",
+				}
+				data, _ := json.Marshal(settlement)
+				settlementHeader := base64.StdEncoding.EncodeToString(data)
+				w.Header().Set("X-PAYMENT-RESPONSE", settlementHeader)
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte("success"))
+			}
+		}))
+		defer server.Close()
+
+		transport := &X402Transport{
+			Base: http.DefaultTransport,
+			Signers: []x402.Signer{
+				&mockSigner{network: "base", scheme: "exact", canSignValue: true},
+			},
+			Selector: x402.NewDefaultPaymentSelector(),
+			OnPaymentAttempt: func(event x402.PaymentEvent) {
+				mu.Lock()
+				defer mu.Unlock()
+				attemptCalled = true
+				if event.Type != x402.PaymentEventAttempt {
+					t.Errorf("expected attempt event type, got %s", event.Type)
+				}
+				if event.Method != "HTTP" {
+					t.Errorf("expected HTTP method, got %s", event.Method)
+				}
+				if event.Network != "base" {
+					t.Errorf("expected base network, got %s", event.Network)
+				}
+			},
+			OnPaymentSuccess: func(event x402.PaymentEvent) {
+				mu.Lock()
+				defer mu.Unlock()
+				successCalled = true
+				if event.Type != x402.PaymentEventSuccess {
+					t.Errorf("expected success event type, got %s", event.Type)
+				}
+				if event.Transaction != "0xabcdef" {
+					t.Errorf("expected transaction 0xabcdef, got %s", event.Transaction)
+				}
+				if event.Payer != "0x9876543210" {
+					t.Errorf("expected payer 0x9876543210, got %s", event.Payer)
+				}
+				if event.Duration == 0 {
+					t.Error("expected non-zero duration")
+				}
+			},
+			OnPaymentFailure: func(event x402.PaymentEvent) {
+				mu.Lock()
+				defer mu.Unlock()
+				failureCalled = true
+			},
+		}
+
+		req, _ := http.NewRequest("GET", server.URL, nil)
+		resp, err := transport.RoundTrip(req)
+		if err != nil {
+			t.Fatalf("RoundTrip failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		mu.Lock()
+		defer mu.Unlock()
+
+		if !attemptCalled {
+			t.Error("attempt callback was not called")
+		}
+		if !successCalled {
+			t.Error("success callback was not called")
+		}
+		if failureCalled {
+			t.Error("failure callback should not be called on success")
+		}
+	})
+
+	t.Run("failure callback triggered on network error", func(t *testing.T) {
+		var (
+			attemptCalled bool
+			successCalled bool
+			failureCalled bool
+			mu            sync.Mutex
+		)
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Header.Get("X-PAYMENT") == "" {
+				requirements := x402.PaymentRequirement{
+					Scheme:            "exact",
+					Network:           "base",
+					Asset:             "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+					MaxAmountRequired: "100000",
+					PayTo:             "0x1234567890123456789012345678901234567890",
+					MaxTimeoutSeconds: 60,
+				}
+				body := makePaymentRequirementsResponse(requirements)
+				w.WriteHeader(http.StatusPaymentRequired)
+				_, _ = w.Write(body)
+			} else {
+				// Simulate network error
+				hj, ok := w.(http.Hijacker)
+				if !ok {
+					t.Error("server doesn't support hijacking")
+					return
+				}
+				conn, _, err := hj.Hijack()
+				if err != nil {
+					t.Errorf("hijack failed: %v", err)
+					return
+				}
+				conn.Close()
+			}
+		}))
+		defer server.Close()
+
+		transport := &X402Transport{
+			Base: http.DefaultTransport,
+			Signers: []x402.Signer{
+				&mockSigner{network: "base", scheme: "exact", canSignValue: true},
+			},
+			Selector: x402.NewDefaultPaymentSelector(),
+			OnPaymentAttempt: func(event x402.PaymentEvent) {
+				mu.Lock()
+				defer mu.Unlock()
+				attemptCalled = true
+			},
+			OnPaymentSuccess: func(event x402.PaymentEvent) {
+				mu.Lock()
+				defer mu.Unlock()
+				successCalled = true
+			},
+			OnPaymentFailure: func(event x402.PaymentEvent) {
+				mu.Lock()
+				defer mu.Unlock()
+				failureCalled = true
+				if event.Type != x402.PaymentEventFailure {
+					t.Errorf("expected failure event type, got %s", event.Type)
+				}
+				if event.Error == nil {
+					t.Error("expected error to be set in failure event")
+				}
+				if event.Duration == 0 {
+					t.Error("expected non-zero duration")
+				}
+			},
+		}
+
+		req, _ := http.NewRequest("GET", server.URL, nil)
+		_, err := transport.RoundTrip(req)
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+
+		mu.Lock()
+		defer mu.Unlock()
+
+		if !attemptCalled {
+			t.Error("attempt callback was not called")
+		}
+		if successCalled {
+			t.Error("success callback should not be called on failure")
+		}
+		if !failureCalled {
+			t.Error("failure callback was not called")
+		}
+	})
+
+	t.Run("nil callbacks do not panic", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Header.Get("X-PAYMENT") == "" {
+				requirements := x402.PaymentRequirement{
+					Scheme:            "exact",
+					Network:           "base",
+					Asset:             "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+					MaxAmountRequired: "100000",
+					PayTo:             "0x1234567890123456789012345678901234567890",
+					MaxTimeoutSeconds: 60,
+				}
+				body := makePaymentRequirementsResponse(requirements)
+				w.WriteHeader(http.StatusPaymentRequired)
+				_, _ = w.Write(body)
+			} else {
+				settlement := x402.SettlementResponse{
+					Success:     true,
+					Transaction: "0xabcdef",
+					Network:     "base",
+					Payer:       "0x9876543210",
+				}
+				data, _ := json.Marshal(settlement)
+				settlementHeader := base64.StdEncoding.EncodeToString(data)
+				w.Header().Set("X-PAYMENT-RESPONSE", settlementHeader)
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte("success"))
+			}
+		}))
+		defer server.Close()
+
+		// No callbacks set - should not panic
+		transport := &X402Transport{
+			Base: http.DefaultTransport,
+			Signers: []x402.Signer{
+				&mockSigner{network: "base", scheme: "exact", canSignValue: true},
+			},
+			Selector: x402.NewDefaultPaymentSelector(),
+		}
+
+		req, _ := http.NewRequest("GET", server.URL, nil)
+		resp, err := transport.RoundTrip(req)
+		if err != nil {
+			t.Fatalf("RoundTrip failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("expected status 200, got %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("callback event contains correct URL", func(t *testing.T) {
+		var capturedURL string
+		var mu sync.Mutex
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Header.Get("X-PAYMENT") == "" {
+				requirements := x402.PaymentRequirement{
+					Scheme:            "exact",
+					Network:           "base",
+					Asset:             "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+					MaxAmountRequired: "100000",
+					PayTo:             "0x1234567890123456789012345678901234567890",
+					MaxTimeoutSeconds: 60,
+				}
+				body := makePaymentRequirementsResponse(requirements)
+				w.WriteHeader(http.StatusPaymentRequired)
+				_, _ = w.Write(body)
+			} else {
+				settlement := x402.SettlementResponse{
+					Success:     true,
+					Transaction: "0xabcdef",
+					Network:     "base",
+					Payer:       "0x9876543210",
+				}
+				data, _ := json.Marshal(settlement)
+				settlementHeader := base64.StdEncoding.EncodeToString(data)
+				w.Header().Set("X-PAYMENT-RESPONSE", settlementHeader)
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte("success"))
+			}
+		}))
+		defer server.Close()
+
+		transport := &X402Transport{
+			Base: http.DefaultTransport,
+			Signers: []x402.Signer{
+				&mockSigner{network: "base", scheme: "exact", canSignValue: true},
+			},
+			Selector: x402.NewDefaultPaymentSelector(),
+			OnPaymentAttempt: func(event x402.PaymentEvent) {
+				mu.Lock()
+				defer mu.Unlock()
+				capturedURL = event.URL
+			},
+		}
+
+		testURL := server.URL + "/test/path?query=value"
+		req, _ := http.NewRequest("GET", testURL, nil)
+		resp, err := transport.RoundTrip(req)
+		if err != nil {
+			t.Fatalf("RoundTrip failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		mu.Lock()
+		defer mu.Unlock()
+
+		if capturedURL != testURL {
+			t.Errorf("expected URL %s, got %s", testURL, capturedURL)
+		}
+	})
+}
+
+// Test WithPaymentCallback client option
+func TestWithPaymentCallback(t *testing.T) {
+	t.Run("set individual callbacks", func(t *testing.T) {
+		var attemptCalled, successCalled, failureCalled bool
+
+		client, err := NewClient(
+			WithSigner(&mockSigner{network: "base", scheme: "exact", canSignValue: true}),
+			WithPaymentCallback(x402.PaymentEventAttempt, func(event x402.PaymentEvent) {
+				attemptCalled = true
+			}),
+			WithPaymentCallback(x402.PaymentEventSuccess, func(event x402.PaymentEvent) {
+				successCalled = true
+			}),
+			WithPaymentCallback(x402.PaymentEventFailure, func(event x402.PaymentEvent) {
+				failureCalled = true
+			}),
+		)
+		if err != nil {
+			t.Fatalf("NewClient failed: %v", err)
+		}
+
+		transport, ok := client.Transport.(*X402Transport)
+		if !ok {
+			t.Fatal("expected X402Transport")
+		}
+
+		if transport.OnPaymentAttempt == nil {
+			t.Error("OnPaymentAttempt callback not set")
+		}
+		if transport.OnPaymentSuccess == nil {
+			t.Error("OnPaymentSuccess callback not set")
+		}
+		if transport.OnPaymentFailure == nil {
+			t.Error("OnPaymentFailure callback not set")
+		}
+
+		// Trigger callbacks to verify they work
+		transport.OnPaymentAttempt(x402.PaymentEvent{})
+		transport.OnPaymentSuccess(x402.PaymentEvent{})
+		transport.OnPaymentFailure(x402.PaymentEvent{})
+
+		if !attemptCalled || !successCalled || !failureCalled {
+			t.Error("callbacks were not invoked correctly")
+		}
+	})
+
+	t.Run("invalid event type returns error", func(t *testing.T) {
+		_, err := NewClient(
+			WithPaymentCallback(x402.PaymentEventType("invalid"), func(event x402.PaymentEvent) {}),
+		)
+		if err == nil {
+			t.Error("expected error for invalid event type")
+		}
+	})
+
+	t.Run("WithPaymentCallbacks sets all at once", func(t *testing.T) {
+		var attemptCalled, successCalled, failureCalled bool
+
+		client, err := NewClient(
+			WithSigner(&mockSigner{network: "base", scheme: "exact", canSignValue: true}),
+			WithPaymentCallbacks(
+				func(event x402.PaymentEvent) { attemptCalled = true },
+				func(event x402.PaymentEvent) { successCalled = true },
+				func(event x402.PaymentEvent) { failureCalled = true },
+			),
+		)
+		if err != nil {
+			t.Fatalf("NewClient failed: %v", err)
+		}
+
+		transport, ok := client.Transport.(*X402Transport)
+		if !ok {
+			t.Fatal("expected X402Transport")
+		}
+
+		transport.OnPaymentAttempt(x402.PaymentEvent{})
+		transport.OnPaymentSuccess(x402.PaymentEvent{})
+		transport.OnPaymentFailure(x402.PaymentEvent{})
+
+		if !attemptCalled || !successCalled || !failureCalled {
+			t.Error("callbacks were not invoked correctly")
+		}
+	})
+
+	t.Run("nil callbacks in WithPaymentCallbacks are ignored", func(t *testing.T) {
+		client, err := NewClient(
+			WithSigner(&mockSigner{network: "base", scheme: "exact", canSignValue: true}),
+			WithPaymentCallbacks(
+				func(event x402.PaymentEvent) {},
+				nil, // success callback is nil
+				func(event x402.PaymentEvent) {},
+			),
+		)
+		if err != nil {
+			t.Fatalf("NewClient failed: %v", err)
+		}
+
+		transport, ok := client.Transport.(*X402Transport)
+		if !ok {
+			t.Fatal("expected X402Transport")
+		}
+
+		if transport.OnPaymentAttempt == nil {
+			t.Error("OnPaymentAttempt should be set")
+		}
+		if transport.OnPaymentSuccess != nil {
+			t.Error("OnPaymentSuccess should remain nil")
+		}
+		if transport.OnPaymentFailure == nil {
+			t.Error("OnPaymentFailure should be set")
+		}
+	})
+}
