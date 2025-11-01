@@ -223,6 +223,45 @@ func TestWithRetry(t *testing.T) {
 		}
 	})
 
+	t.Run("validates MaxAttempts configuration", func(t *testing.T) {
+		calls := 0
+		config := Config{
+			MaxAttempts:  0, // Invalid
+			InitialDelay: 10 * time.Millisecond,
+			MaxDelay:     100 * time.Millisecond,
+			Multiplier:   2.0,
+		}
+
+		_, err := WithRetry(context.Background(), config,
+			func(error) bool { return true },
+			func() (string, error) {
+				calls++
+				return "success", nil
+			},
+		)
+
+		if err == nil {
+			t.Error("expected error for MaxAttempts=0, got nil")
+		}
+		if calls != 0 {
+			t.Errorf("expected 0 calls when MaxAttempts is invalid, got %d", calls)
+		}
+
+		// Test negative MaxAttempts
+		config.MaxAttempts = -1
+		_, err = WithRetry(context.Background(), config,
+			func(error) bool { return true },
+			func() (string, error) {
+				calls++
+				return "success", nil
+			},
+		)
+
+		if err == nil {
+			t.Error("expected error for MaxAttempts=-1, got nil")
+		}
+	})
+
 	t.Run("works with different return types", func(t *testing.T) {
 		// Test with int
 		intResult, err := WithSimpleRetry(context.Background(),

@@ -39,6 +39,11 @@ func WithRetry[T any](
 	var lastErr error
 	delay := config.InitialDelay
 
+	// Validate configuration
+	if config.MaxAttempts <= 0 {
+		return zero, fmt.Errorf("invalid retry configuration: MaxAttempts must be at least 1, got %d", config.MaxAttempts)
+	}
+
 	for attempt := 0; attempt < config.MaxAttempts; attempt++ {
 		// Check context before attempt
 		if err := ctx.Err(); err != nil {

@@ -138,23 +138,6 @@ func (t *Transport) createPayment(ctx context.Context, requirements []x402.Payme
 		return nil, startTime, x402.ErrNoValidSigner
 	}
 
-	// Trigger payment attempt callback
-	if t.config.OnPaymentAttempt != nil {
-		if len(requirements) > 0 {
-			req := requirements[0]
-			t.config.OnPaymentAttempt(x402.PaymentEvent{
-				Type:      x402.PaymentEventAttempt,
-				Timestamp: startTime,
-				Method:    "MCP",
-				Amount:    req.MaxAmountRequired,
-				Asset:     req.Asset,
-				Network:   req.Network,
-				Recipient: req.PayTo,
-				Scheme:    req.Scheme,
-			})
-		}
-	}
-
 	// Use selector to choose signer and create payment
 	payment, err := t.config.Selector.SelectAndSign(requirements, t.config.Signers)
 	if err != nil {
@@ -168,6 +151,30 @@ func (t *Transport) createPayment(ctx context.Context, requirements []x402.Payme
 			})
 		}
 		return nil, startTime, err
+	}
+
+	// Find the requirement that was actually selected by matching the payment's network and scheme
+	// This ensures the payment attempt event reflects the actual requirement that was chosen
+	var selectedReq *x402.PaymentRequirement
+	for i := range requirements {
+		if requirements[i].Network == payment.Network && requirements[i].Scheme == payment.Scheme {
+			selectedReq = &requirements[i]
+			break
+		}
+	}
+
+	// Trigger payment attempt callback with the actually selected requirement
+	if t.config.OnPaymentAttempt != nil && selectedReq != nil {
+		t.config.OnPaymentAttempt(x402.PaymentEvent{
+			Type:      x402.PaymentEventAttempt,
+			Timestamp: startTime,
+			Method:    "MCP",
+			Amount:    selectedReq.MaxAmountRequired,
+			Asset:     selectedReq.Asset,
+			Network:   selectedReq.Network,
+			Recipient: selectedReq.PayTo,
+			Scheme:    selectedReq.Scheme,
+		})
 	}
 
 	return payment, startTime, nil
