@@ -1,7 +1,7 @@
 package server
 
 import (
-	"github.com/mark3labs/x402-go/mcp"
+	"github.com/mark3labs/x402-go"
 )
 
 // Config holds configuration for the MCP server with x402 payment support
@@ -17,7 +17,7 @@ type Config struct {
 
 	// PaymentTools maps tool names to their payment requirements
 	// Key: tool name, Value: list of acceptable payment options
-	PaymentTools map[string][]mcp.PaymentRequirement
+	PaymentTools map[string][]x402.PaymentRequirement
 }
 
 // DefaultConfig returns a Config with default settings
@@ -26,14 +26,14 @@ func DefaultConfig() *Config {
 		FacilitatorURL: "https://facilitator.x402.rs",
 		VerifyOnly:     false,
 		Verbose:        false,
-		PaymentTools:   make(map[string][]mcp.PaymentRequirement),
+		PaymentTools:   make(map[string][]x402.PaymentRequirement),
 	}
 }
 
 // AddPaymentTool adds payment requirements for a tool
-func (c *Config) AddPaymentTool(toolName string, requirements ...mcp.PaymentRequirement) {
+func (c *Config) AddPaymentTool(toolName string, requirements ...x402.PaymentRequirement) {
 	if c.PaymentTools == nil {
-		c.PaymentTools = make(map[string][]mcp.PaymentRequirement)
+		c.PaymentTools = make(map[string][]x402.PaymentRequirement)
 	}
 	c.PaymentTools[toolName] = requirements
 }
@@ -48,7 +48,7 @@ func (c *Config) RequiresPayment(toolName string) bool {
 }
 
 // GetPaymentRequirements returns the payment requirements for a tool
-func (c *Config) GetPaymentRequirements(toolName string) []mcp.PaymentRequirement {
+func (c *Config) GetPaymentRequirements(toolName string) []x402.PaymentRequirement {
 	if c.PaymentTools == nil {
 		return nil
 	}

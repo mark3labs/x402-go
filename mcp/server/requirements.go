@@ -7,7 +7,6 @@ import (
 	"regexp"
 
 	"github.com/mark3labs/x402-go"
-	"github.com/mark3labs/x402-go/mcp"
 )
 
 var (
@@ -111,7 +110,7 @@ func ValidateRequirement(req x402.PaymentRequirement) error {
 }
 
 // SetToolResource sets the resource field for a payment requirement based on tool name
-func SetToolResource(req *mcp.PaymentRequirement, toolName string) {
+func SetToolResource(req *x402.PaymentRequirement, toolName string) {
 	if req != nil && toolName != "" {
 		req.Resource = fmt.Sprintf("mcp://tools/%s", toolName)
 	}

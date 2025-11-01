@@ -7,7 +7,6 @@ import (
 	mcpproto "github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
 	"github.com/mark3labs/x402-go"
-	"github.com/mark3labs/x402-go/mcp"
 )
 
 // X402Server wraps an MCP server and adds x402 payment protection
@@ -24,7 +23,7 @@ func NewX402Server(name, version string, config *Config) *X402Server {
 
 	// Initialize PaymentTools map if nil
 	if config.PaymentTools == nil {
-		config.PaymentTools = make(map[string][]mcp.PaymentRequirement)
+		config.PaymentTools = make(map[string][]x402.PaymentRequirement)
 	}
 
 	// Create base MCP server

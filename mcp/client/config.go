@@ -4,13 +4,12 @@ import (
 	"net/http"
 
 	"github.com/mark3labs/x402-go"
-	"github.com/mark3labs/x402-go/mcp"
 )
 
 // Config holds configuration for the MCP client with x402 payment support
 type Config struct {
 	// Signers is the list of payment signers in priority order
-	Signers []mcp.Signer
+	Signers []x402.Signer
 
 	// ServerURL is the MCP server endpoint
 	ServerURL string
@@ -28,7 +27,7 @@ type Config struct {
 	OnPaymentFailure func(x402.PaymentEvent)
 
 	// Selector is the payment selector for choosing which signer to use (optional, uses default if nil)
-	Selector mcp.PaymentSelector
+	Selector x402.PaymentSelector
 
 	// Verbose enables detailed logging
 	Verbose bool
@@ -38,7 +37,7 @@ type Config struct {
 type Option func(*Config)
 
 // WithSigner adds a payment signer to the configuration
-func WithSigner(signer mcp.Signer) Option {
+func WithSigner(signer x402.Signer) Option {
 	return func(c *Config) {
 		c.Signers = append(c.Signers, signer)
 	}
@@ -82,7 +81,7 @@ func WithPaymentFailureCallback(callback func(x402.PaymentEvent)) Option {
 }
 
 // WithSelector sets a custom payment selector
-func WithSelector(selector mcp.PaymentSelector) Option {
+func WithSelector(selector x402.PaymentSelector) Option {
 	return func(c *Config) {
 		c.Selector = selector
 	}
@@ -101,6 +100,6 @@ func DefaultConfig(serverURL string) *Config {
 		ServerURL:  serverURL,
 		HTTPClient: http.DefaultClient,
 		Selector:   &x402.DefaultPaymentSelector{},
-		Signers:    make([]mcp.Signer, 0),
+		Signers:    make([]x402.Signer, 0),
 	}
 }
