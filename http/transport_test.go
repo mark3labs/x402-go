@@ -1309,6 +1309,7 @@ func TestRoundTrip_MultiplePaymentRequirements(t *testing.T) {
 		})
 	}
 }
+
 // Test payment callbacks are triggered correctly
 func TestRoundTrip_PaymentCallbacks(t *testing.T) {
 	t.Run("all callbacks triggered on successful payment", func(t *testing.T) {
