@@ -2,6 +2,7 @@ package evm
 
 import (
 	"crypto/ecdsa"
+	"fmt"
 	"math/big"
 	"strings"
 
@@ -187,6 +188,12 @@ func (s *Signer) Sign(requirements *x402.PaymentRequirement) (*x402.PaymentPaylo
 		}
 	}
 
+	// Extract EIP-3009 domain parameters from requirements
+	name, version, err := extractEIP3009Params(requirements)
+	if err != nil {
+		return nil, err
+	}
+
 	// Create EIP-3009 authorization
 	auth, err := CreateEIP3009Authorization(
 		s.address,
@@ -198,8 +205,8 @@ func (s *Signer) Sign(requirements *x402.PaymentRequirement) (*x402.PaymentPaylo
 		return nil, err
 	}
 
-	// Sign the authorization
-	signature, err := SignTransferAuthorization(s.privateKey, tokenAddress, s.chainID, auth)
+	// Sign the authorization with the correct domain parameters
+	signature, err := SignTransferAuthorization(s.privateKey, tokenAddress, s.chainID, auth, name, version)
 	if err != nil {
 		return nil, err
 	}
@@ -260,4 +267,32 @@ func getChainID(network string) (*big.Int, error) {
 		// Unknown network, return error
 		return nil, x402.ErrInvalidNetwork
 	}
+}
+
+// extractEIP3009Params extracts the EIP-3009 domain name and version from payment requirements.
+// These parameters are required for EIP-712 signature validation.
+func extractEIP3009Params(requirements *x402.PaymentRequirement) (name, version string, err error) {
+	if requirements.Extra == nil {
+		return "", "", fmt.Errorf("missing EIP-3009 parameters: Extra field is nil")
+	}
+
+	nameVal, ok := requirements.Extra["name"]
+	if !ok {
+		return "", "", fmt.Errorf("missing EIP-3009 parameter: name")
+	}
+	name, ok = nameVal.(string)
+	if !ok {
+		return "", "", fmt.Errorf("invalid EIP-3009 parameter: name is not a string")
+	}
+
+	versionVal, ok := requirements.Extra["version"]
+	if !ok {
+		return "", "", fmt.Errorf("missing EIP-3009 parameter: version")
+	}
+	version, ok = versionVal.(string)
+	if !ok {
+		return "", "", fmt.Errorf("invalid EIP-3009 parameter: version is not a string")
+	}
+
+	return name, version, nil
 }

@@ -55,7 +55,7 @@ func runServer(args []string) {
 	network := fs.String("network", "base-sepolia", "Network to accept payments on (base, base-sepolia, solana, solana-devnet)")
 	payTo := fs.String("pay-to", "", "Address to receive payments (required)")
 	tokenAddr := fs.String("token", "", "Token address (auto-detected based on network if not specified)")
-	amount := fs.String("amount", "", "Payment amount in atomic units (default: 1000 = 0.001 USDC)")
+	amount := fs.String("amount", "", "Payment amount in USDC (default: 0.001)")
 	facilitatorURL := fs.String("facilitator", "https://facilitator.x402.rs", "Facilitator URL")
 	verbose := fs.Bool("verbose", false, "Enable verbose debug output")
 
@@ -69,29 +69,43 @@ func runServer(args []string) {
 		os.Exit(1)
 	}
 
-	// Set defaults based on network if not specified
-	if *tokenAddr == "" {
-		switch strings.ToLower(*network) {
-		case "solana":
-			*tokenAddr = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" // USDC on Solana mainnet
-		case "solana-devnet":
-			*tokenAddr = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU" // USDC on Solana devnet
-		case "base", "base-sepolia":
-			*tokenAddr = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" // USDC on Base
-		default:
-			*tokenAddr = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" // Default to Base USDC
-		}
+	// Get chain config based on network
+	var chainConfig x402.ChainConfig
+	switch strings.ToLower(*network) {
+	case "solana":
+		chainConfig = x402.SolanaMainnet
+	case "solana-devnet":
+		chainConfig = x402.SolanaDevnet
+	case "base":
+		chainConfig = x402.BaseMainnet
+	case "base-sepolia":
+		chainConfig = x402.BaseSepolia
+	case "polygon":
+		chainConfig = x402.PolygonMainnet
+	case "polygon-amoy":
+		chainConfig = x402.PolygonAmoy
+	case "avalanche":
+		chainConfig = x402.AvalancheMainnet
+	case "avalanche-fuji":
+		chainConfig = x402.AvalancheFuji
+	default:
+		chainConfig = x402.BaseSepolia // Default to Base Sepolia (safer for testing)
+	}
+
+	// Override token address if provided
+	if *tokenAddr != "" {
+		chainConfig.USDCAddress = *tokenAddr
 	}
 
 	if *amount == "" {
-		*amount = "1000" // Default: 0.001 USDC (6 decimals)
+		*amount = "0.001" // Default: 0.001 USDC
 	}
 
 	fmt.Printf("Starting Gin server with x402 on port %s\n", *port)
 	fmt.Printf("Network: %s\n", *network)
 	fmt.Printf("Payment recipient: %s\n", *payTo)
-	fmt.Printf("Payment amount: %s atomic units\n", *amount)
-	fmt.Printf("Token: %s\n", *tokenAddr)
+	fmt.Printf("Payment amount: %s USDC\n", *amount)
+	fmt.Printf("Token: %s\n", chainConfig.USDCAddress)
 	fmt.Printf("Facilitator: %s\n", *facilitatorURL)
 	if *verbose {
 		fmt.Printf("Verbose mode: ENABLED\n")
@@ -106,14 +120,16 @@ func runServer(args []string) {
 	// Create Gin router
 	r := gin.Default()
 
-	// Create payment requirements
-	requirement := x402.PaymentRequirement{
-		Scheme:            "exact",
-		Network:           *network,
-		MaxAmountRequired: *amount,
-		Asset:             *tokenAddr,
-		PayTo:             *payTo,
+	// Create payment requirement using helper function
+	requirement, err := x402.NewUSDCPaymentRequirement(x402.USDCRequirementConfig{
+		Chain:             chainConfig,
+		Amount:            *amount,
+		RecipientAddress:  *payTo,
+		Description:       "Access to paywalled content",
 		MaxTimeoutSeconds: 60,
+	})
+	if err != nil {
+		log.Fatalf("Failed to create payment requirement: %v", err)
 	}
 
 	// Create x402 middleware config
@@ -200,13 +216,23 @@ func runClient(args []string) {
 	if *tokenAddr == "" {
 		switch strings.ToLower(*network) {
 		case "solana":
-			*tokenAddr = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" // USDC on Solana mainnet
+			*tokenAddr = x402.SolanaMainnet.USDCAddress
 		case "solana-devnet":
-			*tokenAddr = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU" // USDC on Solana devnet
-		case "base", "base-sepolia":
-			*tokenAddr = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" // USDC on Base
+			*tokenAddr = x402.SolanaDevnet.USDCAddress
+		case "base":
+			*tokenAddr = x402.BaseMainnet.USDCAddress
+		case "base-sepolia":
+			*tokenAddr = x402.BaseSepolia.USDCAddress
+		case "polygon":
+			*tokenAddr = x402.PolygonMainnet.USDCAddress
+		case "polygon-amoy":
+			*tokenAddr = x402.PolygonAmoy.USDCAddress
+		case "avalanche":
+			*tokenAddr = x402.AvalancheMainnet.USDCAddress
+		case "avalanche-fuji":
+			*tokenAddr = x402.AvalancheFuji.USDCAddress
 		default:
-			*tokenAddr = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" // Default to Base USDC
+			*tokenAddr = x402.BaseSepolia.USDCAddress // Default to Base Sepolia (safer for testing)
 		}
 	}
 

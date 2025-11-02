@@ -51,7 +51,8 @@ func CreateEIP3009Authorization(from, to common.Address, value *big.Int, timeout
 }
 
 // SignTransferAuthorization signs an EIP-3009 transferWithAuthorization using EIP-712.
-func SignTransferAuthorization(privateKey *ecdsa.PrivateKey, tokenAddress common.Address, chainID *big.Int, auth *EIP3009Authorization) (string, error) {
+// The name and version parameters should be provided from the payment requirements.
+func SignTransferAuthorization(privateKey *ecdsa.PrivateKey, tokenAddress common.Address, chainID *big.Int, auth *EIP3009Authorization, name, version string) (string, error) {
 	// Build EIP-712 typed data
 	typedData := apitypes.TypedData{
 		Types: apitypes.Types{
@@ -72,8 +73,8 @@ func SignTransferAuthorization(privateKey *ecdsa.PrivateKey, tokenAddress common
 		},
 		PrimaryType: "TransferWithAuthorization",
 		Domain: apitypes.TypedDataDomain{
-			Name:              "USD Coin",
-			Version:           "2",
+			Name:              name,
+			Version:           version,
 			ChainId:           (*math.HexOrDecimal256)(chainID),
 			VerifyingContract: tokenAddress.Hex(),
 		},

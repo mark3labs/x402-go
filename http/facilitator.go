@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -87,6 +88,18 @@ func (c *FacilitatorClient) Verify(ctx context.Context, payment x402.PaymentPayl
 		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
+			// Try to read error details from response body
+			bodyBytes, _ := io.ReadAll(resp.Body)
+			var errBody map[string]interface{}
+			if err := json.Unmarshal(bodyBytes, &errBody); err == nil {
+				if reason, ok := errBody["invalidReason"].(string); ok {
+					return nil, fmt.Errorf("%w: status %d, reason: %s", x402.ErrVerificationFailed, resp.StatusCode, reason)
+				}
+			}
+			// If we couldn't parse as JSON, include raw body
+			if len(bodyBytes) > 0 && len(bodyBytes) < 500 {
+				return nil, fmt.Errorf("%w: status %d, body: %s", x402.ErrVerificationFailed, resp.StatusCode, string(bodyBytes))
+			}
 			return nil, fmt.Errorf("%w: status %d", x402.ErrVerificationFailed, resp.StatusCode)
 		}
 
@@ -197,6 +210,18 @@ func (c *FacilitatorClient) Settle(ctx context.Context, payment x402.PaymentPayl
 		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
+			// Try to read error details from response body
+			bodyBytes, _ := io.ReadAll(resp.Body)
+			var errBody map[string]interface{}
+			if err := json.Unmarshal(bodyBytes, &errBody); err == nil {
+				if reason, ok := errBody["errorReason"].(string); ok {
+					return nil, fmt.Errorf("%w: status %d, reason: %s", x402.ErrSettlementFailed, resp.StatusCode, reason)
+				}
+			}
+			// If we couldn't parse as JSON, include raw body
+			if len(bodyBytes) > 0 && len(bodyBytes) < 500 {
+				return nil, fmt.Errorf("%w: status %d, body: %s", x402.ErrSettlementFailed, resp.StatusCode, string(bodyBytes))
+			}
 			return nil, fmt.Errorf("%w: status %d", x402.ErrSettlementFailed, resp.StatusCode)
 		}
 

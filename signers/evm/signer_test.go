@@ -276,6 +276,10 @@ func TestSign(t *testing.T) {
 				MaxAmountRequired: "500000",
 				PayTo:             "0x1234567890123456789012345678901234567890",
 				MaxTimeoutSeconds: 60,
+				Extra: map[string]interface{}{
+					"name":    "USD Coin",
+					"version": "2",
+				},
 			},
 			wantErr: nil,
 		},

@@ -23,7 +23,7 @@ func main() {
 	network := flag.String("network", "base-sepolia", "Network to accept payments on (base, base-sepolia, solana, solana-devnet)")
 	payTo := flag.String("pay-to", "", "Address to receive payments (required)")
 	tokenAddr := flag.String("token", "", "Token address (auto-detected based on network if not specified)")
-	amount := flag.String("amount", "", "Payment amount in atomic units (default: 1000 = 0.001 USDC)")
+	amount := flag.String("amount", "", "Payment amount in USDC (default: 0.001)")
 	facilitatorURL := flag.String("facilitator", "https://facilitator.x402.rs", "Facilitator URL")
 
 	flag.Parse()
@@ -36,29 +36,43 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Set defaults based on network if not specified
-	if *tokenAddr == "" {
-		switch strings.ToLower(*network) {
-		case "solana":
-			*tokenAddr = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" // USDC on Solana mainnet
-		case "solana-devnet":
-			*tokenAddr = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU" // USDC on Solana devnet
-		case "base", "base-sepolia":
-			*tokenAddr = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" // USDC on Base
-		default:
-			*tokenAddr = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" // Default to Base USDC
-		}
+	// Get chain config based on network
+	var chainConfig x402.ChainConfig
+	switch strings.ToLower(*network) {
+	case "solana":
+		chainConfig = x402.SolanaMainnet
+	case "solana-devnet":
+		chainConfig = x402.SolanaDevnet
+	case "base":
+		chainConfig = x402.BaseMainnet
+	case "base-sepolia":
+		chainConfig = x402.BaseSepolia
+	case "polygon":
+		chainConfig = x402.PolygonMainnet
+	case "polygon-amoy":
+		chainConfig = x402.PolygonAmoy
+	case "avalanche":
+		chainConfig = x402.AvalancheMainnet
+	case "avalanche-fuji":
+		chainConfig = x402.AvalancheFuji
+	default:
+		chainConfig = x402.BaseSepolia // Default to Base Sepolia (safer for testing)
+	}
+
+	// Override token address if provided
+	if *tokenAddr != "" {
+		chainConfig.USDCAddress = *tokenAddr
 	}
 
 	if *amount == "" {
-		*amount = "1000" // Default: 0.001 USDC (6 decimals)
+		*amount = "0.001" // Default: 0.001 USDC
 	}
 
 	fmt.Printf("Starting Chi server with x402 on port %s\n", *port)
 	fmt.Printf("Network: %s\n", *network)
 	fmt.Printf("Payment recipient: %s\n", *payTo)
-	fmt.Printf("Payment amount: %s atomic units\n", *amount)
-	fmt.Printf("Token: %s\n", *tokenAddr)
+	fmt.Printf("Payment amount: %s USDC\n", *amount)
+	fmt.Printf("Token: %s\n", chainConfig.USDCAddress)
 	fmt.Printf("Facilitator: %s\n", *facilitatorURL)
 	fmt.Println()
 
@@ -71,14 +85,16 @@ func main() {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 
-	// Create payment requirement
-	requirement := x402.PaymentRequirement{
-		Scheme:            "exact",
-		Network:           *network,
-		MaxAmountRequired: *amount,
-		Asset:             *tokenAddr,
-		PayTo:             *payTo,
+	// Create payment requirement using helper function
+	requirement, err := x402.NewUSDCPaymentRequirement(x402.USDCRequirementConfig{
+		Chain:             chainConfig,
+		Amount:            *amount,
+		RecipientAddress:  *payTo,
+		Description:       "Access to paywalled content",
 		MaxTimeoutSeconds: 60,
+	})
+	if err != nil {
+		log.Fatalf("Failed to create payment requirement: %v", err)
 	}
 
 	// Create x402 middleware config
