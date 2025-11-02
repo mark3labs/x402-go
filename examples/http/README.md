@@ -286,10 +286,10 @@ func main() {
 ### Network Detection
 
 Token addresses are auto-detected based on network:
-- `base`: `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` (USDC)
-- `base-sepolia`: `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` (USDC)
-- `solana`: `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` (USDC)
-- `solana-devnet`: `4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU` (USDC)
+- `base`: `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` (USDC mainnet)
+- `base-sepolia`: `0x036CbD53842c5426634e7929541eC2318f3dCF7e` (USDC testnet)
+- `solana`: `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` (USDC mainnet)
+- `solana-devnet`: `4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU` (USDC testnet)
 
 ### Payment Amounts
 

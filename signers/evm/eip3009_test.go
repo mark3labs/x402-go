@@ -90,7 +90,7 @@ func TestSignTransferAuthorization(t *testing.T) {
 		t.Fatalf("failed to create authorization: %v", err)
 	}
 
-	signature, err := SignTransferAuthorization(privateKey, tokenAddress, chainID, auth)
+	signature, err := SignTransferAuthorization(privateKey, tokenAddress, chainID, auth, "USD Coin", "2")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -138,7 +138,7 @@ func TestSignTransferAuthorization_DifferentNetworks(t *testing.T) {
 	signatures := make(map[string]string)
 
 	for network, chainID := range networks {
-		sig, err := SignTransferAuthorization(privateKey, tokenAddress, chainID, auth)
+		sig, err := SignTransferAuthorization(privateKey, tokenAddress, chainID, auth, "USD Coin", "2")
 		if err != nil {
 			t.Fatalf("failed to sign for network %s: %v", network, err)
 		}
@@ -183,12 +183,12 @@ func TestSignTransferAuthorization_DifferentAuthorizations(t *testing.T) {
 		t.Fatalf("failed to create auth2: %v", err)
 	}
 
-	sig1, err := SignTransferAuthorization(privateKey, tokenAddress, chainID, auth1)
+	sig1, err := SignTransferAuthorization(privateKey, tokenAddress, chainID, auth1, "USD Coin", "2")
 	if err != nil {
 		t.Fatalf("failed to sign auth1: %v", err)
 	}
 
-	sig2, err := SignTransferAuthorization(privateKey, tokenAddress, chainID, auth2)
+	sig2, err := SignTransferAuthorization(privateKey, tokenAddress, chainID, auth2, "USD Coin", "2")
 	if err != nil {
 		t.Fatalf("failed to sign auth2: %v", err)
 	}
@@ -221,12 +221,12 @@ func TestSignTransferAuthorization_DeterministicWithSameAuth(t *testing.T) {
 	}
 
 	// Sign the same authorization multiple times
-	sig1, err := SignTransferAuthorization(privateKey, tokenAddress, chainID, auth)
+	sig1, err := SignTransferAuthorization(privateKey, tokenAddress, chainID, auth, "USD Coin", "2")
 	if err != nil {
 		t.Fatalf("failed to sign (1): %v", err)
 	}
 
-	sig2, err := SignTransferAuthorization(privateKey, tokenAddress, chainID, auth)
+	sig2, err := SignTransferAuthorization(privateKey, tokenAddress, chainID, auth, "USD Coin", "2")
 	if err != nil {
 		t.Fatalf("failed to sign (2): %v", err)
 	}
@@ -260,12 +260,12 @@ func TestSignTransferAuthorization_DifferentTokenAddresses(t *testing.T) {
 	tokenAddress1 := common.HexToAddress("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913")
 	tokenAddress2 := common.HexToAddress("0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb")
 
-	sig1, err := SignTransferAuthorization(privateKey, tokenAddress1, chainID, auth)
+	sig1, err := SignTransferAuthorization(privateKey, tokenAddress1, chainID, auth, "USD Coin", "2")
 	if err != nil {
 		t.Fatalf("failed to sign with token1: %v", err)
 	}
 
-	sig2, err := SignTransferAuthorization(privateKey, tokenAddress2, chainID, auth)
+	sig2, err := SignTransferAuthorization(privateKey, tokenAddress2, chainID, auth, "USD Coin", "2")
 	if err != nil {
 		t.Fatalf("failed to sign with token2: %v", err)
 	}

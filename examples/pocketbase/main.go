@@ -16,17 +16,21 @@ import (
 func main() {
 	app := pocketbase.New()
 
-	// Configure payment requirements
+	// Configure payment requirements using helper function
+	requirement, err := x402.NewUSDCPaymentRequirement(x402.USDCRequirementConfig{
+		Chain:             x402.BaseSepolia,                             // TESTNET - change to x402.BaseMainnet for production
+		Amount:            "0.01",                                       // 0.01 USDC
+		RecipientAddress:  "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0", // REPLACE WITH YOUR WALLET ADDRESS
+		Description:       "Access to premium content",
+		MaxTimeoutSeconds: 300,
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	config := &httpx402.Config{
-		FacilitatorURL: "https://api.x402.coinbase.com", // Production facilitator - replace if using your own
-		PaymentRequirements: []x402.PaymentRequirement{{
-			Scheme:            "exact",
-			Network:           "base-sepolia",                               // TESTNET - change to "base" for production
-			MaxAmountRequired: "10000",                                      // 0.01 USDC (USDC has 6 decimals: 1 USDC = 1,000,000 atomic units)
-			Asset:             "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // USDC on base-sepolia - use production USDC for mainnet
-			PayTo:             "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0", // REPLACE WITH YOUR WALLET ADDRESS
-			MaxTimeoutSeconds: 300,
-		}},
+		FacilitatorURL:      "https://api.x402.coinbase.com", // Production facilitator - replace if using your own
+		PaymentRequirements: []x402.PaymentRequirement{requirement},
 	}
 
 	// Register middleware

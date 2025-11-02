@@ -55,7 +55,7 @@ func runServer(args []string) {
 	network := fs.String("network", "base-sepolia", "Network to accept payments on (base, base-sepolia, ethereum, ethereum-sepolia, polygon)")
 	payTo := fs.String("pay-to", "", "Address to receive payments (required)")
 	tokenAddr := fs.String("token", "", "Token address (auto-detected based on network if not specified)")
-	amount := fs.String("amount", "", "Payment amount in atomic units (default: 1000 = 0.001 USDC)")
+	amount := fs.String("amount", "", "Payment amount in USDC (default: 0.001)")
 	facilitatorURL := fs.String("facilitator", "https://facilitator.x402.rs", "Facilitator URL")
 	verbose := fs.Bool("verbose", false, "Enable verbose debug output")
 
@@ -92,34 +92,36 @@ func runServer(args []string) {
 		log.Fatalf("Unsupported network: %s", *network)
 	}
 
-	// Use token address from config if not specified
-	if *tokenAddr == "" {
-		*tokenAddr = chainConfig.USDCAddress
+	// Override token address if provided
+	if *tokenAddr != "" {
+		chainConfig.USDCAddress = *tokenAddr
 	}
 
 	if *amount == "" {
-		*amount = "1000" // Default: 0.001 USDC (6 decimals)
+		*amount = "0.001" // Default: 0.001 USDC
 	}
 
 	fmt.Printf("Starting Coinbase CDP x402 demo server on port %s\n", *port)
 	fmt.Printf("Network: %s\n", *network)
 	fmt.Printf("Payment recipient: %s\n", *payTo)
-	fmt.Printf("Payment amount: %s atomic units\n", *amount)
-	fmt.Printf("Token: %s\n", *tokenAddr)
+	fmt.Printf("Payment amount: %s USDC\n", *amount)
+	fmt.Printf("Token: %s\n", chainConfig.USDCAddress)
 	fmt.Printf("Facilitator: %s\n", *facilitatorURL)
 	if *verbose {
 		fmt.Printf("Verbose mode: ENABLED\n")
 	}
 	fmt.Println()
 
-	// Create payment requirements
-	requirement := x402.PaymentRequirement{
-		Scheme:            "exact",
-		Network:           *network,
-		MaxAmountRequired: *amount,
-		Asset:             *tokenAddr,
-		PayTo:             *payTo,
+	// Create payment requirement using helper function
+	requirement, err := x402.NewUSDCPaymentRequirement(x402.USDCRequirementConfig{
+		Chain:             chainConfig,
+		Amount:            *amount,
+		RecipientAddress:  *payTo,
+		Description:       "Access to paywalled content",
 		MaxTimeoutSeconds: 60,
+	})
+	if err != nil {
+		log.Fatalf("Failed to create payment requirement: %v", err)
 	}
 
 	requirements := []x402.PaymentRequirement{requirement}
