@@ -238,7 +238,7 @@ func (h *X402Handler) forwardAndSettle(w http.ResponseWriter, r *http.Request, r
 
 	if jsonrpcResp.Error != nil {
 		if h.config.Verbose {
-			fmt.Printf("Exection failed. Payment will not be settled.")
+			fmt.Printf("Execution failed. Payment will not be settled.")
 		}
 		for k, v := range recorder.headerMap {
 			w.Header()[k] = v
@@ -251,14 +251,16 @@ func (h *X402Handler) forwardAndSettle(w http.ResponseWriter, r *http.Request, r
 	var settleResp *x402.SettlementResponse
 	// Settle if not verify-only mode
 	if !h.config.VerifyOnly {
-		fmt.Println("Execution successful. Settling payment.")
+		if h.config.Verbose {
+			fmt.Println("Execution successful. Settling payment.")
+		}
 		settleCtx, settleCancel := context.WithTimeout(r.Context(), x402.DefaultTimeouts.SettleTimeout)
 		defer settleCancel()
 
 		var err error
 		settleResp, err = h.facilitator.Settle(settleCtx, payment, *requirement)
 		if err != nil || !settleResp.Success {
-			reason := "unkown reason"
+			reason := "unknown reason"
 			if err != nil {
 				reason = err.Error()
 			} else if settleResp != nil {
@@ -274,13 +276,17 @@ func (h *X402Handler) forwardAndSettle(w http.ResponseWriter, r *http.Request, r
 					"success":     false,
 					"network":     payment.Network,
 					"payer":       verifyResp.Payer,
-					"errorReason": err.Error(),
+					"errorReason": reason,
+					"transaction": "",
 				},
+			}
+			if h.config.Verbose {
+				fmt.Println(errorMsg)
 			}
 			h.writeError(w, requestID, -32603, errorMsg, errorData)
 			return
 		} else if h.config.Verbose {
-			fmt.Printf("Payment successfull: %s\n", settleResp.Transaction)
+			fmt.Printf("Payment successful: %s\n", settleResp.Transaction)
 		}
 	}
 
@@ -293,7 +299,13 @@ func (h *X402Handler) forwardAndSettle(w http.ResponseWriter, r *http.Request, r
 			}
 
 			// Add settlement response
-			meta["x402/payment-response"] = settleResp
+			if settleResp != nil {
+				meta["x402/payment-response"] = settleResp
+			} else {
+				meta["x402/payment-response"] = map[string]interface{}{
+					"verifyOnly": true,
+				}
+			}
 			result["_meta"] = meta
 
 			// Re-marshal result
