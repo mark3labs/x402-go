@@ -230,6 +230,9 @@ func (h *X402Handler) forwardAndSettle(w http.ResponseWriter, r *http.Request, r
 	}
 
 	if err := json.Unmarshal(recorder.body.Bytes(), &jsonrpcResp); err != nil {
+		if h.config.Verbose {
+			fmt.Printf("Failed to parse MCP response, skipping settlement: %v\n", err)
+		}
 		// If we can't parse response, just forward it as-is
 		for k, v := range recorder.headerMap {
 			w.Header()[k] = v
