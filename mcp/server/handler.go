@@ -279,12 +279,11 @@ func (h *X402Handler) forwardAndSettle(w http.ResponseWriter, r *http.Request, r
 				payer = verifyResp.Payer
 			}
 			errorData := map[string]interface{}{
-				"x402/payment-response": map[string]interface{}{
-					"success":     false,
-					"network":     payment.Network,
-					"payer":       payer,
-					"errorReason": reason,
-					"transaction": "",
+				"x402/payment-response": x402.SettlementResponse{
+					Success:     false,
+					Network:     payment.Network,
+					Payer:       payer,
+					ErrorReason: reason,
 				},
 			}
 			h.writeError(w, requestID, -32603, errorMsg, errorData)
@@ -307,11 +306,9 @@ func (h *X402Handler) forwardAndSettle(w http.ResponseWriter, r *http.Request, r
 				meta["x402/payment-response"] = settleResp
 			} else {
 				meta["x402/payment-response"] = x402.SettlementResponse{
-					Success:     false,
-					ErrorReason: "verify-only-mode",
-					Network:     payment.Network,
-					Payer:       verifyResp.Payer,
-					Transaction: "",
+					Success: false,
+					Network: payment.Network,
+					Payer:   verifyResp.Payer,
 				}
 			}
 			result["_meta"] = meta
