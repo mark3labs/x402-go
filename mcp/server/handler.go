@@ -231,6 +231,9 @@ func (h *X402Handler) forwardAndSettle(w http.ResponseWriter, r *http.Request, r
 
 	if err := json.Unmarshal(recorder.body.Bytes(), &jsonrpcResp); err != nil {
 		// If we can't parse response, just forward it as-is
+		for k, v := range recorder.headerMap {
+			w.Header()[k] = v
+		}
 		w.WriteHeader(recorder.statusCode)
 		_, _ = w.Write(recorder.body.Bytes())
 		return
@@ -259,7 +262,7 @@ func (h *X402Handler) forwardAndSettle(w http.ResponseWriter, r *http.Request, r
 
 		var err error
 		settleResp, err = h.facilitator.Settle(settleCtx, payment, *requirement)
-		if err != nil || !settleResp.Success {
+		if err != nil || settleResp == nil || !settleResp.Success {
 			reason := "unknown reason"
 			if err != nil {
 				reason = err.Error()
@@ -271,11 +274,15 @@ func (h *X402Handler) forwardAndSettle(w http.ResponseWriter, r *http.Request, r
 			if h.config.Verbose {
 				fmt.Println(errorMsg)
 			}
+			payer := ""
+			if verifyResp != nil {
+				payer = verifyResp.Payer
+			}
 			errorData := map[string]interface{}{
 				"x402/payment-response": map[string]interface{}{
 					"success":     false,
 					"network":     payment.Network,
-					"payer":       verifyResp.Payer,
+					"payer":       payer,
 					"errorReason": reason,
 					"transaction": "",
 				},
@@ -299,8 +306,12 @@ func (h *X402Handler) forwardAndSettle(w http.ResponseWriter, r *http.Request, r
 			if settleResp != nil {
 				meta["x402/payment-response"] = settleResp
 			} else {
-				meta["x402/payment-response"] = map[string]interface{}{
-					"verifyOnly": true,
+				meta["x402/payment-response"] = x402.SettlementResponse{
+					Success:     false,
+					ErrorReason: "verify-only-mode",
+					Network:     payment.Network,
+					Payer:       verifyResp.Payer,
+					Transaction: "",
 				}
 			}
 			result["_meta"] = meta
