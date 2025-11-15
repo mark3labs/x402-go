@@ -241,7 +241,7 @@ func (h *X402Handler) forwardAndSettle(w http.ResponseWriter, r *http.Request, r
 
 	if jsonrpcResp.Error != nil {
 		if h.config.Verbose {
-			fmt.Printf("Execution failed. Payment will not be settled.\n")
+			fmt.Println("Execution failed. Payment will not be settled.")
 		}
 		for k, v := range recorder.headerMap {
 			w.Header()[k] = v
@@ -305,10 +305,14 @@ func (h *X402Handler) forwardAndSettle(w http.ResponseWriter, r *http.Request, r
 			if settleResp != nil {
 				meta["x402/payment-response"] = settleResp
 			} else {
+				payer := ""
+				if verifyResp != nil {
+					payer = verifyResp.Payer
+				}
 				meta["x402/payment-response"] = x402.SettlementResponse{
 					Success: false,
 					Network: payment.Network,
-					Payer:   verifyResp.Payer,
+					Payer:   payer,
 				}
 			}
 			result["_meta"] = meta
