@@ -2,6 +2,54 @@ package x402
 
 import "math/big"
 
+type InputSchemaType string
+
+const (
+	InputSchemaTypeHTTP InputSchemaType = "http"
+)
+
+type InputSchemaMethod string
+
+const (
+	InputSchemaMethodGET  InputSchemaMethod = "GET"
+	InputSchemaMethodPOST InputSchemaMethod = "POST"
+)
+
+type InputSchemaBodyType string
+
+const (
+	InputSchemaBodyTypeJSON              InputSchemaBodyType = "json"
+	InputSchemaBodyTypeFormData          InputSchemaBodyType = "form-data"
+	InputSchemaBodyTypeMultipartFormData InputSchemaBodyType = "multipart-form-data"
+	InputSchemaBodyTypeText              InputSchemaBodyType = "text"
+	InputSchemaBodyTypeBinary            InputSchemaBodyType = "binary"
+)
+
+// FieldDef defines the schema for a single field in the request or response. (https://www.x402scan.com)
+type FieldDef struct {
+	Type        string              `json:"type,omitempty"`
+	Required    bool                `json:"required,omitempty"`
+	Description string              `json:"description,omitempty"`
+	Enum        []string            `json:"enum,omitempty"`
+	Properties  map[string]FieldDef `json:"properties,omitempty"`
+}
+
+// InputSchema defines the expected structure of the client request. (https://www.x402scan.com)
+type InputSchema struct {
+	Type         InputSchemaType     `json:"type"`
+	Method       InputSchemaMethod   `json:"method"`
+	BodyType     InputSchemaBodyType `json:"bodyType,omitempty"`
+	QueryParams  map[string]FieldDef `json:"queryParams,omitempty"`
+	BodyFields   map[string]FieldDef `json:"bodyFields,omitempty"`
+	HeaderFields map[string]FieldDef `json:"headerFields,omitempty"`
+}
+
+// OutputSchema defines the expected structure of the server response. (https://www.x402scan.com)
+type OutputSchema struct {
+	Input  InputSchema         `json:"input,omitempty"`
+	Output map[string]FieldDef `json:"output,omitempty"`
+}
+
 // PaymentRequirement represents a single payment option from a 402 response.
 type PaymentRequirement struct {
 	// Scheme is the payment scheme identifier (e.g., "exact").
@@ -33,6 +81,9 @@ type PaymentRequirement struct {
 
 	// Extra contains scheme-specific additional data.
 	Extra map[string]interface{} `json:"extra"`
+
+	// OutputSchema defines the expected structure of the server response. (https://www.x402scan.com/)
+	OutputSchema *OutputSchema `json:"outputSchema,omitempty"`
 }
 
 // PaymentRequirementsResponse represents the complete 402 response body.
