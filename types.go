@@ -11,8 +11,13 @@ const (
 type InputSchemaMethod string
 
 const (
-	InputSchemaMethodGET  InputSchemaMethod = "GET"
-	InputSchemaMethodPOST InputSchemaMethod = "POST"
+	InputSchemaMethodGET     InputSchemaMethod = "GET"
+	InputSchemaMethodPOST    InputSchemaMethod = "POST"
+	InputSchemaMethodPUT     InputSchemaMethod = "PUT"
+	InputSchemaMethodDELETE  InputSchemaMethod = "DELETE"
+	InputSchemaMethodPATCH   InputSchemaMethod = "PATCH"
+	InputSchemaMethodOPTIONS InputSchemaMethod = "OPTIONS"
+	InputSchemaMethodHEAD    InputSchemaMethod = "HEAD"
 )
 
 type InputSchemaBodyType string
