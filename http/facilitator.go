@@ -114,6 +114,7 @@ func (c *FacilitatorClient) Verify(ctx context.Context, payment x402.PaymentPayl
 		}
 
 		verifyResp.Payer = helpers.GetPayer(payment)
+		verifyResp.PaymentPayload = payment
 
 		return &verifyResp, nil
 	})
