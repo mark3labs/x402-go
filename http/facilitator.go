@@ -109,6 +109,8 @@ func (c *FacilitatorClient) Verify(ctx context.Context, payment x402.PaymentPayl
 			return nil, fmt.Errorf("failed to decode verify response: %w", err)
 		}
 
+		verifyResp.PaymentPayload = payment
+
 		if verifyResp.Payer != "" {
 			return &verifyResp, nil
 		}
