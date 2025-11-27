@@ -67,6 +67,268 @@ func TestFacilitatorClient_Verify(t *testing.T) {
 	}
 }
 
+func TestFacilitatorClient_Verify_WithStaticAuthorization(t *testing.T) {
+	expectedAuth := "Bearer test-api-key"
+
+	// Create a mock facilitator server that validates the Authorization header
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Check that Authorization header is present
+		authHeader := r.Header.Get("Authorization")
+		if authHeader != expectedAuth {
+			t.Errorf("Expected Authorization header %q, got %q", expectedAuth, authHeader)
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		response := facilitator.VerifyResponse{
+			IsValid: true,
+			Payer:   "0x857b06519E91e3A54538791bDbb0E22373e36b66",
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			t.Errorf("Failed to encode response: %v", err)
+		}
+	}))
+	defer mockServer.Close()
+
+	client := &FacilitatorClient{
+		BaseURL:       mockServer.URL,
+		Client:        &http.Client{},
+		Timeouts:      x402.DefaultTimeouts,
+		Authorization: expectedAuth,
+	}
+
+	payload := x402.PaymentPayload{
+		X402Version: 1,
+		Scheme:      "exact",
+		Network:     "base-sepolia",
+	}
+
+	requirement := x402.PaymentRequirement{
+		Scheme:            "exact",
+		Network:           "base-sepolia",
+		MaxAmountRequired: "10000",
+	}
+
+	resp, err := client.Verify(context.Background(), payload, requirement)
+	if err != nil {
+		t.Fatalf("Verify failed: %v", err)
+	}
+
+	if !resp.IsValid {
+		t.Error("Expected IsValid to be true")
+	}
+}
+
+func TestFacilitatorClient_Verify_WithAuthorizationProvider(t *testing.T) {
+	callCount := 0
+	provider := func() string {
+		callCount++
+		return "Bearer dynamic-token-" + string(rune('0'+callCount))
+	}
+
+	// Create a mock facilitator server that validates the Authorization header
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authHeader := r.Header.Get("Authorization")
+		if authHeader == "" {
+			t.Error("Expected Authorization header to be present")
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		response := facilitator.VerifyResponse{
+			IsValid: true,
+			Payer:   "0x857b06519E91e3A54538791bDbb0E22373e36b66",
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			t.Errorf("Failed to encode response: %v", err)
+		}
+	}))
+	defer mockServer.Close()
+
+	client := &FacilitatorClient{
+		BaseURL:               mockServer.URL,
+		Client:                &http.Client{},
+		Timeouts:              x402.DefaultTimeouts,
+		Authorization:         "Bearer static-should-be-ignored",
+		AuthorizationProvider: provider,
+	}
+
+	payload := x402.PaymentPayload{
+		X402Version: 1,
+		Scheme:      "exact",
+		Network:     "base-sepolia",
+	}
+
+	requirement := x402.PaymentRequirement{
+		Scheme:            "exact",
+		Network:           "base-sepolia",
+		MaxAmountRequired: "10000",
+	}
+
+	_, err := client.Verify(context.Background(), payload, requirement)
+	if err != nil {
+		t.Fatalf("Verify failed: %v", err)
+	}
+
+	if callCount == 0 {
+		t.Error("Expected AuthorizationProvider to be called")
+	}
+}
+
+func TestFacilitatorClient_Verify_WithoutAuthorization(t *testing.T) {
+	// Create a mock facilitator server that checks no Authorization header is sent
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authHeader := r.Header.Get("Authorization")
+		if authHeader != "" {
+			t.Errorf("Expected no Authorization header, got %q", authHeader)
+		}
+
+		response := facilitator.VerifyResponse{
+			IsValid: true,
+			Payer:   "0x857b06519E91e3A54538791bDbb0E22373e36b66",
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			t.Errorf("Failed to encode response: %v", err)
+		}
+	}))
+	defer mockServer.Close()
+
+	client := &FacilitatorClient{
+		BaseURL:  mockServer.URL,
+		Client:   &http.Client{},
+		Timeouts: x402.DefaultTimeouts,
+		// No Authorization or AuthorizationProvider set
+	}
+
+	payload := x402.PaymentPayload{
+		X402Version: 1,
+		Scheme:      "exact",
+		Network:     "base-sepolia",
+	}
+
+	requirement := x402.PaymentRequirement{
+		Scheme:            "exact",
+		Network:           "base-sepolia",
+		MaxAmountRequired: "10000",
+	}
+
+	_, err := client.Verify(context.Background(), payload, requirement)
+	if err != nil {
+		t.Fatalf("Verify failed: %v", err)
+	}
+}
+
+func TestFacilitatorClient_Settle_WithStaticAuthorization(t *testing.T) {
+	expectedAuth := "Bearer settle-api-key"
+
+	// Create a mock facilitator server that validates the Authorization header
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authHeader := r.Header.Get("Authorization")
+		if authHeader != expectedAuth {
+			t.Errorf("Expected Authorization header %q, got %q", expectedAuth, authHeader)
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		response := x402.SettlementResponse{
+			Success:     true,
+			Transaction: "0x1234567890abcdef",
+			Network:     "base-sepolia",
+			Payer:       "0x857b06519E91e3A54538791bDbb0E22373e36b66",
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			t.Errorf("Failed to encode response: %v", err)
+		}
+	}))
+	defer mockServer.Close()
+
+	client := &FacilitatorClient{
+		BaseURL:       mockServer.URL,
+		Client:        &http.Client{},
+		Timeouts:      x402.DefaultTimeouts,
+		Authorization: expectedAuth,
+	}
+
+	payload := x402.PaymentPayload{
+		X402Version: 1,
+		Scheme:      "exact",
+		Network:     "base-sepolia",
+	}
+
+	requirement := x402.PaymentRequirement{
+		Scheme:            "exact",
+		Network:           "base-sepolia",
+		MaxAmountRequired: "10000",
+	}
+
+	resp, err := client.Settle(context.Background(), payload, requirement)
+	if err != nil {
+		t.Fatalf("Settle failed: %v", err)
+	}
+
+	if !resp.Success {
+		t.Error("Expected Success to be true")
+	}
+}
+
+func TestFacilitatorClient_Supported_WithStaticAuthorization(t *testing.T) {
+	expectedAuth := "Bearer supported-api-key"
+
+	// Create a mock facilitator server that validates the Authorization header
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/supported" {
+			t.Errorf("Expected path /supported, got %s", r.URL.Path)
+		}
+
+		authHeader := r.Header.Get("Authorization")
+		if authHeader != expectedAuth {
+			t.Errorf("Expected Authorization header %q, got %q", expectedAuth, authHeader)
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		response := facilitator.SupportedResponse{
+			Kinds: []facilitator.SupportedKind{
+				{
+					X402Version: 1,
+					Scheme:      "exact",
+					Network:     "base-sepolia",
+				},
+			},
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			t.Errorf("Failed to encode response: %v", err)
+		}
+	}))
+	defer mockServer.Close()
+
+	client := &FacilitatorClient{
+		BaseURL:       mockServer.URL,
+		Client:        &http.Client{},
+		Timeouts:      x402.DefaultTimeouts,
+		Authorization: expectedAuth,
+	}
+
+	resp, err := client.Supported(context.Background())
+	if err != nil {
+		t.Fatalf("Supported failed: %v", err)
+	}
+
+	if len(resp.Kinds) != 1 {
+		t.Errorf("Expected 1 kind, got %d", len(resp.Kinds))
+	}
+}
+
 func TestFacilitatorClient_Settle(t *testing.T) {
 	// Create a mock facilitator server
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -16,6 +16,10 @@ import (
 	"github.com/mark3labs/x402-go/retry"
 )
 
+// AuthorizationProvider is a function that returns an Authorization header value.
+// This is useful for dynamic tokens (e.g., JWT refresh) where the value may change.
+type AuthorizationProvider func() string
+
 // FacilitatorClient is a client for communicating with x402 facilitator services.
 type FacilitatorClient struct {
 	BaseURL    string
@@ -23,6 +27,28 @@ type FacilitatorClient struct {
 	Timeouts   x402.TimeoutConfig // Timeout configuration for payment operations
 	MaxRetries int                // Maximum number of retry attempts for failed requests (default: 0)
 	RetryDelay time.Duration      // Delay between retry attempts (default: 100ms)
+
+	// Authorization is a static Authorization header value (e.g., "Bearer token" or "Basic base64").
+	// If AuthorizationProvider is also set, the provider takes precedence.
+	Authorization string
+
+	// AuthorizationProvider is a function that returns an Authorization header value.
+	// This is useful for dynamic tokens that may need to be refreshed.
+	// If set, this takes precedence over the static Authorization field.
+	AuthorizationProvider AuthorizationProvider
+}
+
+// setAuthorizationHeader sets the Authorization header on the request if configured.
+func (c *FacilitatorClient) setAuthorizationHeader(req *http.Request) {
+	var authValue string
+	if c.AuthorizationProvider != nil {
+		authValue = c.AuthorizationProvider()
+	} else if c.Authorization != "" {
+		authValue = c.Authorization
+	}
+	if authValue != "" {
+		req.Header.Set("Authorization", authValue)
+	}
 }
 
 // FacilitatorRequest is the request payload sent to the facilitator.
@@ -79,6 +105,7 @@ func (c *FacilitatorClient) Verify(ctx context.Context, payment x402.PaymentPayl
 			return nil, fmt.Errorf("failed to create request: %w", err)
 		}
 		httpReq.Header.Set("Content-Type", "application/json")
+		c.setAuthorizationHeader(httpReq)
 
 		// Send request
 		resp, err := c.Client.Do(httpReq)
@@ -135,6 +162,7 @@ func (c *FacilitatorClient) Supported(ctx context.Context) (*facilitator.Support
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
+	c.setAuthorizationHeader(httpReq)
 
 	// Send request
 	resp, err := c.Client.Do(httpReq)
@@ -203,6 +231,7 @@ func (c *FacilitatorClient) Settle(ctx context.Context, payment x402.PaymentPayl
 			return nil, fmt.Errorf("failed to create request: %w", err)
 		}
 		httpReq.Header.Set("Content-Type", "application/json")
+		c.setAuthorizationHeader(httpReq)
 
 		// Send request
 		resp, err := c.Client.Do(httpReq)

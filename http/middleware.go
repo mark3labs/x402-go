@@ -22,6 +22,22 @@ type Config struct {
 
 	// VerifyOnly skips settlement if true (only verifies payments)
 	VerifyOnly bool
+
+	// FacilitatorAuthorization is a static Authorization header value for the primary facilitator.
+	// Example: "Bearer your-api-key" or "Basic base64-encoded-credentials"
+	FacilitatorAuthorization string
+
+	// FacilitatorAuthorizationProvider is a function that returns an Authorization header value
+	// for the primary facilitator. Useful for dynamic tokens that may need to be refreshed.
+	// If set, this takes precedence over FacilitatorAuthorization.
+	FacilitatorAuthorizationProvider AuthorizationProvider
+
+	// FallbackFacilitatorAuthorization is a static Authorization header value for the fallback facilitator.
+	FallbackFacilitatorAuthorization string
+
+	// FallbackFacilitatorAuthorizationProvider is a function that returns an Authorization header value
+	// for the fallback facilitator. If set, this takes precedence over FallbackFacilitatorAuthorization.
+	FallbackFacilitatorAuthorizationProvider AuthorizationProvider
 }
 
 // contextKey is a custom type for context keys to avoid collisions.
@@ -37,18 +53,22 @@ const PaymentContextKey = contextKey("x402_payment")
 func NewX402Middleware(config *Config) func(http.Handler) http.Handler {
 	// Create facilitator client
 	facilitator := &FacilitatorClient{
-		BaseURL:  config.FacilitatorURL,
-		Client:   &http.Client{},
-		Timeouts: x402.DefaultTimeouts,
+		BaseURL:               config.FacilitatorURL,
+		Client:                &http.Client{},
+		Timeouts:              x402.DefaultTimeouts,
+		Authorization:         config.FacilitatorAuthorization,
+		AuthorizationProvider: config.FacilitatorAuthorizationProvider,
 	}
 
 	// Create fallback facilitator client if configured
 	var fallbackFacilitator *FacilitatorClient
 	if config.FallbackFacilitatorURL != "" {
 		fallbackFacilitator = &FacilitatorClient{
-			BaseURL:  config.FallbackFacilitatorURL,
-			Client:   &http.Client{},
-			Timeouts: x402.DefaultTimeouts,
+			BaseURL:               config.FallbackFacilitatorURL,
+			Client:                &http.Client{},
+			Timeouts:              x402.DefaultTimeouts,
+			Authorization:         config.FallbackFacilitatorAuthorization,
+			AuthorizationProvider: config.FallbackFacilitatorAuthorizationProvider,
 		}
 	}
 

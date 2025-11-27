@@ -24,8 +24,28 @@ type HTTPFacilitator struct {
 	client *http.FacilitatorClient
 }
 
+// HTTPFacilitatorOption configures an HTTPFacilitator
+type HTTPFacilitatorOption func(*http.FacilitatorClient)
+
+// WithAuthorization sets a static Authorization header value for the facilitator.
+// Example: "Bearer your-api-key" or "Basic base64-encoded-credentials"
+func WithAuthorization(authorization string) HTTPFacilitatorOption {
+	return func(c *http.FacilitatorClient) {
+		c.Authorization = authorization
+	}
+}
+
+// WithAuthorizationProvider sets a dynamic Authorization header provider for the facilitator.
+// This is useful for tokens that may need to be refreshed.
+// If set, this takes precedence over the static Authorization value.
+func WithAuthorizationProvider(provider http.AuthorizationProvider) HTTPFacilitatorOption {
+	return func(c *http.FacilitatorClient) {
+		c.AuthorizationProvider = provider
+	}
+}
+
 // NewHTTPFacilitator creates a new HTTP facilitator client
-func NewHTTPFacilitator(facilitatorURL string) *HTTPFacilitator {
+func NewHTTPFacilitator(facilitatorURL string, opts ...HTTPFacilitatorOption) *HTTPFacilitator {
 	timeouts := x402.DefaultTimeouts
 	client := &http.FacilitatorClient{
 		BaseURL:    facilitatorURL,
@@ -33,6 +53,12 @@ func NewHTTPFacilitator(facilitatorURL string) *HTTPFacilitator {
 		Timeouts:   timeouts,
 		MaxRetries: 2,
 	}
+
+	// Apply options
+	for _, opt := range opts {
+		opt(client)
+	}
+
 	return &HTTPFacilitator{
 		client: client,
 	}
