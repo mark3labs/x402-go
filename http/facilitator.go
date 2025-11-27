@@ -18,6 +18,11 @@ import (
 
 // AuthorizationProvider is a function that returns an Authorization header value.
 // This is useful for dynamic tokens (e.g., JWT refresh) where the value may change.
+//
+// Thread-safety: The provider function is called on each HTTP request, including
+// during retry attempts. If your provider accesses shared state or performs I/O
+// (e.g., token refresh), ensure it is safe for concurrent use. The FacilitatorClient
+// does not serialize calls to the provider.
 type AuthorizationProvider func() string
 
 // FacilitatorClient is a client for communicating with x402 facilitator services.
@@ -39,6 +44,8 @@ type FacilitatorClient struct {
 }
 
 // setAuthorizationHeader sets the Authorization header on the request if configured.
+// If AuthorizationProvider is set, it is called to get the current token value;
+// otherwise, the static Authorization string is used. This is called per-request.
 func (c *FacilitatorClient) setAuthorizationHeader(req *http.Request) {
 	var authValue string
 	if c.AuthorizationProvider != nil {

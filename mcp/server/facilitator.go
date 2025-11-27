@@ -1,3 +1,5 @@
+// Package server provides MCP server integration for x402 payment gating.
+// It enables payment-gated AI tools via the Model Context Protocol.
 package server
 
 import (
@@ -10,7 +12,9 @@ import (
 	"github.com/mark3labs/x402-go/http"
 )
 
-// Facilitator interface for payment verification and settlement
+// Facilitator defines the interface for payment verification and settlement.
+// Implementations communicate with an x402 facilitator service to verify
+// payment authorizations and execute settlements on the blockchain.
 type Facilitator interface {
 	// Verify verifies a payment without settling it
 	Verify(ctx context.Context, payment *x402.PaymentPayload, requirement x402.PaymentRequirement) (*facilitator.VerifyResponse, error)
@@ -19,12 +23,14 @@ type Facilitator interface {
 	Settle(ctx context.Context, payment *x402.PaymentPayload, requirement x402.PaymentRequirement) (*x402.SettlementResponse, error)
 }
 
-// HTTPFacilitator implements Facilitator using the http.FacilitatorClient
+// HTTPFacilitator implements the Facilitator interface using the http.FacilitatorClient.
+// It communicates with an x402 facilitator service over HTTP to verify and settle payments.
 type HTTPFacilitator struct {
 	client *http.FacilitatorClient
 }
 
-// HTTPFacilitatorOption configures an HTTPFacilitator
+// HTTPFacilitatorOption is a functional option for configuring an HTTPFacilitator.
+// Use WithAuthorization or WithAuthorizationProvider to set authentication.
 type HTTPFacilitatorOption func(*http.FacilitatorClient)
 
 // WithAuthorization sets a static Authorization header value for the facilitator.
@@ -44,7 +50,14 @@ func WithAuthorizationProvider(provider http.AuthorizationProvider) HTTPFacilita
 	}
 }
 
-// NewHTTPFacilitator creates a new HTTP facilitator client
+// NewHTTPFacilitator creates a new HTTP facilitator client with the given URL and options.
+// The facilitator is used to verify and settle payments for payment-gated MCP tools.
+//
+// Example:
+//
+//	facilitator := NewHTTPFacilitator("https://api.x402.coinbase.com",
+//	    WithAuthorization("Bearer my-api-key"),
+//	)
 func NewHTTPFacilitator(facilitatorURL string, opts ...HTTPFacilitatorOption) *HTTPFacilitator {
 	timeouts := x402.DefaultTimeouts
 	client := &http.FacilitatorClient{

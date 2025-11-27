@@ -128,11 +128,21 @@ func TestFacilitatorClient_Verify_WithAuthorizationProvider(t *testing.T) {
 		return "Bearer dynamic-token-" + string(rune('0'+callCount))
 	}
 
+	// Expected token for the first call
+	expectedAuth := "Bearer dynamic-token-1"
+
 	// Create a mock facilitator server that validates the Authorization header
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
 			t.Error("Expected Authorization header to be present")
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		// Verify the dynamic token value is used and static is ignored
+		if authHeader != expectedAuth {
+			t.Errorf("Expected Authorization header %q, got %q", expectedAuth, authHeader)
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
@@ -174,8 +184,8 @@ func TestFacilitatorClient_Verify_WithAuthorizationProvider(t *testing.T) {
 		t.Fatalf("Verify failed: %v", err)
 	}
 
-	if callCount == 0 {
-		t.Error("Expected AuthorizationProvider to be called")
+	if callCount != 1 {
+		t.Errorf("Expected AuthorizationProvider to be called exactly once, got %d calls", callCount)
 	}
 }
 
