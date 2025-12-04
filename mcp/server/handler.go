@@ -9,6 +9,7 @@ import (
 	"net/http"
 
 	"github.com/mark3labs/x402-go"
+	"github.com/mark3labs/x402-go/facilitator"
 )
 
 // X402Handler wraps an MCP HTTP handler and adds x402 payment verification
@@ -139,45 +140,7 @@ func (h *X402Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Payment verified - settle if not verify-only mode
-	var settleResp *x402.SettlementResponse
-	if !h.config.VerifyOnly {
-		settleCtx, settleCancel := context.WithTimeout(r.Context(), x402.DefaultTimeouts.SettleTimeout)
-		defer settleCancel()
-
-		settleResp, err = h.facilitator.Settle(settleCtx, payment, *requirement)
-		if err != nil {
-			if h.config.Verbose {
-				fmt.Printf("Payment settlement failed: %v\n", err)
-			}
-			// Return error with settlement response in error data
-			errorData := map[string]interface{}{
-				"x402/payment-response": map[string]interface{}{
-					"success":     false,
-					"network":     payment.Network,
-					"payer":       verifyResp.Payer,
-					"errorReason": err.Error(),
-				},
-			}
-			h.writeError(w, jsonrpcReq.ID, -32603, fmt.Sprintf("Settlement failed: %v", err), errorData)
-			return
-		}
-
-		if !settleResp.Success {
-			if h.config.Verbose {
-				fmt.Printf("Payment settlement unsuccessful: %s\n", settleResp.ErrorReason)
-			}
-			// Return error with settlement response in error data
-			errorData := map[string]interface{}{
-				"x402/payment-response": settleResp,
-			}
-			h.writeError(w, jsonrpcReq.ID, -32603, fmt.Sprintf("Settlement unsuccessful: %s", settleResp.ErrorReason), errorData)
-			return
-		}
-	}
-
-	// Payment successful - forward request and inject settlement response in result
-	h.forwardWithSettlementResponse(w, r, bodyBytes, jsonrpcReq.ID, settleResp)
+	h.forwardAndSettle(w, r, bodyBytes, jsonrpcReq.ID, payment, requirement, verifyResp)
 }
 
 // checkPaymentRequired checks if a tool requires payment
@@ -244,8 +207,8 @@ func (h *X402Handler) sendPaymentRequiredError(w http.ResponseWriter, id interfa
 	h.writeError(w, id, 402, "Payment required", errorData)
 }
 
-// forwardWithSettlementResponse forwards the request and injects settlement response in result._meta
-func (h *X402Handler) forwardWithSettlementResponse(w http.ResponseWriter, r *http.Request, requestBody []byte, requestID interface{}, settleResp *x402.SettlementResponse) {
+// forwardAndSettle executes the mcpHandler and on success, settles the payment and injects settlement response in result._meta
+func (h *X402Handler) forwardAndSettle(w http.ResponseWriter, r *http.Request, requestBody []byte, requestID interface{}, payment *x402.PaymentPayload, requirement *x402.PaymentRequirement, verifyResp *facilitator.VerifyResponse) {
 	// Create a response recorder to capture the MCP handler's response
 	recorder := &responseRecorder{
 		headerMap:  make(http.Header),
@@ -267,24 +230,95 @@ func (h *X402Handler) forwardWithSettlementResponse(w http.ResponseWriter, r *ht
 	}
 
 	if err := json.Unmarshal(recorder.body.Bytes(), &jsonrpcResp); err != nil {
+		if h.config.Verbose {
+			fmt.Printf("Failed to parse MCP response, skipping settlement: %v\n", err)
+		}
 		// If we can't parse response, just forward it as-is
+		for k, v := range recorder.headerMap {
+			w.Header()[k] = v
+		}
 		w.WriteHeader(recorder.statusCode)
 		_, _ = w.Write(recorder.body.Bytes())
 		return
 	}
 
-	// Only inject settlement response if there's a result (not an error)
-	if jsonrpcResp.Error == nil && jsonrpcResp.Result != nil && settleResp != nil {
+	if jsonrpcResp.Error != nil {
+		if h.config.Verbose {
+			fmt.Println("Execution failed. Payment will not be settled.")
+		}
+		for k, v := range recorder.headerMap {
+			w.Header()[k] = v
+		}
+		w.WriteHeader(recorder.statusCode)
+		_, _ = w.Write(recorder.body.Bytes())
+		return
+	}
+
+	var settleResp *x402.SettlementResponse
+	// Settle if not verify-only mode
+	if !h.config.VerifyOnly {
+		if h.config.Verbose {
+			fmt.Println("Execution successful. Settling payment.")
+		}
+		settleCtx, settleCancel := context.WithTimeout(r.Context(), x402.DefaultTimeouts.SettleTimeout)
+		defer settleCancel()
+
+		var err error
+		settleResp, err = h.facilitator.Settle(settleCtx, payment, *requirement)
+		if err != nil || settleResp == nil || !settleResp.Success {
+			reason := "unknown reason"
+			if err != nil {
+				reason = err.Error()
+			} else if settleResp != nil {
+				reason = settleResp.ErrorReason
+			}
+
+			errorMsg := fmt.Sprintf("Settlement failed: %v", reason)
+			if h.config.Verbose {
+				fmt.Println(errorMsg)
+			}
+			payer := ""
+			if verifyResp != nil {
+				payer = verifyResp.Payer
+			}
+			errorData := map[string]interface{}{
+				"x402/payment-response": x402.SettlementResponse{
+					Success:     false,
+					Network:     payment.Network,
+					Payer:       payer,
+					ErrorReason: reason,
+				},
+			}
+			h.writeError(w, requestID, -32603, errorMsg, errorData)
+			return
+		} else if h.config.Verbose {
+			fmt.Printf("Payment successful: %s\n", settleResp.Transaction)
+		}
+	}
+
+	if jsonrpcResp.Result != nil {
 		var result map[string]interface{}
 		if err := json.Unmarshal(jsonrpcResp.Result, &result); err == nil {
-			// Get or create _meta
 			meta, ok := result["_meta"].(map[string]interface{})
 			if !ok {
 				meta = make(map[string]interface{})
 			}
 
 			// Add settlement response
-			meta["x402/payment-response"] = settleResp
+			if settleResp != nil {
+				meta["x402/payment-response"] = settleResp
+			} else {
+				payer := ""
+				if verifyResp != nil {
+					payer = verifyResp.Payer
+				}
+				// In verify-only mode: Success=false indicates settlement was skipped (not attempted), not that it failed.
+				meta["x402/payment-response"] = x402.SettlementResponse{
+					Success: false,
+					Network: payment.Network,
+					Payer:   payer,
+				}
+			}
 			result["_meta"] = meta
 
 			// Re-marshal result

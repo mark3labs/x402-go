@@ -21,9 +21,10 @@ type Interface interface {
 
 // VerifyResponse contains the payment verification result from the facilitator.
 type VerifyResponse struct {
-	IsValid       bool   `json:"isValid"`
-	InvalidReason string `json:"invalidReason,omitempty"`
-	Payer         string `json:"payer"`
+	IsValid        bool                `json:"isValid"`
+	InvalidReason  string              `json:"invalidReason,omitempty"`
+	Payer          string              `json:"payer"`
+	PaymentPayload x402.PaymentPayload `json:"paymentPayload"`
 }
 
 // SupportedKind describes a supported payment type with its configuration.
