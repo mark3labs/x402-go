@@ -37,6 +37,7 @@ type FieldDef struct {
 	Description string              `json:"description,omitempty"`
 	Enum        []string            `json:"enum,omitempty"`
 	Properties  map[string]FieldDef `json:"properties,omitempty"`
+	Items       []FieldDef          `json:"items,omitempty"`
 }
 
 // InputSchema defines the expected structure of the client request. (https://www.x402scan.com)
