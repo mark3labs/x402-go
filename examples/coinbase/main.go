@@ -18,6 +18,8 @@ import (
 	"github.com/mark3labs/x402-go/signers/coinbase"
 )
 
+const CdPFacilitatorURL = "https://api.cdp.coinbase.com/platform/v2/x402"
+
 func main() {
 	// Load environment variables from .env file if present
 	_ = godotenv.Load()
@@ -56,6 +58,8 @@ func runServer(args []string) {
 	payTo := fs.String("pay-to", "", "Address to receive payments (required)")
 	tokenAddr := fs.String("token", "", "Token address (auto-detected based on network if not specified)")
 	amount := fs.String("amount", "", "Payment amount in USDC (default: 0.001)")
+	apiKeyName := fs.String("api-key-name", "", "CDP API Key Name (or set CDP_API_KEY_NAME env var)")
+	apiKeySecret := fs.String("api-key-secret", "", "CDP API Key Secret (or set CDP_API_KEY_SECRET env var)")
 	facilitatorURL := fs.String("facilitator", "https://facilitator.x402.rs", "Facilitator URL")
 	verbose := fs.Bool("verbose", false, "Enable verbose debug output")
 
@@ -67,6 +71,16 @@ func runServer(args []string) {
 		fmt.Println()
 		fs.PrintDefaults()
 		os.Exit(1)
+	}
+
+	if *apiKeyName == "" {
+		*apiKeyName = os.Getenv("CDP_API_KEY_NAME")
+	}
+	if *apiKeySecret == "" {
+		*apiKeySecret = os.Getenv("CDP_API_KEY_SECRET")
+	}
+	if *apiKeyName != "" && *apiKeySecret != "" {
+		*facilitatorURL = CdPFacilitatorURL
 	}
 
 	// Get chain configuration for the network
@@ -126,12 +140,37 @@ func runServer(args []string) {
 
 	requirements := []x402.PaymentRequirement{requirement}
 
-	// Create x402 middleware
-	middleware := x402http.NewX402Middleware(&x402http.Config{
-		FacilitatorURL:      *facilitatorURL,
-		PaymentRequirements: requirements,
-		VerifyOnly:          false,
-	})
+	var cfg *x402http.Config
+	if *apiKeyName != "" && *apiKeySecret != "" {
+		fmt.Println("Using Coinbase CDP facilitator with provided API credentials")
+
+		auth, err := coinbase.NewCDPAuth(*apiKeyName, *apiKeySecret, "")
+		if err != nil {
+			log.Fatalf("failed to create CDP auth: %s", err)
+		}
+
+		cfg = &x402http.Config{
+			FacilitatorURL:      CdPFacilitatorURL,
+			PaymentRequirements: requirements,
+			VerifyOnly:          false,
+			FacilitatorAuthorizationProvider: func(r *http.Request) string {
+				token, err := auth.GenerateBearerToken(r.Method, r.URL.Path)
+				if err != nil {
+					log.Fatalf("failed to generate auth token: %v", err)
+					return ""
+				}
+				return "Bearer " + token
+			},
+		}
+	} else {
+		// Create x402 middleware
+		cfg = &x402http.Config{
+			FacilitatorURL:      *facilitatorURL,
+			PaymentRequirements: requirements,
+			VerifyOnly:          false,
+		}
+	}
+	middleware := x402http.NewX402Middleware(cfg)
 
 	// Create paywalled data handler
 	dataHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -23,7 +23,7 @@ import (
 // during retry attempts. If your provider accesses shared state or performs I/O
 // (e.g., token refresh), ensure it is safe for concurrent use. The FacilitatorClient
 // does not serialize calls to the provider.
-type AuthorizationProvider func() string
+type AuthorizationProvider func(*http.Request) string
 
 // FacilitatorClient is a client for communicating with x402 facilitator services.
 type FacilitatorClient struct {
@@ -49,7 +49,7 @@ type FacilitatorClient struct {
 func (c *FacilitatorClient) setAuthorizationHeader(req *http.Request) {
 	var authValue string
 	if c.AuthorizationProvider != nil {
-		authValue = c.AuthorizationProvider()
+		authValue = c.AuthorizationProvider(req)
 	} else if c.Authorization != "" {
 		authValue = c.Authorization
 	}

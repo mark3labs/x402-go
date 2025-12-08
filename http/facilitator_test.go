@@ -123,7 +123,7 @@ func TestFacilitatorClient_Verify_WithStaticAuthorization(t *testing.T) {
 
 func TestFacilitatorClient_Verify_WithAuthorizationProvider(t *testing.T) {
 	callCount := 0
-	provider := func() string {
+	provider := func(r *http.Request) string {
 		callCount++
 		return "Bearer dynamic-token-" + string(rune('0'+callCount))
 	}
