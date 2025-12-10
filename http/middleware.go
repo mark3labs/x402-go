@@ -32,12 +32,24 @@ type Config struct {
 	// If set, this takes precedence over FacilitatorAuthorization.
 	FacilitatorAuthorizationProvider AuthorizationProvider
 
+	// Facilitator hooks for custom logic before/after verify and settle operations
+	FacilitatorOnBeforeVerify OnBeforeFunc
+	FacilitatorOnAfterVerify  OnAfterVerifyFunc
+	FacilitatorOnBeforeSettle OnBeforeFunc
+	FacilitatorOnAfterSettle  OnAfterSettleFunc
+
 	// FallbackFacilitatorAuthorization is a static Authorization header value for the fallback facilitator.
 	FallbackFacilitatorAuthorization string
 
 	// FallbackFacilitatorAuthorizationProvider is a function that returns an Authorization header value
 	// for the fallback facilitator. If set, this takes precedence over FallbackFacilitatorAuthorization.
 	FallbackFacilitatorAuthorizationProvider AuthorizationProvider
+
+	// FallbackFacilitator hooks for custom logic before/after verify and settle operations
+	FallbackFacilitatorOnBeforeVerify OnBeforeFunc
+	FallbackFacilitatorOnAfterVerify  OnAfterVerifyFunc
+	FallbackFacilitatorOnBeforeSettle OnBeforeFunc
+	FallbackFacilitatorOnAfterSettle  OnAfterSettleFunc
 }
 
 // contextKey is a custom type for context keys to avoid collisions.
@@ -58,6 +70,10 @@ func NewX402Middleware(config *Config) func(http.Handler) http.Handler {
 		Timeouts:              x402.DefaultTimeouts,
 		Authorization:         config.FacilitatorAuthorization,
 		AuthorizationProvider: config.FacilitatorAuthorizationProvider,
+		OnBeforeVerify:        config.FacilitatorOnBeforeVerify,
+		OnAfterVerify:         config.FacilitatorOnAfterVerify,
+		OnBeforeSettle:        config.FacilitatorOnBeforeSettle,
+		OnAfterSettle:         config.FacilitatorOnAfterSettle,
 	}
 
 	// Create fallback facilitator client if configured
@@ -69,6 +85,10 @@ func NewX402Middleware(config *Config) func(http.Handler) http.Handler {
 			Timeouts:              x402.DefaultTimeouts,
 			Authorization:         config.FallbackFacilitatorAuthorization,
 			AuthorizationProvider: config.FallbackFacilitatorAuthorizationProvider,
+			OnBeforeVerify:        config.FallbackFacilitatorOnBeforeVerify,
+			OnAfterVerify:         config.FallbackFacilitatorOnAfterVerify,
+			OnBeforeSettle:        config.FallbackFacilitatorOnBeforeSettle,
+			OnAfterSettle:         config.FallbackFacilitatorOnAfterSettle,
 		}
 	}
 

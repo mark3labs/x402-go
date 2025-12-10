@@ -234,6 +234,78 @@ func TestFacilitatorClient_Verify_WithoutAuthorization(t *testing.T) {
 	}
 }
 
+func TestFacilitatorClient_Verify_Hooks(t *testing.T) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		response := facilitator.VerifyResponse{IsValid: true}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(response)
+	}))
+	defer mockServer.Close()
+
+	var beforeCalled, afterCalled bool
+	var capturedPayload x402.PaymentPayload
+
+	client := &FacilitatorClient{
+		BaseURL:  mockServer.URL,
+		Client:   &http.Client{},
+		Timeouts: x402.DefaultTimeouts,
+		OnBeforeVerify: func(ctx context.Context, p x402.PaymentPayload, r x402.PaymentRequirement) error {
+			beforeCalled = true
+			capturedPayload = p
+			return nil
+		},
+		OnAfterVerify: func(ctx context.Context, p x402.PaymentPayload, r x402.PaymentRequirement, resp *facilitator.VerifyResponse, err error) {
+			afterCalled = true
+			if err != nil {
+				t.Errorf("OnAfterVerify received unexpedted error: %v", err)
+			}
+			if resp == nil || !resp.IsValid {
+				t.Error("OnAfterVerify did not receive valid response")
+			}
+		},
+	}
+
+	payload := x402.PaymentPayload{X402Version: 1, Scheme: "exact"}
+	requirement := x402.PaymentRequirement{Scheme: "exact"}
+
+	_, err := client.Verify(context.Background(), payload, requirement)
+	if err != nil {
+		t.Fatalf("Verify failed: %v", err)
+	}
+
+	if !beforeCalled {
+		t.Error("OnBeforeVerify was not called")
+	}
+	if !afterCalled {
+		t.Error("OnAfterVerify was not called")
+	}
+	if capturedPayload.Scheme != "exact" {
+		t.Error("OnBeforeVerify did not receive correct payload")
+	}
+}
+
+func TestFacilitatorClient_Verify_OnBeforeAbort(t *testing.T) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("Server was reached despite OnBeforeVerify error")
+	}))
+	defer mockServer.Close()
+
+	expedtedErr := x402.ErrVerificationFailed
+
+	client := &FacilitatorClient{
+		BaseURL: mockServer.URL,
+		Client:  &http.Client{},
+		OnBeforeVerify: func(ctx context.Context, pp x402.PaymentPayload, pr x402.PaymentRequirement) error {
+			return expedtedErr
+		},
+	}
+
+	_, err := client.Verify(context.Background(), x402.PaymentPayload{}, x402.PaymentRequirement{})
+	if err != expedtedErr {
+		t.Errorf("Expected error %v, got %v", expedtedErr, err)
+	}
+}
+
 func TestFacilitatorClient_Settle_WithStaticAuthorization(t *testing.T) {
 	expectedAuth := "Bearer settle-api-key"
 
@@ -394,5 +466,66 @@ func TestFacilitatorClient_Settle(t *testing.T) {
 
 	if resp.Transaction == "" {
 		t.Error("Expected transaction hash")
+	}
+}
+
+func TestFacilitatorClient_Settle_Hooks(t *testing.T) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		response := x402.SettlementResponse{Success: true, Transaction: "0x123"}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(response)
+	}))
+	defer mockServer.Close()
+
+	var beforeCalled, afterCalled bool
+
+	client := &FacilitatorClient{
+		BaseURL:  mockServer.URL,
+		Client:   &http.Client{},
+		Timeouts: x402.DefaultTimeouts,
+		OnBeforeSettle: func(ctx context.Context, p x402.PaymentPayload, r x402.PaymentRequirement) error {
+			beforeCalled = true
+			return nil
+		},
+		OnAfterSettle: func(ctx context.Context, p x402.PaymentPayload, r x402.PaymentRequirement, resp *x402.SettlementResponse, err error) {
+			afterCalled = true
+			if resp == nil || resp.Transaction != "0x123" {
+				t.Error("OnAfterSettle did not receive correct response")
+			}
+		},
+	}
+
+	_, err := client.Settle(context.Background(), x402.PaymentPayload{}, x402.PaymentRequirement{})
+	if err != nil {
+		t.Fatalf("Settle failed: %v", err)
+	}
+
+	if !beforeCalled {
+		t.Error("OnBeforeSettle was not called")
+	}
+	if !afterCalled {
+		t.Error("OnAfterSettle was not called")
+	}
+}
+
+func TestFacilitatorClient_Settle_OnBeforeAbort(t *testing.T) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("Server was reached despite OnBeforeSettle error")
+	}))
+	defer mockServer.Close()
+
+	expectedErr := x402.ErrSettlementFailed
+
+	client := &FacilitatorClient{
+		BaseURL: mockServer.URL,
+		Client:  &http.Client{},
+		OnBeforeSettle: func(ctx context.Context, p x402.PaymentPayload, r x402.PaymentRequirement) error {
+			return expectedErr
+		},
+	}
+
+	_, err := client.Settle(context.Background(), x402.PaymentPayload{}, x402.PaymentRequirement{})
+	if err == nil || err != expectedErr {
+		t.Errorf("Expected error %v, got %v", expectedErr, err)
 	}
 }
