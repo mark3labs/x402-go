@@ -28,8 +28,10 @@ type AuthorizationProvider func(*http.Request) string
 // OnBeforeFunc is a function that returns an error to abort an operation.
 type OnBeforeFunc func(context.Context, x402.PaymentPayload, x402.PaymentRequirement) error
 
+// OnAfterVerifyFunc is a function that is called after a Verify operation completes
 type OnAfterVerifyFunc func(context.Context, x402.PaymentPayload, x402.PaymentRequirement, *facilitator.VerifyResponse, error)
 
+// OnAfterSettleFunc is a function that is called after a Settle operation completes
 type OnAfterSettleFunc func(context.Context, x402.PaymentPayload, x402.PaymentRequirement, *x402.SettlementResponse, error)
 
 // FacilitatorClient is a client for communicating with x402 facilitator services.

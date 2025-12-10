@@ -238,7 +238,9 @@ func TestFacilitatorClient_Verify_Hooks(t *testing.T) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		response := facilitator.VerifyResponse{IsValid: true}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			t.Errorf("Failed to encode response: %v", err)
+		}
 	}))
 	defer mockServer.Close()
 
@@ -257,7 +259,7 @@ func TestFacilitatorClient_Verify_Hooks(t *testing.T) {
 		OnAfterVerify: func(ctx context.Context, p x402.PaymentPayload, r x402.PaymentRequirement, resp *facilitator.VerifyResponse, err error) {
 			afterCalled = true
 			if err != nil {
-				t.Errorf("OnAfterVerify received unexpedted error: %v", err)
+				t.Errorf("OnAfterVerify received unexpected error: %v", err)
 			}
 			if resp == nil || !resp.IsValid {
 				t.Error("OnAfterVerify did not receive valid response")
@@ -290,19 +292,19 @@ func TestFacilitatorClient_Verify_OnBeforeAbort(t *testing.T) {
 	}))
 	defer mockServer.Close()
 
-	expedtedErr := x402.ErrVerificationFailed
+	expectedErr := x402.ErrVerificationFailed
 
 	client := &FacilitatorClient{
 		BaseURL: mockServer.URL,
 		Client:  &http.Client{},
 		OnBeforeVerify: func(ctx context.Context, pp x402.PaymentPayload, pr x402.PaymentRequirement) error {
-			return expedtedErr
+			return expectedErr
 		},
 	}
 
 	_, err := client.Verify(context.Background(), x402.PaymentPayload{}, x402.PaymentRequirement{})
-	if err != expedtedErr {
-		t.Errorf("Expected error %v, got %v", expedtedErr, err)
+	if err != expectedErr {
+		t.Errorf("Expected error %v, got %v", expectedErr, err)
 	}
 }
 
@@ -473,7 +475,9 @@ func TestFacilitatorClient_Settle_Hooks(t *testing.T) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		response := x402.SettlementResponse{Success: true, Transaction: "0x123"}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			t.Errorf("Failed to encode response: %v", err)
+		}
 	}))
 	defer mockServer.Close()
 
