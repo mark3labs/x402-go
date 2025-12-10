@@ -529,7 +529,7 @@ func TestFacilitatorClient_Settle_OnBeforeAbort(t *testing.T) {
 	}
 
 	_, err := client.Settle(context.Background(), x402.PaymentPayload{}, x402.PaymentRequirement{})
-	if err == nil || err != expectedErr {
+	if err != expectedErr {
 		t.Errorf("Expected error %v, got %v", expectedErr, err)
 	}
 }
