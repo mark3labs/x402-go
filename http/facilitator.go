@@ -25,6 +25,15 @@ import (
 // does not serialize calls to the provider.
 type AuthorizationProvider func(*http.Request) string
 
+// OnBeforeFunc is a function that returns an error to abort an operation.
+type OnBeforeFunc func(context.Context, x402.PaymentPayload, x402.PaymentRequirement) error
+
+// OnAfterVerifyFunc is a function that is called after a Verify operation completes
+type OnAfterVerifyFunc func(context.Context, x402.PaymentPayload, x402.PaymentRequirement, *facilitator.VerifyResponse, error)
+
+// OnAfterSettleFunc is a function that is called after a Settle operation completes
+type OnAfterSettleFunc func(context.Context, x402.PaymentPayload, x402.PaymentRequirement, *x402.SettlementResponse, error)
+
 // FacilitatorClient is a client for communicating with x402 facilitator services.
 type FacilitatorClient struct {
 	BaseURL    string
@@ -41,6 +50,20 @@ type FacilitatorClient struct {
 	// This is useful for dynamic tokens that may need to be refreshed.
 	// If set, this takes precedence over the static Authorization field.
 	AuthorizationProvider AuthorizationProvider
+
+	// OnBeforeVerify is called before the Verify operation starts.
+	// If it returns an error, the operation is aborted immediately.
+	OnBeforeVerify OnBeforeFunc
+
+	// OnAfterVerify is called after the Verify operation completes (success or failure).
+	OnAfterVerify OnAfterVerifyFunc
+
+	// OnBeforeSettle is called before the Settle operation starts.
+	// If it returns an error, the operation is aborted immediately.
+	OnBeforeSettle OnBeforeFunc
+
+	// OnAfterSettle is called after the Settle operation completes (success or failure).
+	OnAfterSettle OnAfterSettleFunc
 }
 
 // setAuthorizationHeader sets the Authorization header on the request if configured.
@@ -67,6 +90,12 @@ type FacilitatorRequest struct {
 
 // Verify verifies a payment authorization without executing the transaction.
 func (c *FacilitatorClient) Verify(ctx context.Context, payment x402.PaymentPayload, requirement x402.PaymentRequirement) (*facilitator.VerifyResponse, error) {
+	if c.OnBeforeVerify != nil {
+		if err := c.OnBeforeVerify(ctx, payment, requirement); err != nil {
+			return nil, err
+		}
+	}
+
 	// Create request payload
 	req := FacilitatorRequest{
 		X402Version:         1,
@@ -98,7 +127,7 @@ func (c *FacilitatorClient) Verify(ctx context.Context, payment x402.PaymentPayl
 		Multiplier:   2.0,
 	}
 
-	return retry.WithRetry(ctx, config, isFacilitatorUnavailableError, func() (*facilitator.VerifyResponse, error) {
+	resp, resultErr := retry.WithRetry(ctx, config, isFacilitatorUnavailableError, func() (*facilitator.VerifyResponse, error) {
 		// Use provided context, apply timeout only if not already set
 		reqCtx := ctx
 		if _, hasDeadline := ctx.Deadline(); !hasDeadline && c.Timeouts.VerifyTimeout > 0 {
@@ -153,6 +182,12 @@ func (c *FacilitatorClient) Verify(ctx context.Context, payment x402.PaymentPayl
 
 		return &verifyResp, nil
 	})
+
+	if c.OnAfterVerify != nil {
+		c.OnAfterVerify(ctx, payment, requirement, resp, resultErr)
+	}
+
+	return resp, resultErr
 }
 
 // Supported queries the facilitator for supported payment types.
@@ -193,6 +228,12 @@ func (c *FacilitatorClient) Supported(ctx context.Context) (*facilitator.Support
 
 // Settle executes a verified payment on the blockchain.
 func (c *FacilitatorClient) Settle(ctx context.Context, payment x402.PaymentPayload, requirement x402.PaymentRequirement) (*x402.SettlementResponse, error) {
+	if c.OnBeforeSettle != nil {
+		if err := c.OnBeforeSettle(ctx, payment, requirement); err != nil {
+			return nil, err
+		}
+	}
+
 	// Create request payload
 	req := FacilitatorRequest{
 		X402Version:         1,
@@ -224,7 +265,7 @@ func (c *FacilitatorClient) Settle(ctx context.Context, payment x402.PaymentPayl
 		Multiplier:   2.0,
 	}
 
-	return retry.WithRetry(ctx, config, isFacilitatorUnavailableError, func() (*x402.SettlementResponse, error) {
+	resp, resultErr := retry.WithRetry(ctx, config, isFacilitatorUnavailableError, func() (*x402.SettlementResponse, error) {
 		// Use provided context, apply timeout only if not already set
 		reqCtx := ctx
 		if _, hasDeadline := ctx.Deadline(); !hasDeadline && c.Timeouts.SettleTimeout > 0 {
@@ -271,6 +312,12 @@ func (c *FacilitatorClient) Settle(ctx context.Context, payment x402.PaymentPayl
 
 		return &settlementResp, nil
 	})
+
+	if c.OnAfterSettle != nil {
+		c.OnAfterSettle(ctx, payment, requirement, resp, resultErr)
+	}
+
+	return resp, resultErr
 }
 
 // EnrichRequirements fetches supported payment types from the facilitator and
