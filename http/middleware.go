@@ -2,8 +2,11 @@
 package http
 
 import (
+	"bufio"
 	"context"
+	"errors"
 	"log/slog"
+	"net"
 	"net/http"
 
 	"github.com/mark3labs/x402-go"
@@ -209,7 +212,7 @@ func NewX402Middleware(config *Config) func(http.Handler) http.Handler {
 					return true
 				},
 				onFailure: func(statusCode int) {
-					logger.Warn("handler returned non-success, skipping payment settlment", "status", statusCode)
+					logger.Warn("handler returned non-success, skipping payment settlement", "status", statusCode)
 				},
 			}
 			next.ServeHTTP(interceptor, r)
@@ -277,4 +280,27 @@ func (i *settlementInterceptor) WriteHeader(statusCode int) {
 	// The settleFunc has already added the X-PAYMENT-RESPONSE headers.
 	// We now allow the original status code to proceed.
 	i.w.WriteHeader(statusCode)
+}
+
+// Flush implements http.Flusher to support streaming responses.
+func (i *settlementInterceptor) Flush() {
+	if flusher, ok := i.w.(http.Flusher); ok {
+		flusher.Flush()
+	}
+}
+
+// Hijack implements http.Hijacker to support connection hijacking.
+func (i *settlementInterceptor) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	if hijacker, ok := i.w.(http.Hijacker); ok {
+		return hijacker.Hijack()
+	}
+	return nil, nil, errors.New("hijacking not supported")
+}
+
+// Push implements http.Pusher to support HTTP/2 server push.
+func (i *settlementInterceptor) Push(target string, opts *http.PushOptions) error {
+	if pusher, ok := i.w.(http.Pusher); ok {
+		return pusher.Push(target, opts)
+	}
+	return http.ErrNotSupported
 }
