@@ -170,42 +170,111 @@ func NewX402Middleware(config *Config) func(http.Handler) http.Handler {
 			// Payment verified successfully
 			logger.Info("payment verified", "payer", verifyResp.Payer)
 
-			// Settle payment if not verify-only mode
-			var settlementResp *x402.SettlementResponse
-			if !config.VerifyOnly {
-				logger.Info("settling payment", "payer", verifyResp.Payer)
-				settlementResp, err = facilitator.Settle(r.Context(), payment, requirement)
-				if err != nil && fallbackFacilitator != nil {
-					logger.Warn("primary facilitator settlement failed, trying fallback", "error", err)
-					settlementResp, err = fallbackFacilitator.Settle(r.Context(), payment, requirement)
-				}
-				if err != nil {
-					logger.Error("settlement failed", "error", err)
-					http.Error(w, "Payment settlement failed", http.StatusServiceUnavailable)
-					return
-				}
-
-				if !settlementResp.Success {
-					logger.Warn("settlement unsuccessful", "reason", settlementResp.ErrorReason)
-					sendPaymentRequiredWithRequirements(w, requirementsWithResource)
-					return
-				}
-
-				logger.Info("payment settled", "transaction", settlementResp.Transaction)
-
-				// Add X-PAYMENT-RESPONSE header with settlement info
-				if err := addPaymentResponseHeader(w, settlementResp); err != nil {
-					logger.Warn("failed to add payment response header", "error", err)
-					// Continue anyway - payment was successful
-				}
-			}
-
 			// Store payment info in context for handler access
 			ctx := context.WithValue(r.Context(), PaymentContextKey, verifyResp)
 			r = r.WithContext(ctx)
 
-			// Payment successful - call next handler
-			next.ServeHTTP(w, r)
+			interceptor := &settlementInterceptor{
+				w: w,
+				settleFunc: func() bool {
+					if config.VerifyOnly {
+						return true
+					}
+
+					logger.Info("settling payment", "payer", verifyResp.Payer)
+					settlementResp, err := facilitator.Settle(r.Context(), payment, requirement)
+					if err != nil && fallbackFacilitator != nil {
+						logger.Warn("primary facilitator settlement failed, trying fallback", "error", err)
+						settlementResp, err = fallbackFacilitator.Settle(r.Context(), payment, requirement)
+					}
+					if err != nil {
+						logger.Error("settlement failed", "error", err)
+						http.Error(w, "Payment settlement failed", http.StatusServiceUnavailable)
+						return false
+					}
+
+					if !settlementResp.Success {
+						logger.Warn("settlement unsuccessful", "reason", settlementResp.ErrorReason)
+						sendPaymentRequiredWithRequirements(w, requirementsWithResource)
+						return false
+					}
+
+					logger.Info("payment settled", "transaction", settlementResp.Transaction)
+
+					// Add X-PAYMENT-RESPONSE header with settlement info
+					if err := addPaymentResponseHeader(w, settlementResp); err != nil {
+						logger.Warn("failed to add payment response header", "error", err)
+						// Continue anyway - payment was successful
+					}
+					return true
+				},
+				onFailure: func(statusCode int) {
+					logger.Warn("handler returned non-success, skipping payment settlment", "status", statusCode)
+				},
+			}
+			next.ServeHTTP(interceptor, r)
 		})
 	}
+}
+
+// settlementInterceptor wraps the ResponseWriter to intercept the moment of commitment.
+type settlementInterceptor struct {
+	w http.ResponseWriter
+	// settleFunc is the callback that performs the actual settlement logic
+	settleFunc func() bool
+	// onFailure is an internal logging callback
+	onFailure func(statusCode int)
+	committed bool
+	hijacked  bool
+}
+
+func (i *settlementInterceptor) Header() http.Header {
+	return i.w.Header()
+}
+
+func (i *settlementInterceptor) Write(b []byte) (int, error) {
+	// If the handler calls Write without WriteHeader, it implies 200 OK.
+	// We must trigger our check now.
+	if !i.committed {
+		i.WriteHeader(http.StatusOK)
+	}
+
+	// If settlement failed, we have "hijacked" the connection to send an error.
+	// We silently discard the handler's payload to prevent mixed responses.
+	if i.hijacked {
+		return len(b), nil
+	}
+
+	return i.w.Write(b)
+}
+
+func (i *settlementInterceptor) WriteHeader(statusCode int) {
+	if i.committed {
+		return
+	}
+	i.committed = true
+
+	// Case 1: Handler is returning an error (e.g., 404, 500).
+	// We do nothing. Let the error pass through. No settlement.
+	if statusCode >= 400 {
+		if i.onFailure != nil {
+			i.onFailure(statusCode)
+		}
+		i.w.WriteHeader(statusCode)
+		return
+	}
+
+	// Case 2: Handler wants to succeed. STOP!
+	// We run the settlement logic now.
+	if !i.settleFunc() {
+		// Settlement failed. We mark as hijacked.
+		// The settleFunc has already written the 402/503 error to the underlying writer.
+		i.hijacked = true
+		return
+	}
+
+	// Case 3: Settlement succeeded.
+	// The settleFunc has already added the X-PAYMENT-RESPONSE headers.
+	// We now allow the original status code to proceed.
+	i.w.WriteHeader(statusCode)
 }
