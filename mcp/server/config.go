@@ -2,6 +2,7 @@ package server
 
 import (
 	"github.com/mark3labs/x402-go"
+	"github.com/mark3labs/x402-go/http"
 )
 
 // Config holds configuration for the MCP server with x402 payment support
@@ -18,6 +19,10 @@ type Config struct {
 	// PaymentTools maps tool names to their payment requirements
 	// Key: tool name, Value: list of acceptable payment options
 	PaymentTools map[string][]x402.PaymentRequirement
+
+	// HTTPConfig to generate facilitator and fallback facilitator clients
+	// HTTPConfig.VerifyOnly and HTTPConfig.PaymentRequirements are ignored
+	HTTPConfig *http.Config
 }
 
 // DefaultConfig returns a Config with default settings
