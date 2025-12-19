@@ -54,6 +54,10 @@ func NewX402Handler(mcpHandler http.Handler, config *Config) *X402Handler {
 		facilitator = NewHTTPFacilitator(config.FacilitatorURL)
 	}
 
+	if facilitator == nil {
+		panic("x402: at least one facilitator URL must be provided")
+	}
+
 	return &X402Handler{
 		mcpHandler:          mcpHandler,
 		config:              config,
@@ -109,6 +113,7 @@ func (h *X402Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, jsonrpcReq.ID, -32602, "Invalid params", nil)
 		return
 	}
+	logger = logger.With("requestID", jsonrpcReq.ID, "tool", toolParams.Name)
 
 	// Unmarshal _meta separately to get AdditionalFields
 	if len(jsonrpcReq.Params) > 0 {
@@ -242,7 +247,7 @@ func (h *X402Handler) sendPaymentRequiredError(w http.ResponseWriter, id interfa
 
 // forwardAndSettle executes the mcpHandler and on success, settles the payment and injects settlement response in result._meta
 func (h *X402Handler) forwardAndSettle(w http.ResponseWriter, r *http.Request, requestBody []byte, requestID interface{}, payment *x402.PaymentPayload, requirement *x402.PaymentRequirement, verifyResp *facilitator.VerifyResponse) {
-	logger := slog.Default()
+	logger := slog.Default().With("requestID", requestID, "tool", requirement.Resource)
 	// Create a response recorder to capture the MCP handler's response
 	recorder := &responseRecorder{
 		headerMap:  make(http.Header),
