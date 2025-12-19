@@ -38,6 +38,8 @@ func NewX402Handler(mcpHandler http.Handler, config *Config) *X402Handler {
 				WithOnAfterVerify(config.HTTPConfig.FacilitatorOnAfterVerify),
 				WithOnBeforeSettle(config.HTTPConfig.FacilitatorOnBeforeSettle),
 				WithOnAfterSettle(config.HTTPConfig.FacilitatorOnAfterSettle))
+		} else if config.FacilitatorURL != "" {
+			facilitator = NewHTTPFacilitator(config.FacilitatorURL)
 		}
 		if config.HTTPConfig.FallbackFacilitatorURL != "" {
 			fallbackFacilitator = NewHTTPFacilitator(config.HTTPConfig.FallbackFacilitatorURL,
@@ -153,7 +155,7 @@ func (h *X402Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	verifyResp, err := h.facilitator.Verify(ctx, payment, *requirement)
 	if err != nil && h.fallbackFacilitator != nil {
 		logger.WarnContext(r.Context(), "primary facilitator failed, trying fallback", "error", err)
-		verifyResp, err = h.fallbackFacilitator.Verify(r.Context(), payment, *requirement)
+		verifyResp, err = h.fallbackFacilitator.Verify(ctx, payment, *requirement)
 	}
 	if err != nil {
 		if h.config.Verbose {
@@ -299,7 +301,7 @@ func (h *X402Handler) forwardAndSettle(w http.ResponseWriter, r *http.Request, r
 		settleResp, err = h.facilitator.Settle(settleCtx, payment, *requirement)
 		if err != nil && h.fallbackFacilitator != nil {
 			logger.WarnContext(r.Context(), "primary facilitator settlement failed, trying fallback", "error", err)
-			settleResp, err = h.fallbackFacilitator.Settle(r.Context(), payment, *requirement)
+			settleResp, err = h.fallbackFacilitator.Settle(settleCtx, payment, *requirement)
 		}
 		if err != nil || settleResp == nil || !settleResp.Success {
 			reason := "unknown reason"
