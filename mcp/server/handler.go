@@ -161,12 +161,12 @@ func (h *X402Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	verifyResp, err := h.facilitator.Verify(ctx, payment, *requirement)
 	if err != nil && h.fallbackFacilitator != nil {
-		logger.WarnContext(r.Context(), "primary facilitator failed, trying fallback", "error", err)
+		logger.WarnContext(ctx, "primary facilitator failed, trying fallback", "error", err)
 		verifyResp, err = h.fallbackFacilitator.Verify(ctx, payment, *requirement)
 	}
 	if err != nil {
 		if h.config.Verbose {
-			logger.InfoContext(r.Context(), "Payment verification failed", "error", err)
+			logger.InfoContext(ctx, "Payment verification failed", "error", err)
 		}
 		h.writeError(w, jsonrpcReq.ID, -32603, fmt.Sprintf("Verification failed: %v", err), nil)
 		return
@@ -174,7 +174,7 @@ func (h *X402Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if !verifyResp.IsValid {
 		if h.config.Verbose {
-			logger.InfoContext(r.Context(), "Payment rejected", "reason", verifyResp.InvalidReason)
+			logger.InfoContext(ctx, "Payment rejected", "reason", verifyResp.InvalidReason)
 		}
 		h.writeError(w, jsonrpcReq.ID, 402, fmt.Sprintf("Payment invalid: %s", verifyResp.InvalidReason), nil)
 		return
@@ -306,7 +306,7 @@ func (h *X402Handler) forwardAndSettle(w http.ResponseWriter, r *http.Request, r
 		var err error
 		settleResp, err = h.facilitator.Settle(settleCtx, payment, *requirement)
 		if err != nil && h.fallbackFacilitator != nil {
-			logger.WarnContext(r.Context(), "primary facilitator settlement failed, trying fallback", "error", err)
+			logger.WarnContext(settleCtx, "primary facilitator settlement failed, trying fallback", "error", err)
 			settleResp, err = h.fallbackFacilitator.Settle(settleCtx, payment, *requirement)
 		}
 		if err != nil || settleResp == nil || !settleResp.Success {
@@ -318,7 +318,7 @@ func (h *X402Handler) forwardAndSettle(w http.ResponseWriter, r *http.Request, r
 			}
 
 			if h.config.Verbose {
-				logger.ErrorContext(r.Context(), "Settlement failed", "error", reason)
+				logger.ErrorContext(settleCtx, "Settlement failed", "error", reason)
 			}
 			payer := ""
 			if verifyResp != nil {
@@ -335,7 +335,7 @@ func (h *X402Handler) forwardAndSettle(w http.ResponseWriter, r *http.Request, r
 			h.writeError(w, requestID, -32603, fmt.Sprintf("Settlement failed: %v", reason), errorData)
 			return
 		} else if h.config.Verbose {
-			logger.InfoContext(r.Context(), "Payment successful", "transaction", settleResp.Transaction)
+			logger.InfoContext(settleCtx, "Payment successful", "transaction", settleResp.Transaction)
 		}
 	}
 
