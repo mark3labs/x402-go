@@ -38,7 +38,10 @@ func NewX402Handler(mcpHandler http.Handler, config *Config) *X402Handler {
 				WithOnAfterVerify(config.HTTPConfig.FacilitatorOnAfterVerify),
 				WithOnBeforeSettle(config.HTTPConfig.FacilitatorOnBeforeSettle),
 				WithOnAfterSettle(config.HTTPConfig.FacilitatorOnAfterSettle))
-		} else if config.FacilitatorURL != "" {
+		} else {
+			if config.FacilitatorURL == "" {
+				panic("x402: at least one facilitator URL must be provided")
+			}
 			facilitator = NewHTTPFacilitator(config.FacilitatorURL)
 		}
 		if config.HTTPConfig.FallbackFacilitatorURL != "" {
@@ -51,11 +54,10 @@ func NewX402Handler(mcpHandler http.Handler, config *Config) *X402Handler {
 				WithOnAfterSettle(config.HTTPConfig.FallbackFacilitatorOnAfterSettle))
 		}
 	} else {
+		if config.FacilitatorURL == "" {
+			panic("x402: at least one facilitator URL must be provided")
+		}
 		facilitator = NewHTTPFacilitator(config.FacilitatorURL)
-	}
-
-	if facilitator == nil {
-		panic("x402: at least one facilitator URL must be provided")
 	}
 
 	return &X402Handler{
