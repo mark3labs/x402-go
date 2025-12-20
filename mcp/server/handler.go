@@ -178,7 +178,7 @@ func (h *X402Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.forwardAndSettle(w, r, bodyBytes, jsonrpcReq.ID, payment, requirement, verifyResp)
+	h.forwardAndSettle(w, r, bodyBytes, jsonrpcReq.ID, payment, requirement, verifyResp, logger)
 }
 
 // checkPaymentRequired checks if a tool requires payment
@@ -246,8 +246,7 @@ func (h *X402Handler) sendPaymentRequiredError(w http.ResponseWriter, id interfa
 }
 
 // forwardAndSettle executes the mcpHandler and on success, settles the payment and injects settlement response in result._meta
-func (h *X402Handler) forwardAndSettle(w http.ResponseWriter, r *http.Request, requestBody []byte, requestID interface{}, payment *x402.PaymentPayload, requirement *x402.PaymentRequirement, verifyResp *facilitator.VerifyResponse) {
-	logger := slog.Default().With("requestID", requestID, "tool", requirement.Resource)
+func (h *X402Handler) forwardAndSettle(w http.ResponseWriter, r *http.Request, requestBody []byte, requestID interface{}, payment *x402.PaymentPayload, requirement *x402.PaymentRequirement, verifyResp *facilitator.VerifyResponse, logger *slog.Logger) {
 	// Create a response recorder to capture the MCP handler's response
 	recorder := &responseRecorder{
 		headerMap:  make(http.Header),
