@@ -42,7 +42,13 @@ func NewX402Handler(mcpHandler http.Handler, config *Config) *X402Handler {
 			if config.FacilitatorURL == "" {
 				panic("x402: at least one facilitator URL must be provided")
 			}
-			facilitator = NewHTTPFacilitator(config.FacilitatorURL)
+			facilitator = NewHTTPFacilitator(config.FacilitatorURL,
+				WithAuthorization(config.FacilitatorAuthorization),
+				WithAuthorizationProvider(config.FacilitatorAuthorizationProvider),
+				WithOnBeforeVerify(config.FacilitatorOnBeforeVerify),
+				WithOnAfterVerify(config.FacilitatorOnAfterVerify),
+				WithOnBeforeSettle(config.FacilitatorOnBeforeSettle),
+				WithOnAfterSettle(config.FacilitatorOnAfterSettle))
 		}
 		if config.HTTPConfig.FallbackFacilitatorURL != "" {
 			fallbackFacilitator = NewHTTPFacilitator(config.HTTPConfig.FallbackFacilitatorURL,
@@ -57,7 +63,13 @@ func NewX402Handler(mcpHandler http.Handler, config *Config) *X402Handler {
 		if config.FacilitatorURL == "" {
 			panic("x402: at least one facilitator URL must be provided")
 		}
-		facilitator = NewHTTPFacilitator(config.FacilitatorURL)
+		facilitator = NewHTTPFacilitator(config.FacilitatorURL,
+			WithAuthorization(config.FacilitatorAuthorization),
+			WithAuthorizationProvider(config.FacilitatorAuthorizationProvider),
+			WithOnBeforeVerify(config.FacilitatorOnBeforeVerify),
+			WithOnAfterVerify(config.FacilitatorOnAfterVerify),
+			WithOnBeforeSettle(config.FacilitatorOnBeforeSettle),
+			WithOnAfterSettle(config.FacilitatorOnAfterSettle))
 	}
 
 	return &X402Handler{
@@ -70,7 +82,10 @@ func NewX402Handler(mcpHandler http.Handler, config *Config) *X402Handler {
 
 // ServeHTTP intercepts HTTP requests to check for x402 payments
 func (h *X402Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	logger := slog.Default()
+	logger := h.config.Logger
+	if logger == nil {
+		logger = slog.Default()
+	}
 	// Only intercept POST requests (JSON-RPC calls)
 	if r.Method != http.MethodPost {
 		h.mcpHandler.ServeHTTP(w, r)

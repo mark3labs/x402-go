@@ -1,6 +1,8 @@
 package server
 
 import (
+	"log/slog"
+
 	"github.com/mark3labs/x402-go"
 	"github.com/mark3labs/x402-go/http"
 )
@@ -20,9 +22,28 @@ type Config struct {
 	// Key: tool name, Value: list of acceptable payment options
 	PaymentTools map[string][]x402.PaymentRequirement
 
+	// FacilitatorAuthorization is a static Authorization header value for the primary facilitator.
+	// Example: "Bearer your-api-key" or "Basic base64-encoded-credentials"
+	FacilitatorAuthorization string
+
+	// FacilitatorAuthorizationProvider is a function that returns an Authorization header value
+	// for the primary facilitator. Useful for dynamic tokens that may need to be refreshed.
+	// If set, this takes precedence over FacilitatorAuthorization.
+	FacilitatorAuthorizationProvider http.AuthorizationProvider
+
+	// Facilitator hooks for custom logic before/after verify and settle operations
+	FacilitatorOnBeforeVerify http.OnBeforeFunc
+	FacilitatorOnAfterVerify  http.OnAfterVerifyFunc
+	FacilitatorOnBeforeSettle http.OnBeforeFunc
+	FacilitatorOnAfterSettle  http.OnAfterSettleFunc
+
 	// HTTPConfig to generate facilitator and fallback facilitator clients
 	// HTTPConfig.VerifyOnly and HTTPConfig.PaymentRequirements are ignored
 	HTTPConfig *http.Config
+
+	// Logger is the logger for the server
+	// if not set slog.Default() is used
+	Logger *slog.Logger
 }
 
 // DefaultConfig returns a Config with default settings
@@ -32,6 +53,7 @@ func DefaultConfig() *Config {
 		VerifyOnly:     false,
 		Verbose:        false,
 		PaymentTools:   make(map[string][]x402.PaymentRequirement),
+		Logger:         slog.Default(),
 	}
 }
 
