@@ -38,17 +38,25 @@ func NewX402Handler(mcpHandler http.Handler, config *Config) *X402Handler {
 	}
 }
 
+type facilitatorConfig struct {
+	url            string
+	auth           string
+	authProvider   x402http.AuthorizationProvider
+	onBeforeVerify x402http.OnBeforeFunc
+	onAfterVerify  x402http.OnAfterVerifyFunc
+	onBeforeSettle x402http.OnBeforeFunc
+	onAfterSettle  x402http.OnAfterSettleFunc
+}
+
 // Helper to create facilitator with given URL and options
-func createFacilitator(url string, auth string, authProvider x402http.AuthorizationProvider,
-	onBeforeVerify, onBeforeSettle x402http.OnBeforeFunc,
-	onAfterVerify x402http.OnAfterVerifyFunc, onAfterSettle x402http.OnAfterSettleFunc) Facilitator {
-	return NewHTTPFacilitator(url,
-		WithAuthorization(auth),
-		WithAuthorizationProvider(authProvider),
-		WithOnBeforeVerify(onBeforeVerify),
-		WithOnAfterVerify(onAfterVerify),
-		WithOnBeforeSettle(onBeforeSettle),
-		WithOnAfterSettle(onAfterSettle))
+func createFacilitator(cfg facilitatorConfig) Facilitator {
+	return NewHTTPFacilitator(cfg.url,
+		WithAuthorization(cfg.auth),
+		WithAuthorizationProvider(cfg.authProvider),
+		WithOnBeforeVerify(cfg.onBeforeVerify),
+		WithOnAfterVerify(cfg.onAfterVerify),
+		WithOnBeforeSettle(cfg.onBeforeSettle),
+		WithOnAfterSettle(cfg.onAfterSettle))
 }
 
 func initializeFacilitators(config *Config) (Facilitator, Facilitator) {
@@ -77,19 +85,27 @@ func initializeFacilitators(config *Config) (Facilitator, Facilitator) {
 		panic("x402: at least one facilitator URL must be provided")
 	}
 
-	facilitator = createFacilitator(primaryURL, auth, authProvider,
-		onBeforeVerify, onBeforeSettle, onAfterVerify, onAfterSettle)
+	facilitator = createFacilitator(facilitatorConfig{
+		url:            primaryURL,
+		auth:           auth,
+		authProvider:   authProvider,
+		onBeforeVerify: onBeforeVerify,
+		onAfterVerify:  onAfterVerify,
+		onBeforeSettle: onBeforeSettle,
+		onAfterSettle:  onAfterSettle,
+	})
 
 	// Initialize fallback if configured
 	if config.HTTPConfig != nil && config.HTTPConfig.FallbackFacilitatorURL != "" {
-		fallbackFacilitator = createFacilitator(
-			config.HTTPConfig.FallbackFacilitatorURL,
-			config.HTTPConfig.FallbackFacilitatorAuthorization,
-			config.HTTPConfig.FallbackFacilitatorAuthorizationProvider,
-			config.HTTPConfig.FallbackFacilitatorOnBeforeVerify,
-			config.HTTPConfig.FallbackFacilitatorOnBeforeSettle,
-			config.HTTPConfig.FallbackFacilitatorOnAfterVerify,
-			config.HTTPConfig.FallbackFacilitatorOnAfterSettle)
+		fallbackFacilitator = createFacilitator(facilitatorConfig{
+			url:            config.HTTPConfig.FallbackFacilitatorURL,
+			auth:           config.HTTPConfig.FallbackFacilitatorAuthorization,
+			authProvider:   config.HTTPConfig.FallbackFacilitatorAuthorizationProvider,
+			onBeforeVerify: config.HTTPConfig.FallbackFacilitatorOnBeforeVerify,
+			onAfterVerify:  config.HTTPConfig.FallbackFacilitatorOnAfterVerify,
+			onBeforeSettle: config.HTTPConfig.FallbackFacilitatorOnBeforeSettle,
+			onAfterSettle:  config.HTTPConfig.FallbackFacilitatorOnAfterSettle,
+		})
 	}
 
 	return facilitator, fallbackFacilitator
