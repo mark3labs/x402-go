@@ -6,17 +6,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 
 	"github.com/mark3labs/x402-go"
 	"github.com/mark3labs/x402-go/facilitator"
+	x402http "github.com/mark3labs/x402-go/http"
 )
 
 // X402Handler wraps an MCP HTTP handler and adds x402 payment verification
 type X402Handler struct {
-	mcpHandler  http.Handler
-	config      *Config
-	facilitator Facilitator
+	mcpHandler          http.Handler
+	config              *Config
+	facilitator         Facilitator
+	fallbackFacilitator Facilitator
 }
 
 // NewX402Handler creates a new x402 payment handler
@@ -25,17 +28,95 @@ func NewX402Handler(mcpHandler http.Handler, config *Config) *X402Handler {
 		config = DefaultConfig()
 	}
 
-	facilitator := NewHTTPFacilitator(config.FacilitatorURL)
+	facilitator, fallbackFacilitator := initializeFacilitators(config)
 
 	return &X402Handler{
-		mcpHandler:  mcpHandler,
-		config:      config,
-		facilitator: facilitator,
+		mcpHandler:          mcpHandler,
+		config:              config,
+		facilitator:         facilitator,
+		fallbackFacilitator: fallbackFacilitator,
 	}
+}
+
+type facilitatorConfig struct {
+	url            string
+	auth           string
+	authProvider   x402http.AuthorizationProvider
+	onBeforeVerify x402http.OnBeforeFunc
+	onAfterVerify  x402http.OnAfterVerifyFunc
+	onBeforeSettle x402http.OnBeforeFunc
+	onAfterSettle  x402http.OnAfterSettleFunc
+}
+
+// Helper to create facilitator with given URL and options
+func createFacilitator(cfg facilitatorConfig) Facilitator {
+	return NewHTTPFacilitator(cfg.url,
+		WithAuthorization(cfg.auth),
+		WithAuthorizationProvider(cfg.authProvider),
+		WithOnBeforeVerify(cfg.onBeforeVerify),
+		WithOnAfterVerify(cfg.onAfterVerify),
+		WithOnBeforeSettle(cfg.onBeforeSettle),
+		WithOnAfterSettle(cfg.onAfterSettle))
+}
+
+func initializeFacilitators(config *Config) (Facilitator, Facilitator) {
+	var facilitator, fallbackFacilitator Facilitator
+
+	// Determine primary URL and options
+	primaryURL := config.FacilitatorURL
+	auth := config.FacilitatorAuthorization
+	authProvider := config.FacilitatorAuthorizationProvider
+	onBeforeVerify := config.FacilitatorOnBeforeVerify
+	onAfterVerify := config.FacilitatorOnAfterVerify
+	onBeforeSettle := config.FacilitatorOnBeforeSettle
+	onAfterSettle := config.FacilitatorOnAfterSettle
+
+	if config.HTTPConfig != nil && config.HTTPConfig.FacilitatorURL != "" {
+		primaryURL = config.HTTPConfig.FacilitatorURL
+		auth = config.HTTPConfig.FacilitatorAuthorization
+		authProvider = config.HTTPConfig.FacilitatorAuthorizationProvider
+		onBeforeVerify = config.HTTPConfig.FacilitatorOnBeforeVerify
+		onAfterVerify = config.HTTPConfig.FacilitatorOnAfterVerify
+		onBeforeSettle = config.HTTPConfig.FacilitatorOnBeforeSettle
+		onAfterSettle = config.HTTPConfig.FacilitatorOnAfterSettle
+	}
+
+	if primaryURL == "" {
+		panic("x402: at least one facilitator URL must be provided")
+	}
+
+	facilitator = createFacilitator(facilitatorConfig{
+		url:            primaryURL,
+		auth:           auth,
+		authProvider:   authProvider,
+		onBeforeVerify: onBeforeVerify,
+		onAfterVerify:  onAfterVerify,
+		onBeforeSettle: onBeforeSettle,
+		onAfterSettle:  onAfterSettle,
+	})
+
+	// Initialize fallback if configured
+	if config.HTTPConfig != nil && config.HTTPConfig.FallbackFacilitatorURL != "" {
+		fallbackFacilitator = createFacilitator(facilitatorConfig{
+			url:            config.HTTPConfig.FallbackFacilitatorURL,
+			auth:           config.HTTPConfig.FallbackFacilitatorAuthorization,
+			authProvider:   config.HTTPConfig.FallbackFacilitatorAuthorizationProvider,
+			onBeforeVerify: config.HTTPConfig.FallbackFacilitatorOnBeforeVerify,
+			onAfterVerify:  config.HTTPConfig.FallbackFacilitatorOnAfterVerify,
+			onBeforeSettle: config.HTTPConfig.FallbackFacilitatorOnBeforeSettle,
+			onAfterSettle:  config.HTTPConfig.FallbackFacilitatorOnAfterSettle,
+		})
+	}
+
+	return facilitator, fallbackFacilitator
 }
 
 // ServeHTTP intercepts HTTP requests to check for x402 payments
 func (h *X402Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	logger := h.config.Logger
+	if logger == nil {
+		logger = slog.Default()
+	}
 	// Only intercept POST requests (JSON-RPC calls)
 	if r.Method != http.MethodPost {
 		h.mcpHandler.ServeHTTP(w, r)
@@ -80,6 +161,7 @@ func (h *X402Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, jsonrpcReq.ID, -32602, "Invalid params", nil)
 		return
 	}
+	logger = logger.With("requestID", jsonrpcReq.ID, "tool", toolParams.Name)
 
 	// Unmarshal _meta separately to get AdditionalFields
 	if len(jsonrpcReq.Params) > 0 {
@@ -124,9 +206,13 @@ func (h *X402Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	verifyResp, err := h.facilitator.Verify(ctx, payment, *requirement)
+	if err != nil && h.fallbackFacilitator != nil {
+		logger.WarnContext(ctx, "primary facilitator failed, trying fallback", "error", err)
+		verifyResp, err = h.fallbackFacilitator.Verify(ctx, payment, *requirement)
+	}
 	if err != nil {
 		if h.config.Verbose {
-			fmt.Printf("Payment verification failed: %v\n", err)
+			logger.InfoContext(ctx, "Payment verification failed", "error", err)
 		}
 		h.writeError(w, jsonrpcReq.ID, -32603, fmt.Sprintf("Verification failed: %v", err), nil)
 		return
@@ -134,13 +220,13 @@ func (h *X402Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if !verifyResp.IsValid {
 		if h.config.Verbose {
-			fmt.Printf("Payment rejected: %s\n", verifyResp.InvalidReason)
+			logger.InfoContext(ctx, "Payment rejected", "reason", verifyResp.InvalidReason)
 		}
 		h.writeError(w, jsonrpcReq.ID, 402, fmt.Sprintf("Payment invalid: %s", verifyResp.InvalidReason), nil)
 		return
 	}
 
-	h.forwardAndSettle(w, r, bodyBytes, jsonrpcReq.ID, payment, requirement, verifyResp)
+	h.forwardAndSettle(w, r, bodyBytes, jsonrpcReq.ID, payment, requirement, verifyResp, logger)
 }
 
 // checkPaymentRequired checks if a tool requires payment
@@ -208,7 +294,7 @@ func (h *X402Handler) sendPaymentRequiredError(w http.ResponseWriter, id interfa
 }
 
 // forwardAndSettle executes the mcpHandler and on success, settles the payment and injects settlement response in result._meta
-func (h *X402Handler) forwardAndSettle(w http.ResponseWriter, r *http.Request, requestBody []byte, requestID interface{}, payment *x402.PaymentPayload, requirement *x402.PaymentRequirement, verifyResp *facilitator.VerifyResponse) {
+func (h *X402Handler) forwardAndSettle(w http.ResponseWriter, r *http.Request, requestBody []byte, requestID interface{}, payment *x402.PaymentPayload, requirement *x402.PaymentRequirement, verifyResp *facilitator.VerifyResponse, logger *slog.Logger) {
 	// Create a response recorder to capture the MCP handler's response
 	recorder := &responseRecorder{
 		headerMap:  make(http.Header),
@@ -231,7 +317,7 @@ func (h *X402Handler) forwardAndSettle(w http.ResponseWriter, r *http.Request, r
 
 	if err := json.Unmarshal(recorder.body.Bytes(), &jsonrpcResp); err != nil {
 		if h.config.Verbose {
-			fmt.Printf("Failed to parse MCP response, skipping settlement: %v\n", err)
+			logger.ErrorContext(r.Context(), "Failed to parse MCP response, skipping settlement", "error", err)
 		}
 		// If we can't parse response, just forward it as-is
 		for k, v := range recorder.headerMap {
@@ -244,7 +330,7 @@ func (h *X402Handler) forwardAndSettle(w http.ResponseWriter, r *http.Request, r
 
 	if jsonrpcResp.Error != nil {
 		if h.config.Verbose {
-			fmt.Println("Execution failed. Payment will not be settled.")
+			logger.InfoContext(r.Context(), "Execution failed. Payment will not be settled.")
 		}
 		for k, v := range recorder.headerMap {
 			w.Header()[k] = v
@@ -258,13 +344,17 @@ func (h *X402Handler) forwardAndSettle(w http.ResponseWriter, r *http.Request, r
 	// Settle if not verify-only mode
 	if !h.config.VerifyOnly {
 		if h.config.Verbose {
-			fmt.Println("Execution successful. Settling payment.")
+			logger.InfoContext(r.Context(), "Execution successful. Settling payment.")
 		}
 		settleCtx, settleCancel := context.WithTimeout(r.Context(), x402.DefaultTimeouts.SettleTimeout)
 		defer settleCancel()
 
 		var err error
 		settleResp, err = h.facilitator.Settle(settleCtx, payment, *requirement)
+		if err != nil && h.fallbackFacilitator != nil {
+			logger.WarnContext(settleCtx, "primary facilitator settlement failed, trying fallback", "error", err)
+			settleResp, err = h.fallbackFacilitator.Settle(settleCtx, payment, *requirement)
+		}
 		if err != nil || settleResp == nil || !settleResp.Success {
 			reason := "unknown reason"
 			if err != nil {
@@ -273,9 +363,8 @@ func (h *X402Handler) forwardAndSettle(w http.ResponseWriter, r *http.Request, r
 				reason = settleResp.ErrorReason
 			}
 
-			errorMsg := fmt.Sprintf("Settlement failed: %v", reason)
 			if h.config.Verbose {
-				fmt.Println(errorMsg)
+				logger.ErrorContext(settleCtx, "Settlement failed", "error", reason)
 			}
 			payer := ""
 			if verifyResp != nil {
@@ -289,10 +378,10 @@ func (h *X402Handler) forwardAndSettle(w http.ResponseWriter, r *http.Request, r
 					ErrorReason: reason,
 				},
 			}
-			h.writeError(w, requestID, -32603, errorMsg, errorData)
+			h.writeError(w, requestID, -32603, fmt.Sprintf("Settlement failed: %v", reason), errorData)
 			return
 		} else if h.config.Verbose {
-			fmt.Printf("Payment successful: %s\n", settleResp.Transaction)
+			logger.InfoContext(settleCtx, "Payment successful", "transaction", settleResp.Transaction)
 		}
 	}
 
