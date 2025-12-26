@@ -11,6 +11,7 @@ import (
 
 	"github.com/mark3labs/x402-go"
 	"github.com/mark3labs/x402-go/facilitator"
+	x402http "github.com/mark3labs/x402-go/http"
 )
 
 // X402Handler wraps an MCP HTTP handler and adds x402 payment verification
@@ -37,51 +38,60 @@ func NewX402Handler(mcpHandler http.Handler, config *Config) *X402Handler {
 	}
 }
 
+// Helper to create facilitator with given URL and options
+func createFacilitator(url string, auth string, authProvider x402http.AuthorizationProvider,
+	onBeforeVerify, onBeforeSettle x402http.OnBeforeFunc,
+	onAfterVerify x402http.OnAfterVerifyFunc, onAfterSettle x402http.OnAfterSettleFunc) Facilitator {
+	return NewHTTPFacilitator(url,
+		WithAuthorization(auth),
+		WithAuthorizationProvider(authProvider),
+		WithOnBeforeVerify(onBeforeVerify),
+		WithOnAfterVerify(onAfterVerify),
+		WithOnBeforeSettle(onBeforeSettle),
+		WithOnAfterSettle(onAfterSettle))
+}
+
 func initializeFacilitators(config *Config) (Facilitator, Facilitator) {
-	var facilitator Facilitator
-	var fallbackFacilitator Facilitator
-	if config.HTTPConfig != nil {
-		if config.HTTPConfig.FacilitatorURL != "" {
-			facilitator = NewHTTPFacilitator(config.HTTPConfig.FacilitatorURL,
-				WithAuthorization(config.HTTPConfig.FacilitatorAuthorization),
-				WithAuthorizationProvider(config.HTTPConfig.FacilitatorAuthorizationProvider),
-				WithOnBeforeVerify(config.HTTPConfig.FacilitatorOnBeforeVerify),
-				WithOnAfterVerify(config.HTTPConfig.FacilitatorOnAfterVerify),
-				WithOnBeforeSettle(config.HTTPConfig.FacilitatorOnBeforeSettle),
-				WithOnAfterSettle(config.HTTPConfig.FacilitatorOnAfterSettle))
-		} else {
-			if config.FacilitatorURL == "" {
-				panic("x402: at least one facilitator URL must be provided")
-			}
-			facilitator = NewHTTPFacilitator(config.FacilitatorURL,
-				WithAuthorization(config.FacilitatorAuthorization),
-				WithAuthorizationProvider(config.FacilitatorAuthorizationProvider),
-				WithOnBeforeVerify(config.FacilitatorOnBeforeVerify),
-				WithOnAfterVerify(config.FacilitatorOnAfterVerify),
-				WithOnBeforeSettle(config.FacilitatorOnBeforeSettle),
-				WithOnAfterSettle(config.FacilitatorOnAfterSettle))
-		}
-		if config.HTTPConfig.FallbackFacilitatorURL != "" {
-			fallbackFacilitator = NewHTTPFacilitator(config.HTTPConfig.FallbackFacilitatorURL,
-				WithAuthorization(config.HTTPConfig.FallbackFacilitatorAuthorization),
-				WithAuthorizationProvider(config.HTTPConfig.FallbackFacilitatorAuthorizationProvider),
-				WithOnBeforeVerify(config.HTTPConfig.FallbackFacilitatorOnBeforeVerify),
-				WithOnAfterVerify(config.HTTPConfig.FallbackFacilitatorOnAfterVerify),
-				WithOnBeforeSettle(config.HTTPConfig.FallbackFacilitatorOnBeforeSettle),
-				WithOnAfterSettle(config.HTTPConfig.FallbackFacilitatorOnAfterSettle))
-		}
-	} else {
-		if config.FacilitatorURL == "" {
-			panic("x402: at least one facilitator URL must be provided")
-		}
-		facilitator = NewHTTPFacilitator(config.FacilitatorURL,
-			WithAuthorization(config.FacilitatorAuthorization),
-			WithAuthorizationProvider(config.FacilitatorAuthorizationProvider),
-			WithOnBeforeVerify(config.FacilitatorOnBeforeVerify),
-			WithOnAfterVerify(config.FacilitatorOnAfterVerify),
-			WithOnBeforeSettle(config.FacilitatorOnBeforeSettle),
-			WithOnAfterSettle(config.FacilitatorOnAfterSettle))
+	var facilitator, fallbackFacilitator Facilitator
+
+	// Determine primary URL and options
+	primaryURL := config.FacilitatorURL
+	auth := config.FacilitatorAuthorization
+	authProvider := config.FacilitatorAuthorizationProvider
+	onBeforeVerify := config.FacilitatorOnBeforeVerify
+	onAfterVerify := config.FacilitatorOnAfterVerify
+	onBeforeSettle := config.FacilitatorOnBeforeSettle
+	onAfterSettle := config.FacilitatorOnAfterSettle
+
+	if config.HTTPConfig != nil && config.HTTPConfig.FacilitatorURL != "" {
+		primaryURL = config.HTTPConfig.FacilitatorURL
+		auth = config.HTTPConfig.FacilitatorAuthorization
+		authProvider = config.HTTPConfig.FacilitatorAuthorizationProvider
+		onBeforeVerify = config.HTTPConfig.FacilitatorOnBeforeVerify
+		onAfterVerify = config.HTTPConfig.FacilitatorOnAfterVerify
+		onBeforeSettle = config.HTTPConfig.FacilitatorOnBeforeSettle
+		onAfterSettle = config.HTTPConfig.FacilitatorOnAfterSettle
 	}
+
+	if primaryURL == "" {
+		panic("x402: at least one facilitator URL must be provided")
+	}
+
+	facilitator = createFacilitator(primaryURL, auth, authProvider,
+		onBeforeVerify, onBeforeSettle, onAfterVerify, onAfterSettle)
+
+	// Initialize fallback if configured
+	if config.HTTPConfig != nil && config.HTTPConfig.FallbackFacilitatorURL != "" {
+		fallbackFacilitator = createFacilitator(
+			config.HTTPConfig.FallbackFacilitatorURL,
+			config.HTTPConfig.FallbackFacilitatorAuthorization,
+			config.HTTPConfig.FallbackFacilitatorAuthorizationProvider,
+			config.HTTPConfig.FallbackFacilitatorOnBeforeVerify,
+			config.HTTPConfig.FallbackFacilitatorOnBeforeSettle,
+			config.HTTPConfig.FallbackFacilitatorOnAfterVerify,
+			config.HTTPConfig.FallbackFacilitatorOnAfterSettle)
+	}
+
 	return facilitator, fallbackFacilitator
 }
 
