@@ -27,6 +27,17 @@ func NewX402Handler(mcpHandler http.Handler, config *Config) *X402Handler {
 		config = DefaultConfig()
 	}
 
+	facilitator, fallbackFacilitator := initializeFacilitators(config)
+
+	return &X402Handler{
+		mcpHandler:          mcpHandler,
+		config:              config,
+		facilitator:         facilitator,
+		fallbackFacilitator: fallbackFacilitator,
+	}
+}
+
+func initializeFacilitators(config *Config) (Facilitator, Facilitator) {
 	var facilitator Facilitator
 	var fallbackFacilitator Facilitator
 	if config.HTTPConfig != nil {
@@ -71,13 +82,7 @@ func NewX402Handler(mcpHandler http.Handler, config *Config) *X402Handler {
 			WithOnBeforeSettle(config.FacilitatorOnBeforeSettle),
 			WithOnAfterSettle(config.FacilitatorOnAfterSettle))
 	}
-
-	return &X402Handler{
-		mcpHandler:          mcpHandler,
-		config:              config,
-		facilitator:         facilitator,
-		fallbackFacilitator: fallbackFacilitator,
-	}
+	return facilitator, fallbackFacilitator
 }
 
 // ServeHTTP intercepts HTTP requests to check for x402 payments
