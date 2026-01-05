@@ -50,6 +50,34 @@ func WithAuthorizationProvider(provider http.AuthorizationProvider) HTTPFacilita
 	}
 }
 
+// WithOnBeforeVerify sets a hook function to be called before verifying a payment.
+func WithOnBeforeVerify(f http.OnBeforeFunc) HTTPFacilitatorOption {
+	return func(c *http.FacilitatorClient) {
+		c.OnBeforeVerify = f
+	}
+}
+
+// WithOnAfterVerify sets a hook function to be called after verifying a payment.
+func WithOnAfterVerify(f http.OnAfterVerifyFunc) HTTPFacilitatorOption {
+	return func(c *http.FacilitatorClient) {
+		c.OnAfterVerify = f
+	}
+}
+
+// WithOnBeforeSettle sets a hook function to be called before settling a payment.
+func WithOnBeforeSettle(f http.OnBeforeFunc) HTTPFacilitatorOption {
+	return func(c *http.FacilitatorClient) {
+		c.OnBeforeSettle = f
+	}
+}
+
+// WithOnAfterSettle sets a hook function to be called after settling a payment.
+func WithOnAfterSettle(f http.OnAfterSettleFunc) HTTPFacilitatorOption {
+	return func(c *http.FacilitatorClient) {
+		c.OnAfterSettle = f
+	}
+}
+
 // NewHTTPFacilitator creates a new HTTP facilitator client with the given URL and options.
 // The facilitator is used to verify and settle payments for payment-gated MCP tools.
 //
