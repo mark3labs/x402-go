@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	v2 "github.com/mark3labs/x402-go/v2"
 	"github.com/mark3labs/x402-go/v2/encoding"
@@ -155,7 +156,7 @@ func TestClient_WithPaymentCallbacks(t *testing.T) {
 
 func TestClient_WithHTTPClient(t *testing.T) {
 	customClient := &http.Client{
-		Timeout: 30,
+		Timeout: 30 * time.Second,
 	}
 
 	client, err := NewClient(WithHTTPClient(customClient))
