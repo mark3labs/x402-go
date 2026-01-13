@@ -406,15 +406,17 @@ func (h *X402Handler) forwardAndSettle(w http.ResponseWriter, r *http.Request, r
 			if settleResp != nil {
 				meta["x402/payment-response"] = settleResp
 			} else {
+				// Verify-only mode: verification succeeded (we wouldn't be here if it failed)
+				// Set Success=true with empty Transaction to indicate verification passed but settlement was not attempted.
 				payer := ""
 				if verifyResp != nil {
 					payer = verifyResp.Payer
 				}
-				// In verify-only mode: Success=false indicates settlement was skipped (not attempted), not that it failed.
 				meta["x402/payment-response"] = v2.SettleResponse{
-					Success: false,
-					Network: payment.Accepted.Network,
-					Payer:   payer,
+					Success:     true, // Verification succeeded
+					Network:     payment.Accepted.Network,
+					Payer:       payer,
+					Transaction: "", // Settlement not attempted in verify-only mode
 				}
 			}
 			result["_meta"] = meta
