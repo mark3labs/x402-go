@@ -10,6 +10,7 @@ import (
 	"os"
 
 	"github.com/gagliardetto/solana-go"
+	associatedtokenaccount "github.com/gagliardetto/solana-go/programs/associated-token-account"
 	"github.com/gagliardetto/solana-go/rpc"
 
 	v2 "github.com/mark3labs/x402-go/v2"
@@ -331,7 +332,14 @@ func buildPartiallySignedTransfer(
 		solutil.BuildSetComputeUnitLimitInstruction(solutil.DefaultComputeUnits),
 		// Instruction 1: SetComputeUnitPrice
 		solutil.BuildSetComputeUnitPriceInstruction(solutil.DefaultComputeUnitPrice),
-		// Instruction 2: TransferChecked
+		// Instruction 2: Create associated token account (idempotent - won't fail if it exists)
+		// The feePayer sponsors the rent-exempt balance for the destination ATA
+		associatedtokenaccount.NewCreateInstruction(
+			feePayer,  // payer (facilitator sponsors the rent)
+			recipient, // wallet address (owner of the ATA)
+			mint,      // SPL token mint address
+		).Build(),
+		// Instruction 3: TransferChecked
 		solutil.BuildTransferCheckedInstruction(sourceATA, mint, destATA, clientPublicKey, amount, decimals),
 	}
 

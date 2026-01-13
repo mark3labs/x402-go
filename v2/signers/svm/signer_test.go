@@ -465,8 +465,9 @@ func TestTransactionStructure(t *testing.T) {
 	}
 
 	// Verify transaction structure
-	if len(tx.Message.Instructions) != 3 {
-		t.Fatalf("expected 3 instructions, got %d", len(tx.Message.Instructions))
+	// Now expects 4 instructions: SetComputeUnitLimit, SetComputeUnitPrice, CreateATA, TransferChecked
+	if len(tx.Message.Instructions) != 4 {
+		t.Fatalf("expected 4 instructions, got %d", len(tx.Message.Instructions))
 	}
 
 	// Verify instruction 0: SetComputeUnitLimit
@@ -501,42 +502,61 @@ func TestTransactionStructure(t *testing.T) {
 		t.Errorf("instruction 1: expected discriminator 3 (SetComputeUnitPrice), got %d", inst1.Data[0])
 	}
 
-	// Verify instruction 2: TransferChecked
+	// Verify instruction 2: Create Associated Token Account
 	inst2 := tx.Message.Instructions[2]
 	programID2, err := tx.Message.Program(inst2.ProgramIDIndex)
 	if err != nil {
 		t.Fatalf("failed to get program ID for instruction 2: %v", err)
 	}
-	if !programID2.Equals(solana.TokenProgramID) {
-		t.Errorf("instruction 2: expected Token program, got %s", programID2)
+	if !programID2.Equals(solana.SPLAssociatedTokenAccountProgramID) {
+		t.Errorf("instruction 2: expected AssociatedTokenAccount program, got %s", programID2)
 	}
-	if len(inst2.Data) != 10 {
-		t.Errorf("instruction 2: expected 10 bytes of data, got %d", len(inst2.Data))
+	// The Create instruction has no additional data (just the instruction discriminator)
+	if len(inst2.Data) != 0 {
+		t.Errorf("instruction 2: expected 0 bytes of data for Create instruction, got %d", len(inst2.Data))
 	}
-	if inst2.Data[0] != 12 {
-		t.Errorf("instruction 2: expected discriminator 12 (TransferChecked), got %d", inst2.Data[0])
+
+	// Verify instruction 3: TransferChecked
+	inst3 := tx.Message.Instructions[3]
+	programID3, err := tx.Message.Program(inst3.ProgramIDIndex)
+	if err != nil {
+		t.Fatalf("failed to get program ID for instruction 3: %v", err)
+	}
+	if !programID3.Equals(solana.TokenProgramID) {
+		t.Errorf("instruction 3: expected Token program, got %s", programID3)
+	}
+	if len(inst3.Data) != 10 {
+		t.Errorf("instruction 3: expected 10 bytes of data, got %d", len(inst3.Data))
+	}
+	if inst3.Data[0] != 12 {
+		t.Errorf("instruction 3: expected discriminator 12 (TransferChecked), got %d", inst3.Data[0])
 	}
 	// Verify decimals (last byte)
-	if inst2.Data[9] != 6 {
-		t.Errorf("instruction 2: expected decimals 6, got %d", inst2.Data[9])
+	if inst3.Data[9] != 6 {
+		t.Errorf("instruction 3: expected decimals 6, got %d", inst3.Data[9])
 	}
 
 	// Verify amount (bytes 1-8, little-endian u64)
-	amount := uint64(inst2.Data[1]) |
-		uint64(inst2.Data[2])<<8 |
-		uint64(inst2.Data[3])<<16 |
-		uint64(inst2.Data[4])<<24 |
-		uint64(inst2.Data[5])<<32 |
-		uint64(inst2.Data[6])<<40 |
-		uint64(inst2.Data[7])<<48 |
-		uint64(inst2.Data[8])<<56
+	amount := uint64(inst3.Data[1]) |
+		uint64(inst3.Data[2])<<8 |
+		uint64(inst3.Data[3])<<16 |
+		uint64(inst3.Data[4])<<24 |
+		uint64(inst3.Data[5])<<32 |
+		uint64(inst3.Data[6])<<40 |
+		uint64(inst3.Data[7])<<48 |
+		uint64(inst3.Data[8])<<56
 	if amount != 1000000 {
-		t.Errorf("instruction 2: expected amount 1000000, got %d", amount)
+		t.Errorf("instruction 3: expected amount 1000000, got %d", amount)
+	}
+
+	// Verify CreateATA has the correct accounts (payer, associated account, wallet, mint, system program, token program)
+	if len(inst2.Accounts) != 6 {
+		t.Errorf("instruction 2: expected 6 accounts for CreateATA, got %d", len(inst2.Accounts))
 	}
 
 	// Verify TransferChecked has 4 accounts (source, mint, destination, authority)
-	if len(inst2.Accounts) != 4 {
-		t.Errorf("instruction 2: expected 4 accounts, got %d", len(inst2.Accounts))
+	if len(inst3.Accounts) != 4 {
+		t.Errorf("instruction 3: expected 4 accounts, got %d", len(inst3.Accounts))
 	}
 
 	t.Logf("Transaction structure validated successfully")
