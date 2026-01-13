@@ -229,8 +229,9 @@ func (s *Signer) Sign(requirements *v2.PaymentRequirements) (*v2.PaymentPayload,
 		client = rpc.New(rpcURL)
 	}
 
-	// Fetch recent blockhash from the network
-	ctx := context.Background()
+	// Fetch recent blockhash from the network with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), v2.DefaultTimeouts.VerifyTimeout)
+	defer cancel()
 	recent, err := client.GetLatestBlockhash(ctx, rpc.CommitmentFinalized)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get blockhash: %w", err)
