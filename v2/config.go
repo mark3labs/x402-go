@@ -50,6 +50,9 @@ func (tc TimeoutConfig) Validate() error {
 	if tc.SettleTimeout <= 0 {
 		return fmt.Errorf("settle timeout must be positive, got %v", tc.SettleTimeout)
 	}
+	if tc.RequestTimeout <= 0 {
+		return fmt.Errorf("request timeout must be positive, got %v", tc.RequestTimeout)
+	}
 	if tc.SettleTimeout < tc.VerifyTimeout {
 		return fmt.Errorf("settle timeout (%v) should be >= verify timeout (%v)",
 			tc.SettleTimeout, tc.VerifyTimeout)
