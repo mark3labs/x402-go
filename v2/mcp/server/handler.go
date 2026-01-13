@@ -276,6 +276,11 @@ func (h *X402Handler) extractPayment(meta *struct {
 		return nil
 	}
 
+	// Validate X402Version
+	if payment.X402Version != v2.X402Version {
+		return nil
+	}
+
 	return &payment
 }
 
