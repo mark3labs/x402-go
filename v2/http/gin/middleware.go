@@ -88,7 +88,9 @@ func NewX402Middleware(config Config) gin.HandlerFunc {
 	}
 
 	// Enrich payment requirements with facilitator-specific data (like feePayer)
-	enrichedRequirements, err := facilitator.EnrichRequirements(config.PaymentRequirements)
+	ctx, cancel := context.WithTimeout(context.Background(), v2.DefaultTimeouts.RequestTimeout)
+	defer cancel()
+	enrichedRequirements, err := facilitator.EnrichRequirements(ctx, config.PaymentRequirements)
 	if err != nil {
 		// Log warning but continue with original requirements
 		slog.Default().Warn("failed to enrich payment requirements from facilitator", "error", err)

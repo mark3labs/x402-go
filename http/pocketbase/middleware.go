@@ -4,6 +4,7 @@
 package pocketbase
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -74,7 +75,9 @@ func NewPocketBaseX402Middleware(config *httpx402.Config) func(*core.RequestEven
 	}
 
 	// Enrich payment requirements with facilitator-specific data (like feePayer)
-	enrichedRequirements, err := facilitator.EnrichRequirements(config.PaymentRequirements)
+	ctx, cancel := context.WithTimeout(context.Background(), x402.DefaultTimeouts.RequestTimeout)
+	defer cancel()
+	enrichedRequirements, err := facilitator.EnrichRequirements(ctx, config.PaymentRequirements)
 	if err != nil {
 		// Log warning but continue with original requirements
 		slog.Default().Warn("failed to enrich payment requirements from facilitator", "error", err)

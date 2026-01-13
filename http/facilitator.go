@@ -323,9 +323,9 @@ func (c *FacilitatorClient) Settle(ctx context.Context, payment x402.PaymentPayl
 // EnrichRequirements fetches supported payment types from the facilitator and
 // enriches the provided payment requirements with network-specific data like feePayer.
 // This is particularly useful for SVM chains where the feePayer must be specified.
-func (c *FacilitatorClient) EnrichRequirements(requirements []x402.PaymentRequirement) ([]x402.PaymentRequirement, error) {
+func (c *FacilitatorClient) EnrichRequirements(ctx context.Context, requirements []x402.PaymentRequirement) ([]x402.PaymentRequirement, error) {
 	// Fetch supported payment types
-	supported, err := c.Supported(context.Background())
+	supported, err := c.Supported(ctx)
 	if err != nil {
 		return requirements, fmt.Errorf("failed to fetch supported payment types: %w", err)
 	}

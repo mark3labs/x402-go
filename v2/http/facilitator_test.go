@@ -715,7 +715,7 @@ func TestFacilitatorClient_EnrichRequirements(t *testing.T) {
 		},
 	}
 
-	enriched, err := client.EnrichRequirements(requirements)
+	enriched, err := client.EnrichRequirements(context.Background(), requirements)
 	if err != nil {
 		t.Fatalf("EnrichRequirements failed: %v", err)
 	}
@@ -767,7 +767,7 @@ func TestFacilitatorClient_EnrichRequirements_PreservesUserValues(t *testing.T) 
 		},
 	}
 
-	enriched, err := client.EnrichRequirements(requirements)
+	enriched, err := client.EnrichRequirements(context.Background(), requirements)
 	if err != nil {
 		t.Fatalf("EnrichRequirements failed: %v", err)
 	}
