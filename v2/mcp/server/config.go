@@ -95,13 +95,14 @@ func (c *Config) RequiresPayment(toolName string) bool {
 }
 
 // GetPaymentConfig returns the payment configuration for a tool.
-func (c *Config) GetPaymentConfig(toolName string) *ToolPaymentConfig {
+// Returns the config and a bool indicating if the tool has a payment configuration.
+func (c *Config) GetPaymentConfig(toolName string) (ToolPaymentConfig, bool) {
 	if c.PaymentTools == nil {
-		return nil
+		return ToolPaymentConfig{}, false
 	}
 	config, exists := c.PaymentTools[toolName]
 	if !exists {
-		return nil
+		return ToolPaymentConfig{}, false
 	}
-	return &config
+	return config, true
 }

@@ -617,8 +617,8 @@ func TestConfig_AddPaymentTool(t *testing.T) {
 		t.Error("Expected free_tool to not require payment")
 	}
 
-	paymentConfig := config.GetPaymentConfig("test_tool")
-	if paymentConfig == nil {
+	paymentConfig, exists := config.GetPaymentConfig("test_tool")
+	if !exists {
 		t.Fatal("Expected payment config for test_tool")
 	}
 
