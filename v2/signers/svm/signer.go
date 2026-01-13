@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"math/big"
 	"os"
-	"strings"
 
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/rpc"
@@ -131,6 +130,10 @@ func (s *Signer) Scheme() string {
 
 // CanSign checks if this signer can satisfy the given payment requirements.
 func (s *Signer) CanSign(requirements *v2.PaymentRequirements) bool {
+	if requirements == nil {
+		return false
+	}
+
 	// Check scheme match
 	if requirements.Scheme != "exact" {
 		return false
@@ -141,9 +144,9 @@ func (s *Signer) CanSign(requirements *v2.PaymentRequirements) bool {
 		return false
 	}
 
-	// Check if we have the required token
+	// Check if we have the required token (case-sensitive for Solana base58)
 	for _, token := range s.tokens {
-		if strings.EqualFold(token.Address, requirements.Asset) {
+		if token.Address == requirements.Asset {
 			return true
 		}
 	}
@@ -164,8 +167,19 @@ func (s *Signer) Sign(requirements *v2.PaymentRequirements) (*v2.PaymentPayload,
 		return nil, v2.ErrInvalidAmount
 	}
 
+	// Check for negative or zero amounts
+	if amount.Sign() <= 0 {
+		return nil, v2.ErrInvalidAmount
+	}
+
 	// Check max amount limit
 	if s.maxAmount != nil && amount.Cmp(s.maxAmount) > 0 {
+		return nil, v2.ErrAmountExceeded
+	}
+
+	// Check for uint64 overflow before conversion
+	maxUint64 := new(big.Int).SetUint64(^uint64(0))
+	if amount.Cmp(maxUint64) > 0 {
 		return nil, v2.ErrAmountExceeded
 	}
 
@@ -181,13 +195,21 @@ func (s *Signer) Sign(requirements *v2.PaymentRequirements) (*v2.PaymentPayload,
 		return nil, fmt.Errorf("invalid recipient address: %w", err)
 	}
 
-	// Get decimals for this token
+	// Get decimals for this token (case-sensitive for Solana base58)
 	var decimals uint8
+	var found bool
 	for _, token := range s.tokens {
-		if strings.EqualFold(token.Address, requirements.Asset) {
+		if token.Address == requirements.Asset {
+			if token.Decimals < 0 || token.Decimals > 255 {
+				return nil, fmt.Errorf("%w: invalid token decimals %d", v2.ErrInvalidToken, token.Decimals)
+			}
 			decimals = uint8(token.Decimals)
+			found = true
 			break
 		}
+	}
+	if !found {
+		return nil, v2.ErrInvalidToken
 	}
 
 	// Extract fee payer from requirements.Extra

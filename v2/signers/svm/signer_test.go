@@ -193,15 +193,15 @@ func TestCanSign(t *testing.T) {
 			want: true,
 		},
 		{
-			name: "case insensitive token address",
+			name: "case sensitive token address - lowercase should not match",
 			requirements: &v2.PaymentRequirements{
 				Scheme:  "exact",
 				Network: v2.NetworkSolanaMainnet,
-				Asset:   "epjfwdd5aufqssqem2qn1xzybapC8G4wEGGkZwyTDt1v", // lowercase
+				Asset:   "epjfwdd5aufqssqem2qn1xzybapC8G4wEGGkZwyTDt1v", // lowercase - should NOT match
 				Amount:  "100000",
 				PayTo:   "9B5XszUGdMaxCZ7uSQhPzdks5ZQSmWxrmzCSvtJ6Ns6g",
 			},
-			want: true,
+			want: false, // Changed from true - Solana base58 is case-sensitive
 		},
 		{
 			name: "wrong network",
