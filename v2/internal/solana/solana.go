@@ -94,6 +94,6 @@ func GetRPCURL(network string) (string, error) {
 	case v2.NetworkSolanaDevnet:
 		return rpc.DevNet_RPC, nil
 	default:
-		return "", fmt.Errorf("%w: %s", v2.ErrInvalidNetwork, network)
+		return "", fmt.Errorf("invalid network %s: %w", network, v2.ErrInvalidNetwork)
 	}
 }
