@@ -41,7 +41,7 @@ func SendPaymentRequired(w http.ResponseWriter, resource v2.ResourceInfo, requir
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusPaymentRequired)
-	json.NewEncoder(w).Encode(response)
+	_ = json.NewEncoder(w).Encode(response)
 }
 
 // AddPaymentResponseHeader adds the X-PAYMENT-RESPONSE header with settlement information.

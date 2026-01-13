@@ -46,7 +46,7 @@ type mockMCPHandler struct {
 func (h *mockMCPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(h.statusCode)
-	json.NewEncoder(w).Encode(h.response)
+	_ = json.NewEncoder(w).Encode(h.response)
 }
 
 func TestHandler_FreeTool(t *testing.T) {

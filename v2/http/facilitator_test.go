@@ -205,7 +205,7 @@ func TestFacilitatorClient_Verify_WithAuthorizationProvider(t *testing.T) {
 
 		response := v2.VerifyResponse{IsValid: true}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer mockServer.Close()
 
@@ -235,7 +235,7 @@ func TestFacilitatorClient_Verify_WithoutAuthorization(t *testing.T) {
 
 		response := v2.VerifyResponse{IsValid: true}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer mockServer.Close()
 
@@ -254,7 +254,7 @@ func TestFacilitatorClient_Verify_Hooks(t *testing.T) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		response := v2.VerifyResponse{IsValid: true}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer mockServer.Close()
 
@@ -327,7 +327,7 @@ func TestFacilitatorClient_Verify_OnBeforeAbort(t *testing.T) {
 func TestFacilitatorClient_Verify_ErrorResponse(t *testing.T) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"invalidReason": "Invalid signature",
 		})
 	}))
@@ -369,7 +369,7 @@ func TestFacilitatorClient_Verify_Retry(t *testing.T) {
 		// Third attempt succeeds
 		response := v2.VerifyResponse{IsValid: true}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer mockServer.Close()
 
@@ -477,7 +477,7 @@ func TestFacilitatorClient_Settle_WithStaticAuthorization(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer mockServer.Close()
 
@@ -501,7 +501,7 @@ func TestFacilitatorClient_Settle_Hooks(t *testing.T) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		response := v2.SettleResponse{Success: true, Transaction: "0x123"}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer mockServer.Close()
 
@@ -560,7 +560,7 @@ func TestFacilitatorClient_Settle_OnBeforeAbort(t *testing.T) {
 func TestFacilitatorClient_Settle_ErrorResponse(t *testing.T) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"errorReason": "Transaction failed",
 		})
 	}))
@@ -662,7 +662,7 @@ func TestFacilitatorClient_Supported_WithStaticAuthorization(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer mockServer.Close()
 
@@ -698,7 +698,7 @@ func TestFacilitatorClient_EnrichRequirements(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer mockServer.Close()
 
@@ -747,7 +747,7 @@ func TestFacilitatorClient_EnrichRequirements_PreservesUserValues(t *testing.T) 
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer mockServer.Close()
 
@@ -789,7 +789,7 @@ func TestFacilitatorClient_DefaultClient(t *testing.T) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		response := v2.VerifyResponse{IsValid: true}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer mockServer.Close()
 
@@ -813,7 +813,7 @@ func TestFacilitatorClient_Timeout(t *testing.T) {
 		time.Sleep(200 * time.Millisecond)
 		response := v2.VerifyResponse{IsValid: true}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer mockServer.Close()
 

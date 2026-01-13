@@ -20,7 +20,7 @@ func TestMiddleware_NoPaymentHeader(t *testing.T) {
 				},
 			}
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(response)
+			_ = json.NewEncoder(w).Encode(response)
 			return
 		}
 		t.Errorf("Unexpected facilitator call: %s %s", r.Method, r.URL.Path)
@@ -93,7 +93,7 @@ func TestMiddleware_ValidPayment(t *testing.T) {
 				},
 			}
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(response)
+			_ = json.NewEncoder(w).Encode(response)
 
 		case "/verify":
 			response := v2.VerifyResponse{
@@ -101,7 +101,7 @@ func TestMiddleware_ValidPayment(t *testing.T) {
 				Payer:   "0xPayerAddress",
 			}
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(response)
+			_ = json.NewEncoder(w).Encode(response)
 
 		case "/settle":
 			response := v2.SettleResponse{
@@ -111,7 +111,7 @@ func TestMiddleware_ValidPayment(t *testing.T) {
 				Payer:       "0xPayerAddress",
 			}
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(response)
+			_ = json.NewEncoder(w).Encode(response)
 
 		default:
 			t.Errorf("Unexpected facilitator call: %s %s", r.Method, r.URL.Path)
@@ -153,7 +153,7 @@ func TestMiddleware_ValidPayment(t *testing.T) {
 		}
 
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+		_, _ = w.Write([]byte("OK"))
 	}))
 
 	// Create valid payment
@@ -207,7 +207,7 @@ func TestMiddleware_VerifyOnly(t *testing.T) {
 				},
 			}
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(response)
+			_ = json.NewEncoder(w).Encode(response)
 
 		case "/verify":
 			response := v2.VerifyResponse{
@@ -215,7 +215,7 @@ func TestMiddleware_VerifyOnly(t *testing.T) {
 				Payer:   "0xPayerAddress",
 			}
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(response)
+			_ = json.NewEncoder(w).Encode(response)
 
 		case "/settle":
 			settleCalled = true
@@ -287,7 +287,7 @@ func TestMiddleware_InvalidPayment(t *testing.T) {
 				},
 			}
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(response)
+			_ = json.NewEncoder(w).Encode(response)
 
 		case "/verify":
 			response := v2.VerifyResponse{
@@ -295,7 +295,7 @@ func TestMiddleware_InvalidPayment(t *testing.T) {
 				InvalidReason: "Insufficient balance",
 			}
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(response)
+			_ = json.NewEncoder(w).Encode(response)
 
 		default:
 			t.Errorf("Unexpected facilitator call: %s %s", r.Method, r.URL.Path)
@@ -359,7 +359,7 @@ func TestMiddleware_HandlerError_NoSettlement(t *testing.T) {
 				},
 			}
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(response)
+			_ = json.NewEncoder(w).Encode(response)
 
 		case "/verify":
 			response := v2.VerifyResponse{
@@ -367,7 +367,7 @@ func TestMiddleware_HandlerError_NoSettlement(t *testing.T) {
 				Payer:   "0xPayerAddress",
 			}
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(response)
+			_ = json.NewEncoder(w).Encode(response)
 
 		case "/settle":
 			settleCalled = true

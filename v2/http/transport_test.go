@@ -50,7 +50,7 @@ func (m *mockSigner) Sign(req *v2.PaymentRequirements) (*v2.PaymentPayload, erro
 func TestTransport_NonPaymentRequired(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+		_, _ = w.Write([]byte("OK"))
 	}))
 	defer server.Close()
 
@@ -99,7 +99,7 @@ func TestTransport_PaymentRequired_AutoPay(t *testing.T) {
 			}
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusPaymentRequired)
-			json.NewEncoder(w).Encode(paymentReq)
+			_ = json.NewEncoder(w).Encode(paymentReq)
 			return
 		}
 
@@ -134,7 +134,7 @@ func TestTransport_PaymentRequired_AutoPay(t *testing.T) {
 		w.Header().Set("X-PAYMENT-RESPONSE", encoded)
 
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("Protected content"))
+		_, _ = w.Write([]byte("Protected content"))
 	}))
 	defer server.Close()
 
@@ -187,7 +187,7 @@ func TestTransport_PaymentCallbacks(t *testing.T) {
 			}
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusPaymentRequired)
-			json.NewEncoder(w).Encode(paymentReq)
+			_ = json.NewEncoder(w).Encode(paymentReq)
 			return
 		}
 
@@ -270,7 +270,7 @@ func TestTransport_NoMatchingSigner(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusPaymentRequired)
-		json.NewEncoder(w).Encode(paymentReq)
+		_ = json.NewEncoder(w).Encode(paymentReq)
 	}))
 	defer server.Close()
 
@@ -308,7 +308,7 @@ func TestTransport_FailureCallback(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusPaymentRequired)
-		json.NewEncoder(w).Encode(paymentReq)
+		_ = json.NewEncoder(w).Encode(paymentReq)
 	}))
 	defer server.Close()
 

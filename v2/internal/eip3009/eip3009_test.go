@@ -25,8 +25,8 @@ func TestGenerateNonce(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to generate nonce: %v", err)
 		}
-		if len(nonce) != 32 {
-			t.Errorf("Expected 32 byte nonce, got %d bytes", len(nonce))
+		if len(nonce[:]) != 32 {
+			t.Errorf("Expected 32 byte nonce, got %d bytes", len(nonce[:]))
 		}
 	})
 

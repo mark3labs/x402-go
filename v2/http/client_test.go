@@ -2,7 +2,6 @@ package http
 
 import (
 	"encoding/json"
-	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -18,7 +17,7 @@ func TestNewClient(t *testing.T) {
 	}
 
 	if client == nil {
-		t.Error("Expected non-nil client")
+		t.Fatal("Expected non-nil client")
 	}
 
 	if client.Client == nil {
@@ -196,7 +195,7 @@ func TestClient_AutomaticPayment(t *testing.T) {
 			}
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusPaymentRequired)
-			json.NewEncoder(w).Encode(paymentReq)
+			_ = json.NewEncoder(w).Encode(paymentReq)
 			return
 		}
 
@@ -209,7 +208,7 @@ func TestClient_AutomaticPayment(t *testing.T) {
 		encoded, _ := encoding.EncodeSettlement(settlement)
 		w.Header().Set("X-PAYMENT-RESPONSE", encoded)
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("Protected content"))
+		_, _ = w.Write([]byte("Protected content"))
 	}))
 	defer server.Close()
 
@@ -281,39 +280,4 @@ func TestGetSettlement_ValidHeader(t *testing.T) {
 	if parsed.Transaction != "0x1234567890abcdef" {
 		t.Errorf("Expected transaction hash, got %s", parsed.Transaction)
 	}
-}
-
-// mockSigner2 is a duplicate for this file since we can't import from transport_test.go
-type mockSigner2 struct {
-	network   string
-	scheme    string
-	tokens    []v2.TokenConfig
-	maxAmount *big.Int
-	priority  int
-	signFunc  func(*v2.PaymentRequirements) (*v2.PaymentPayload, error)
-}
-
-func (m *mockSigner2) Network() string             { return m.network }
-func (m *mockSigner2) Scheme() string              { return m.scheme }
-func (m *mockSigner2) GetPriority() int            { return m.priority }
-func (m *mockSigner2) GetTokens() []v2.TokenConfig { return m.tokens }
-func (m *mockSigner2) GetMaxAmount() *big.Int      { return m.maxAmount }
-func (m *mockSigner2) CanSign(req *v2.PaymentRequirements) bool {
-	return req.Network == m.network && req.Scheme == m.scheme
-}
-func (m *mockSigner2) Sign(req *v2.PaymentRequirements) (*v2.PaymentPayload, error) {
-	if m.signFunc != nil {
-		return m.signFunc(req)
-	}
-	return &v2.PaymentPayload{
-		X402Version: 2,
-		Accepted: v2.PaymentRequirements{
-			Scheme:  req.Scheme,
-			Network: req.Network,
-			Amount:  req.Amount,
-		},
-		Payload: map[string]interface{}{
-			"signature": "0xmocksig",
-		},
-	}, nil
 }
