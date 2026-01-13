@@ -287,6 +287,15 @@ func (i *settlementInterceptor) Flush() {
 // Hijack implements http.Hijacker to support connection hijacking.
 func (i *settlementInterceptor) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	if hijacker, ok := i.w.(http.Hijacker); ok {
+		// Ensure settlement happens before hijacking (e.g., WebSocket upgrades)
+		if !i.committed {
+			// Treat hijack as a successful upgrade path; settle first.
+			i.committed = true
+			if !i.settleFunc() {
+				i.hijacked = true
+				return nil, nil, errors.New("payment settlement failed")
+			}
+		}
 		return hijacker.Hijack()
 	}
 	return nil, nil, errors.New("hijacking not supported")
