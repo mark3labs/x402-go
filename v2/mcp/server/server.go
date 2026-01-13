@@ -72,7 +72,8 @@ func (s *X402Server) AddPayableTool(tool mcpproto.Tool, resource v2.ResourceInfo
 }
 
 // Handler returns an HTTP handler wrapped with x402 v2 payment middleware.
-func (s *X402Server) Handler() http.Handler {
+// Returns an error if the handler cannot be created (e.g., invalid configuration).
+func (s *X402Server) Handler() (http.Handler, error) {
 	// Get the base MCP HTTP handler
 	httpServer := mcpserver.NewStreamableHTTPServer(s.mcpServer)
 
@@ -82,7 +83,10 @@ func (s *X402Server) Handler() http.Handler {
 
 // Start starts the MCP server on the given address.
 func (s *X402Server) Start(addr string) error {
-	handler := s.Handler()
+	handler, err := s.Handler()
+	if err != nil {
+		return fmt.Errorf("failed to create handler: %w", err)
+	}
 	if s.config.Verbose {
 		fmt.Printf("Starting x402 v2 MCP server on %s\n", addr)
 		fmt.Printf("Facilitator URL: %s\n", s.config.FacilitatorURL)

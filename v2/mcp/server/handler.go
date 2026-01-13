@@ -21,19 +21,22 @@ type X402Handler struct {
 }
 
 // NewX402Handler creates a new x402 v2 payment handler.
-func NewX402Handler(mcpHandler http.Handler, config *Config) *X402Handler {
+func NewX402Handler(mcpHandler http.Handler, config *Config) (*X402Handler, error) {
 	if config == nil {
 		config = DefaultConfig()
 	}
 
-	facilitator, fallbackFacilitator := initializeFacilitators(config)
+	facilitator, fallbackFacilitator, err := initializeFacilitators(config)
+	if err != nil {
+		return nil, err
+	}
 
 	return &X402Handler{
 		mcpHandler:          mcpHandler,
 		config:              config,
 		facilitator:         facilitator,
 		fallbackFacilitator: fallbackFacilitator,
-	}
+	}, nil
 }
 
 type facilitatorConfig struct {
@@ -69,13 +72,13 @@ func createFacilitator(cfg facilitatorConfig) Facilitator {
 		WithOnAfterSettle(cfg.onAfterSettle))
 }
 
-func initializeFacilitators(config *Config) (Facilitator, Facilitator) {
+func initializeFacilitators(config *Config) (Facilitator, Facilitator, error) {
 	var facilitator, fallbackFacilitator Facilitator
 
 	// Determine primary URL and options
 	primaryURL := config.FacilitatorURL
 	if primaryURL == "" {
-		panic("x402: at least one facilitator URL must be provided")
+		return nil, nil, fmt.Errorf("x402: at least one facilitator URL must be provided")
 	}
 
 	facilitator = createFacilitator(facilitatorConfig{
@@ -101,7 +104,7 @@ func initializeFacilitators(config *Config) (Facilitator, Facilitator) {
 		})
 	}
 
-	return facilitator, fallbackFacilitator
+	return facilitator, fallbackFacilitator, nil
 }
 
 // ServeHTTP intercepts HTTP requests to check for x402 v2 payments.
