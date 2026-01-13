@@ -59,13 +59,14 @@ func (t *Transport) SendRequest(ctx context.Context, req transport.JSONRPCReques
 	if resp.Error != nil && resp.Error.Code == 402 {
 		// Extract payment requirements
 		var data json.RawMessage
-		if resp.Error.Data != nil {
-			dataBytes, err := json.Marshal(resp.Error.Data)
-			if err != nil {
-				return resp, fmt.Errorf("failed to marshal error data: %w", err)
-			}
-			data = dataBytes
+		if resp.Error.Data == nil {
+			return resp, mcp.ErrNoPaymentRequirements
 		}
+		dataBytes, err := json.Marshal(resp.Error.Data)
+		if err != nil {
+			return resp, fmt.Errorf("failed to marshal error data: %w", err)
+		}
+		data = dataBytes
 
 		requirements, resource, err := t.extractPaymentRequirements(data)
 		if err != nil {
@@ -113,6 +114,9 @@ func (t *Transport) GetSessionId() string {
 
 // extractPaymentRequirements extracts payment requirements from 402 error data.
 func (t *Transport) extractPaymentRequirements(data json.RawMessage) ([]v2.PaymentRequirements, v2.ResourceInfo, error) {
+	if len(data) == 0 {
+		return nil, v2.ResourceInfo{}, mcp.ErrNoPaymentRequirements
+	}
 	var reqData mcp.PaymentRequirements
 	if err := json.Unmarshal(data, &reqData); err != nil {
 		return nil, v2.ResourceInfo{}, fmt.Errorf("failed to unmarshal payment requirements: %w", err)
