@@ -51,7 +51,7 @@ func NewGinX402Middleware(config *httpx402.Config) gin.HandlerFunc {
 	// Create facilitator client
 	facilitator := &httpx402.FacilitatorClient{
 		BaseURL:               config.FacilitatorURL,
-		Client:                &http.Client{},
+		Client:                &http.Client{Timeout: x402.DefaultTimeouts.RequestTimeout},
 		Timeouts:              x402.DefaultTimeouts,
 		Authorization:         config.FacilitatorAuthorization,
 		AuthorizationProvider: config.FacilitatorAuthorizationProvider,
@@ -62,7 +62,7 @@ func NewGinX402Middleware(config *httpx402.Config) gin.HandlerFunc {
 	if config.FallbackFacilitatorURL != "" {
 		fallbackFacilitator = &httpx402.FacilitatorClient{
 			BaseURL:               config.FallbackFacilitatorURL,
-			Client:                &http.Client{},
+			Client:                &http.Client{Timeout: x402.DefaultTimeouts.RequestTimeout},
 			Timeouts:              x402.DefaultTimeouts,
 			Authorization:         config.FallbackFacilitatorAuthorization,
 			AuthorizationProvider: config.FallbackFacilitatorAuthorizationProvider,

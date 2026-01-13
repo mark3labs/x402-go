@@ -69,7 +69,7 @@ func NewX402Middleware(config *Config) func(http.Handler) http.Handler {
 	// Create facilitator client
 	facilitator := &FacilitatorClient{
 		BaseURL:               config.FacilitatorURL,
-		Client:                &http.Client{},
+		Client:                &http.Client{Timeout: x402.DefaultTimeouts.RequestTimeout},
 		Timeouts:              x402.DefaultTimeouts,
 		Authorization:         config.FacilitatorAuthorization,
 		AuthorizationProvider: config.FacilitatorAuthorizationProvider,
@@ -84,7 +84,7 @@ func NewX402Middleware(config *Config) func(http.Handler) http.Handler {
 	if config.FallbackFacilitatorURL != "" {
 		fallbackFacilitator = &FacilitatorClient{
 			BaseURL:               config.FallbackFacilitatorURL,
-			Client:                &http.Client{},
+			Client:                &http.Client{Timeout: x402.DefaultTimeouts.RequestTimeout},
 			Timeouts:              x402.DefaultTimeouts,
 			Authorization:         config.FallbackFacilitatorAuthorization,
 			AuthorizationProvider: config.FallbackFacilitatorAuthorizationProvider,

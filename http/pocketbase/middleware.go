@@ -56,7 +56,7 @@ func NewPocketBaseX402Middleware(config *httpx402.Config) func(*core.RequestEven
 	// Create facilitator client
 	facilitator := &httpx402.FacilitatorClient{
 		BaseURL:               config.FacilitatorURL,
-		Client:                &http.Client{},
+		Client:                &http.Client{Timeout: x402.DefaultTimeouts.RequestTimeout},
 		Timeouts:              x402.DefaultTimeouts,
 		Authorization:         config.FacilitatorAuthorization,
 		AuthorizationProvider: config.FacilitatorAuthorizationProvider,
@@ -67,7 +67,7 @@ func NewPocketBaseX402Middleware(config *httpx402.Config) func(*core.RequestEven
 	if config.FallbackFacilitatorURL != "" {
 		fallbackFacilitator = &httpx402.FacilitatorClient{
 			BaseURL:               config.FallbackFacilitatorURL,
-			Client:                &http.Client{},
+			Client:                &http.Client{Timeout: x402.DefaultTimeouts.RequestTimeout},
 			Timeouts:              x402.DefaultTimeouts,
 			Authorization:         config.FallbackFacilitatorAuthorization,
 			AuthorizationProvider: config.FallbackFacilitatorAuthorizationProvider,
