@@ -40,6 +40,9 @@ type Option func(*Config)
 // WithSigner adds a payment signer to the configuration.
 func WithSigner(signer v2.Signer) Option {
 	return func(c *Config) {
+		if signer == nil {
+			return
+		}
 		c.Signers = append(c.Signers, signer)
 	}
 }
