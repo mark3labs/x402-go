@@ -4,6 +4,7 @@
 package pocketbase
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -55,7 +56,7 @@ func NewPocketBaseX402Middleware(config *httpx402.Config) func(*core.RequestEven
 	// Create facilitator client
 	facilitator := &httpx402.FacilitatorClient{
 		BaseURL:               config.FacilitatorURL,
-		Client:                &http.Client{},
+		Client:                &http.Client{Timeout: x402.DefaultTimeouts.RequestTimeout},
 		Timeouts:              x402.DefaultTimeouts,
 		Authorization:         config.FacilitatorAuthorization,
 		AuthorizationProvider: config.FacilitatorAuthorizationProvider,
@@ -66,7 +67,7 @@ func NewPocketBaseX402Middleware(config *httpx402.Config) func(*core.RequestEven
 	if config.FallbackFacilitatorURL != "" {
 		fallbackFacilitator = &httpx402.FacilitatorClient{
 			BaseURL:               config.FallbackFacilitatorURL,
-			Client:                &http.Client{},
+			Client:                &http.Client{Timeout: x402.DefaultTimeouts.RequestTimeout},
 			Timeouts:              x402.DefaultTimeouts,
 			Authorization:         config.FallbackFacilitatorAuthorization,
 			AuthorizationProvider: config.FallbackFacilitatorAuthorizationProvider,
@@ -74,7 +75,9 @@ func NewPocketBaseX402Middleware(config *httpx402.Config) func(*core.RequestEven
 	}
 
 	// Enrich payment requirements with facilitator-specific data (like feePayer)
-	enrichedRequirements, err := facilitator.EnrichRequirements(config.PaymentRequirements)
+	ctx, cancel := context.WithTimeout(context.Background(), x402.DefaultTimeouts.RequestTimeout)
+	defer cancel()
+	enrichedRequirements, err := facilitator.EnrichRequirements(ctx, config.PaymentRequirements)
 	if err != nil {
 		// Log warning but continue with original requirements
 		slog.Default().Warn("failed to enrich payment requirements from facilitator", "error", err)

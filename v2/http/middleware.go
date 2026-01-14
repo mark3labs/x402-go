@@ -1,4 +1,3 @@
-// Package http provides HTTP middleware for x402 payment gating.
 package http
 
 import (
@@ -9,21 +8,25 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/mark3labs/x402-go"
+	v2 "github.com/mark3labs/x402-go/v2"
+	"github.com/mark3labs/x402-go/v2/http/internal/helpers"
 )
 
-// Config holds the configuration for the x402 middleware.
+// Config holds the configuration for the x402 v2 middleware.
 type Config struct {
-	// FacilitatorURL is the primary facilitator endpoint
+	// FacilitatorURL is the primary facilitator endpoint.
 	FacilitatorURL string
 
-	// FallbackFacilitatorURL is the optional backup facilitator
+	// FallbackFacilitatorURL is the optional backup facilitator.
 	FallbackFacilitatorURL string
 
-	// PaymentRequirements defines the accepted payment methods
-	PaymentRequirements []x402.PaymentRequirement
+	// Resource describes the protected resource.
+	Resource v2.ResourceInfo
 
-	// VerifyOnly skips settlement if true (only verifies payments)
+	// PaymentRequirements defines the accepted payment methods.
+	PaymentRequirements []v2.PaymentRequirements
+
+	// VerifyOnly skips settlement if true (only verifies payments).
 	VerifyOnly bool
 
 	// FacilitatorAuthorization is a static Authorization header value for the primary facilitator.
@@ -35,7 +38,7 @@ type Config struct {
 	// If set, this takes precedence over FacilitatorAuthorization.
 	FacilitatorAuthorizationProvider AuthorizationProvider
 
-	// Facilitator hooks for custom logic before/after verify and settle operations
+	// Facilitator hooks for custom logic before/after verify and settle operations.
 	FacilitatorOnBeforeVerify OnBeforeFunc
 	FacilitatorOnAfterVerify  OnAfterVerifyFunc
 	FacilitatorOnBeforeSettle OnBeforeFunc
@@ -48,7 +51,7 @@ type Config struct {
 	// for the fallback facilitator. If set, this takes precedence over FallbackFacilitatorAuthorization.
 	FallbackFacilitatorAuthorizationProvider AuthorizationProvider
 
-	// FallbackFacilitator hooks for custom logic before/after verify and settle operations
+	// FallbackFacilitator hooks for custom logic before/after verify and settle operations.
 	FallbackFacilitatorOnBeforeVerify OnBeforeFunc
 	FallbackFacilitatorOnAfterVerify  OnAfterVerifyFunc
 	FallbackFacilitatorOnBeforeSettle OnBeforeFunc
@@ -59,18 +62,18 @@ type Config struct {
 type contextKey string
 
 // PaymentContextKey is the context key for storing verified payment information.
-const PaymentContextKey = contextKey("x402_payment")
+const PaymentContextKey = contextKey("x402_v2_payment")
 
-// NewX402Middleware creates a new x402 payment middleware.
+// NewX402Middleware creates a new x402 v2 payment middleware.
 // It returns a middleware function that wraps HTTP handlers with payment gating.
 // The middleware automatically fetches network-specific configuration (like feePayer for SVM chains)
 // from the facilitator's /supported endpoint.
-func NewX402Middleware(config *Config) func(http.Handler) http.Handler {
+func NewX402Middleware(config Config) func(http.Handler) http.Handler {
 	// Create facilitator client
 	facilitator := &FacilitatorClient{
 		BaseURL:               config.FacilitatorURL,
-		Client:                &http.Client{Timeout: x402.DefaultTimeouts.RequestTimeout},
-		Timeouts:              x402.DefaultTimeouts,
+		Client:                &http.Client{Timeout: v2.DefaultTimeouts.RequestTimeout},
+		Timeouts:              v2.DefaultTimeouts,
 		Authorization:         config.FacilitatorAuthorization,
 		AuthorizationProvider: config.FacilitatorAuthorizationProvider,
 		OnBeforeVerify:        config.FacilitatorOnBeforeVerify,
@@ -84,8 +87,8 @@ func NewX402Middleware(config *Config) func(http.Handler) http.Handler {
 	if config.FallbackFacilitatorURL != "" {
 		fallbackFacilitator = &FacilitatorClient{
 			BaseURL:               config.FallbackFacilitatorURL,
-			Client:                &http.Client{Timeout: x402.DefaultTimeouts.RequestTimeout},
-			Timeouts:              x402.DefaultTimeouts,
+			Client:                &http.Client{Timeout: v2.DefaultTimeouts.RequestTimeout},
+			Timeouts:              v2.DefaultTimeouts,
 			Authorization:         config.FallbackFacilitatorAuthorization,
 			AuthorizationProvider: config.FallbackFacilitatorAuthorizationProvider,
 			OnBeforeVerify:        config.FallbackFacilitatorOnBeforeVerify,
@@ -96,7 +99,7 @@ func NewX402Middleware(config *Config) func(http.Handler) http.Handler {
 	}
 
 	// Enrich payment requirements with facilitator-specific data (like feePayer)
-	ctx, cancel := context.WithTimeout(context.Background(), x402.DefaultTimeouts.RequestTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), v2.DefaultTimeouts.RequestTimeout)
 	defer cancel()
 	enrichedRequirements, err := facilitator.EnrichRequirements(ctx, config.PaymentRequirements)
 	if err != nil {
@@ -111,21 +114,13 @@ func NewX402Middleware(config *Config) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			logger := slog.Default()
 
-			// Build absolute URL for the resource
-			scheme := "http"
-			if r.TLS != nil {
-				scheme = "https"
+			// Build resource info from request
+			resource := config.Resource
+			if resource.URL == "" {
+				resource.URL = helpers.BuildResourceURL(r)
 			}
-			resourceURL := scheme + "://" + r.Host + r.RequestURI
-
-			// Populate resource field in requirements with the actual request URL
-			requirementsWithResource := make([]x402.PaymentRequirement, len(enrichedRequirements))
-			for i, req := range enrichedRequirements {
-				requirementsWithResource[i] = req
-				requirementsWithResource[i].Resource = resourceURL
-				if requirementsWithResource[i].Description == "" {
-					requirementsWithResource[i].Description = "Payment required for " + r.URL.Path
-				}
+			if resource.Description == "" {
+				resource.Description = "Payment required for " + r.URL.Path
 			}
 
 			// Check for X-PAYMENT header
@@ -133,12 +128,12 @@ func NewX402Middleware(config *Config) func(http.Handler) http.Handler {
 			if paymentHeader == "" {
 				// No payment provided - return 402 with requirements
 				logger.Info("no payment header provided", "path", r.URL.Path)
-				sendPaymentRequiredWithRequirements(w, requirementsWithResource)
+				helpers.SendPaymentRequired(w, resource, enrichedRequirements, "Payment required")
 				return
 			}
 
 			// Parse payment header
-			payment, err := parsePaymentHeader(r)
+			payment, err := helpers.ParsePaymentHeader(r)
 			if err != nil {
 				logger.Warn("invalid payment header", "error", err)
 				http.Error(w, "Invalid payment header", http.StatusBadRequest)
@@ -146,19 +141,19 @@ func NewX402Middleware(config *Config) func(http.Handler) http.Handler {
 			}
 
 			// Find matching requirement
-			requirement, err := findMatchingRequirement(payment, requirementsWithResource)
+			requirement, err := v2.FindMatchingRequirement(payment, enrichedRequirements)
 			if err != nil {
 				logger.Warn("no matching requirement", "error", err)
-				sendPaymentRequiredWithRequirements(w, requirementsWithResource)
+				helpers.SendPaymentRequired(w, resource, enrichedRequirements, "No matching payment requirement")
 				return
 			}
 
 			// Verify payment with facilitator
-			logger.Info("verifying payment", "scheme", payment.Scheme, "network", payment.Network)
-			verifyResp, err := facilitator.Verify(r.Context(), payment, requirement)
+			logger.Info("verifying payment", "scheme", payment.Accepted.Scheme, "network", payment.Accepted.Network)
+			verifyResp, err := facilitator.Verify(r.Context(), *payment, *requirement)
 			if err != nil && fallbackFacilitator != nil {
 				logger.Warn("primary facilitator failed, trying fallback", "error", err)
-				verifyResp, err = fallbackFacilitator.Verify(r.Context(), payment, requirement)
+				verifyResp, err = fallbackFacilitator.Verify(r.Context(), *payment, *requirement)
 			}
 			if err != nil {
 				logger.Error("facilitator verification failed", "error", err)
@@ -168,7 +163,7 @@ func NewX402Middleware(config *Config) func(http.Handler) http.Handler {
 
 			if !verifyResp.IsValid {
 				logger.Warn("payment verification failed", "reason", verifyResp.InvalidReason)
-				sendPaymentRequiredWithRequirements(w, requirementsWithResource)
+				helpers.SendPaymentRequired(w, resource, enrichedRequirements, verifyResp.InvalidReason)
 				return
 			}
 
@@ -187,10 +182,10 @@ func NewX402Middleware(config *Config) func(http.Handler) http.Handler {
 					}
 
 					logger.Info("settling payment", "payer", verifyResp.Payer)
-					settlementResp, err := facilitator.Settle(r.Context(), payment, requirement)
+					settlementResp, err := facilitator.Settle(r.Context(), *payment, *requirement)
 					if err != nil && fallbackFacilitator != nil {
 						logger.Warn("primary facilitator settlement failed, trying fallback", "error", err)
-						settlementResp, err = fallbackFacilitator.Settle(r.Context(), payment, requirement)
+						settlementResp, err = fallbackFacilitator.Settle(r.Context(), *payment, *requirement)
 					}
 					if err != nil {
 						logger.Error("settlement failed", "error", err)
@@ -200,14 +195,14 @@ func NewX402Middleware(config *Config) func(http.Handler) http.Handler {
 
 					if !settlementResp.Success {
 						logger.Warn("settlement unsuccessful", "reason", settlementResp.ErrorReason)
-						sendPaymentRequiredWithRequirements(w, requirementsWithResource)
+						helpers.SendPaymentRequired(w, resource, enrichedRequirements, settlementResp.ErrorReason)
 						return false
 					}
 
 					logger.Info("payment settled", "transaction", settlementResp.Transaction)
 
 					// Add X-PAYMENT-RESPONSE header with settlement info
-					if err := addPaymentResponseHeader(w, settlementResp); err != nil {
+					if err := helpers.AddPaymentResponseHeader(w, settlementResp); err != nil {
 						logger.Warn("failed to add payment response header", "error", err)
 						// Continue anyway - payment was successful
 					}
@@ -294,6 +289,15 @@ func (i *settlementInterceptor) Flush() {
 // Hijack implements http.Hijacker to support connection hijacking.
 func (i *settlementInterceptor) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	if hijacker, ok := i.w.(http.Hijacker); ok {
+		// Ensure settlement happens before hijacking (e.g., WebSocket upgrades)
+		if !i.committed {
+			// Treat hijack as a successful upgrade path; settle first.
+			i.committed = true
+			if !i.settleFunc() {
+				i.hijacked = true
+				return nil, nil, errors.New("payment settlement failed")
+			}
+		}
 		return hijacker.Hijack()
 	}
 	return nil, nil, errors.New("hijacking not supported")
@@ -305,4 +309,18 @@ func (i *settlementInterceptor) Push(target string, opts *http.PushOptions) erro
 		return pusher.Push(target, opts)
 	}
 	return http.ErrNotSupported
+}
+
+// GetPaymentFromContext extracts the verified payment information from the request context.
+// Returns nil if no payment was verified or the context does not contain payment info.
+func GetPaymentFromContext(ctx context.Context) *v2.VerifyResponse {
+	value := ctx.Value(PaymentContextKey)
+	if value == nil {
+		return nil
+	}
+	resp, ok := value.(*v2.VerifyResponse)
+	if !ok {
+		return nil
+	}
+	return resp
 }

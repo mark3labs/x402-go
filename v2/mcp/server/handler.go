@@ -9,12 +9,10 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/mark3labs/x402-go"
-	"github.com/mark3labs/x402-go/facilitator"
-	x402http "github.com/mark3labs/x402-go/http"
+	v2 "github.com/mark3labs/x402-go/v2"
 )
 
-// X402Handler wraps an MCP HTTP handler and adds x402 payment verification
+// X402Handler wraps an MCP HTTP handler and adds x402 v2 payment verification.
 type X402Handler struct {
 	mcpHandler          http.Handler
 	config              *Config
@@ -22,7 +20,7 @@ type X402Handler struct {
 	fallbackFacilitator Facilitator
 }
 
-// NewX402Handler creates a new x402 payment handler
+// NewX402Handler creates a new x402 v2 payment handler.
 func NewX402Handler(mcpHandler http.Handler, config *Config) (*X402Handler, error) {
 	if config == nil {
 		config = DefaultConfig()
@@ -44,14 +42,26 @@ func NewX402Handler(mcpHandler http.Handler, config *Config) (*X402Handler, erro
 type facilitatorConfig struct {
 	url            string
 	auth           string
-	authProvider   x402http.AuthorizationProvider
-	onBeforeVerify x402http.OnBeforeFunc
-	onAfterVerify  x402http.OnAfterVerifyFunc
-	onBeforeSettle x402http.OnBeforeFunc
-	onAfterSettle  x402http.OnAfterSettleFunc
+	authProvider   AuthorizationProvider
+	onBeforeVerify OnBeforeFunc
+	onAfterVerify  OnAfterVerifyFunc
+	onBeforeSettle OnBeforeFunc
+	onAfterSettle  OnAfterSettleFunc
 }
 
-// Helper to create facilitator with given URL and options
+// AuthorizationProvider re-exports the type from v2http for convenience.
+type AuthorizationProvider = func(*http.Request) string
+
+// OnBeforeFunc re-exports the type from v2http for convenience.
+type OnBeforeFunc = func(context.Context, v2.PaymentPayload, v2.PaymentRequirements) error
+
+// OnAfterVerifyFunc re-exports the type from v2http for convenience.
+type OnAfterVerifyFunc = func(context.Context, v2.PaymentPayload, v2.PaymentRequirements, *v2.VerifyResponse, error)
+
+// OnAfterSettleFunc re-exports the type from v2http for convenience.
+type OnAfterSettleFunc = func(context.Context, v2.PaymentPayload, v2.PaymentRequirements, *v2.SettleResponse, error)
+
+// Helper to create facilitator with given URL and options.
 func createFacilitator(cfg facilitatorConfig) Facilitator {
 	return NewHTTPFacilitator(cfg.url,
 		WithAuthorization(cfg.auth),
@@ -67,54 +77,37 @@ func initializeFacilitators(config *Config) (Facilitator, Facilitator, error) {
 
 	// Determine primary URL and options
 	primaryURL := config.FacilitatorURL
-	auth := config.FacilitatorAuthorization
-	authProvider := config.FacilitatorAuthorizationProvider
-	onBeforeVerify := config.FacilitatorOnBeforeVerify
-	onAfterVerify := config.FacilitatorOnAfterVerify
-	onBeforeSettle := config.FacilitatorOnBeforeSettle
-	onAfterSettle := config.FacilitatorOnAfterSettle
-
-	if config.HTTPConfig != nil && config.HTTPConfig.FacilitatorURL != "" {
-		primaryURL = config.HTTPConfig.FacilitatorURL
-		auth = config.HTTPConfig.FacilitatorAuthorization
-		authProvider = config.HTTPConfig.FacilitatorAuthorizationProvider
-		onBeforeVerify = config.HTTPConfig.FacilitatorOnBeforeVerify
-		onAfterVerify = config.HTTPConfig.FacilitatorOnAfterVerify
-		onBeforeSettle = config.HTTPConfig.FacilitatorOnBeforeSettle
-		onAfterSettle = config.HTTPConfig.FacilitatorOnAfterSettle
-	}
-
 	if primaryURL == "" {
 		return nil, nil, fmt.Errorf("x402: at least one facilitator URL must be provided")
 	}
 
 	facilitator = createFacilitator(facilitatorConfig{
 		url:            primaryURL,
-		auth:           auth,
-		authProvider:   authProvider,
-		onBeforeVerify: onBeforeVerify,
-		onAfterVerify:  onAfterVerify,
-		onBeforeSettle: onBeforeSettle,
-		onAfterSettle:  onAfterSettle,
+		auth:           config.FacilitatorAuthorization,
+		authProvider:   config.FacilitatorAuthorizationProvider,
+		onBeforeVerify: config.FacilitatorOnBeforeVerify,
+		onAfterVerify:  config.FacilitatorOnAfterVerify,
+		onBeforeSettle: config.FacilitatorOnBeforeSettle,
+		onAfterSettle:  config.FacilitatorOnAfterSettle,
 	})
 
 	// Initialize fallback if configured
-	if config.HTTPConfig != nil && config.HTTPConfig.FallbackFacilitatorURL != "" {
+	if config.FallbackFacilitatorURL != "" {
 		fallbackFacilitator = createFacilitator(facilitatorConfig{
-			url:            config.HTTPConfig.FallbackFacilitatorURL,
-			auth:           config.HTTPConfig.FallbackFacilitatorAuthorization,
-			authProvider:   config.HTTPConfig.FallbackFacilitatorAuthorizationProvider,
-			onBeforeVerify: config.HTTPConfig.FallbackFacilitatorOnBeforeVerify,
-			onAfterVerify:  config.HTTPConfig.FallbackFacilitatorOnAfterVerify,
-			onBeforeSettle: config.HTTPConfig.FallbackFacilitatorOnBeforeSettle,
-			onAfterSettle:  config.HTTPConfig.FallbackFacilitatorOnAfterSettle,
+			url:            config.FallbackFacilitatorURL,
+			auth:           config.FallbackFacilitatorAuthorization,
+			authProvider:   config.FallbackFacilitatorAuthorizationProvider,
+			onBeforeVerify: config.FallbackFacilitatorOnBeforeVerify,
+			onAfterVerify:  config.FallbackFacilitatorOnAfterVerify,
+			onBeforeSettle: config.FallbackFacilitatorOnBeforeSettle,
+			onAfterSettle:  config.FallbackFacilitatorOnAfterSettle,
 		})
 	}
 
 	return facilitator, fallbackFacilitator, nil
 }
 
-// ServeHTTP intercepts HTTP requests to check for x402 payments
+// ServeHTTP intercepts HTTP requests to check for x402 v2 payments.
 func (h *X402Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	logger := h.config.Logger
 	if logger == nil {
@@ -182,7 +175,7 @@ func (h *X402Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if tool requires payment
-	requirements, needsPayment := h.checkPaymentRequired(toolParams.Name)
+	paymentConfig, needsPayment := h.checkPaymentRequired(toolParams.Name)
 	if !needsPayment {
 		// Free tool - pass through
 		h.mcpHandler.ServeHTTP(w, r)
@@ -193,19 +186,19 @@ func (h *X402Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	payment := h.extractPayment(toolParams.Meta)
 	if payment == nil {
 		// No payment provided - send 402 error
-		h.sendPaymentRequiredError(w, jsonrpcReq.ID, requirements)
+		h.sendPaymentRequiredError(w, jsonrpcReq.ID, paymentConfig)
 		return
 	}
 
 	// Find matching requirement
-	requirement, err := h.findMatchingRequirement(payment, requirements)
+	requirement, err := h.findMatchingRequirement(payment, paymentConfig.Requirements)
 	if err != nil {
 		h.writeError(w, jsonrpcReq.ID, 402, fmt.Sprintf("Payment invalid: %v", err), nil)
 		return
 	}
 
 	// Verify payment with facilitator
-	ctx, cancel := context.WithTimeout(r.Context(), x402.DefaultTimeouts.VerifyTimeout)
+	ctx, cancel := context.WithTimeout(r.Context(), v2.DefaultTimeouts.VerifyTimeout)
 	defer cancel()
 
 	verifyResp, err := h.facilitator.Verify(ctx, payment, *requirement)
@@ -232,30 +225,37 @@ func (h *X402Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.forwardAndSettle(w, r, bodyBytes, jsonrpcReq.ID, payment, requirement, verifyResp, logger)
 }
 
-// checkPaymentRequired checks if a tool requires payment
-func (h *X402Handler) checkPaymentRequired(toolName string) ([]x402.PaymentRequirement, bool) {
-	requirements, exists := h.config.PaymentTools[toolName]
-	if !exists || len(requirements) == 0 {
+// checkPaymentRequired checks if a tool requires payment.
+func (h *X402Handler) checkPaymentRequired(toolName string) (*ToolPaymentConfig, bool) {
+	if h.config.PaymentTools == nil {
+		return nil, false
+	}
+
+	paymentConfig, exists := h.config.PaymentTools[toolName]
+	if !exists || len(paymentConfig.Requirements) == 0 {
 		return nil, false
 	}
 
 	// Work on a copy to avoid mutating shared config
-	reqCopy := make([]x402.PaymentRequirement, len(requirements))
-	copy(reqCopy, requirements)
+	reqCopy := make([]v2.PaymentRequirements, len(paymentConfig.Requirements))
+	copy(reqCopy, paymentConfig.Requirements)
 
-	for i := range reqCopy {
-		if reqCopy[i].Resource == "" {
-			reqCopy[i].Resource = fmt.Sprintf("mcp://tools/%s", toolName)
-		}
+	// Set default resource URL if not specified
+	resource := paymentConfig.Resource
+	if resource.URL == "" {
+		resource = SetToolResource(toolName)
 	}
 
-	return reqCopy, true
+	return &ToolPaymentConfig{
+		Resource:     resource,
+		Requirements: reqCopy,
+	}, true
 }
 
-// extractPayment extracts payment from params._meta["x402/payment"]
+// extractPayment extracts payment from params._meta["x402/payment"].
 func (h *X402Handler) extractPayment(meta *struct {
 	AdditionalFields map[string]interface{} `json:"-"`
-}) *x402.PaymentPayload {
+}) *v2.PaymentPayload {
 	if meta == nil || meta.AdditionalFields == nil {
 		return nil
 	}
@@ -271,33 +271,39 @@ func (h *X402Handler) extractPayment(meta *struct {
 		return nil
 	}
 
-	var payment x402.PaymentPayload
+	var payment v2.PaymentPayload
 	if err := json.Unmarshal(paymentBytes, &payment); err != nil {
+		return nil
+	}
+
+	// Validate X402Version
+	if payment.X402Version != v2.X402Version {
 		return nil
 	}
 
 	return &payment
 }
 
-// findMatchingRequirement finds a requirement that matches the payment
-// This delegates to x402.FindMatchingRequirement for consistent matching logic across packages.
-func (h *X402Handler) findMatchingRequirement(payment *x402.PaymentPayload, requirements []x402.PaymentRequirement) (*x402.PaymentRequirement, error) {
-	return x402.FindMatchingRequirement(*payment, requirements)
+// findMatchingRequirement finds a requirement that matches the payment.
+// This delegates to v2.FindMatchingRequirement for consistent matching logic across packages.
+func (h *X402Handler) findMatchingRequirement(payment *v2.PaymentPayload, requirements []v2.PaymentRequirements) (*v2.PaymentRequirements, error) {
+	return v2.FindMatchingRequirement(payment, requirements)
 }
 
-// sendPaymentRequiredError sends a 402 error with payment requirements
-func (h *X402Handler) sendPaymentRequiredError(w http.ResponseWriter, id interface{}, requirements []x402.PaymentRequirement) {
+// sendPaymentRequiredError sends a 402 error with payment requirements (v2 format).
+func (h *X402Handler) sendPaymentRequiredError(w http.ResponseWriter, id interface{}, config *ToolPaymentConfig) {
 	errorData := map[string]interface{}{
-		"x402Version": 1,
+		"x402Version": v2.X402Version,
 		"error":       "Payment required to access this resource",
-		"accepts":     requirements,
+		"resource":    config.Resource,
+		"accepts":     config.Requirements,
 	}
 
 	h.writeError(w, id, 402, "Payment required", errorData)
 }
 
-// forwardAndSettle executes the mcpHandler and on success, settles the payment and injects settlement response in result._meta
-func (h *X402Handler) forwardAndSettle(w http.ResponseWriter, r *http.Request, requestBody []byte, requestID interface{}, payment *x402.PaymentPayload, requirement *x402.PaymentRequirement, verifyResp *facilitator.VerifyResponse, logger *slog.Logger) {
+// forwardAndSettle executes the mcpHandler and on success, settles the payment and injects settlement response in result._meta.
+func (h *X402Handler) forwardAndSettle(w http.ResponseWriter, r *http.Request, requestBody []byte, requestID interface{}, payment *v2.PaymentPayload, requirement *v2.PaymentRequirements, verifyResp *v2.VerifyResponse, logger *slog.Logger) {
 	// Create a response recorder to capture the MCP handler's response
 	recorder := &responseRecorder{
 		headerMap:  make(http.Header),
@@ -343,13 +349,13 @@ func (h *X402Handler) forwardAndSettle(w http.ResponseWriter, r *http.Request, r
 		return
 	}
 
-	var settleResp *x402.SettlementResponse
+	var settleResp *v2.SettleResponse
 	// Settle if not verify-only mode
 	if !h.config.VerifyOnly {
 		if h.config.Verbose {
 			logger.InfoContext(r.Context(), "Execution successful. Settling payment.")
 		}
-		settleCtx, settleCancel := context.WithTimeout(r.Context(), x402.DefaultTimeouts.SettleTimeout)
+		settleCtx, settleCancel := context.WithTimeout(r.Context(), v2.DefaultTimeouts.SettleTimeout)
 		defer settleCancel()
 
 		var err error
@@ -374,9 +380,9 @@ func (h *X402Handler) forwardAndSettle(w http.ResponseWriter, r *http.Request, r
 				payer = verifyResp.Payer
 			}
 			errorData := map[string]interface{}{
-				"x402/payment-response": x402.SettlementResponse{
+				"x402/payment-response": v2.SettleResponse{
 					Success:     false,
-					Network:     payment.Network,
+					Network:     payment.Accepted.Network,
 					Payer:       payer,
 					ErrorReason: reason,
 				},
@@ -400,15 +406,17 @@ func (h *X402Handler) forwardAndSettle(w http.ResponseWriter, r *http.Request, r
 			if settleResp != nil {
 				meta["x402/payment-response"] = settleResp
 			} else {
+				// Verify-only mode: verification succeeded (we wouldn't be here if it failed)
+				// Set Success=true with empty Transaction to indicate verification passed but settlement was not attempted.
 				payer := ""
 				if verifyResp != nil {
 					payer = verifyResp.Payer
 				}
-				// In verify-only mode: Success=false indicates settlement was skipped (not attempted), not that it failed.
-				meta["x402/payment-response"] = x402.SettlementResponse{
-					Success: false,
-					Network: payment.Network,
-					Payer:   payer,
+				meta["x402/payment-response"] = v2.SettleResponse{
+					Success:     true, // Verification succeeded
+					Network:     payment.Accepted.Network,
+					Payer:       payer,
+					Transaction: "", // Settlement not attempted in verify-only mode
 				}
 			}
 			result["_meta"] = meta
@@ -437,7 +445,7 @@ func (h *X402Handler) forwardAndSettle(w http.ResponseWriter, r *http.Request, r
 	_, _ = w.Write(responseBytes)
 }
 
-// writeError writes a JSON-RPC error response
+// writeError writes a JSON-RPC error response.
 func (h *X402Handler) writeError(w http.ResponseWriter, id interface{}, code int, message string, data interface{}) {
 	errorResp := map[string]interface{}{
 		"jsonrpc": "2.0",
@@ -457,7 +465,7 @@ func (h *X402Handler) writeError(w http.ResponseWriter, id interface{}, code int
 	_ = json.NewEncoder(w).Encode(errorResp)
 }
 
-// responseRecorder records HTTP responses for modification
+// responseRecorder records HTTP responses for modification.
 type responseRecorder struct {
 	headerMap  http.Header
 	body       bytes.Buffer
