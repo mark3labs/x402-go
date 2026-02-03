@@ -352,6 +352,18 @@ func TestAmountToBigInt(t *testing.T) {
 			decimals: 6,
 			wantErr:  true,
 		},
+		{
+			name:     "negative amount",
+			amount:   "-1.5",
+			decimals: 6,
+			wantErr:  true,
+		},
+		{
+			name:     "negative decimals",
+			amount:   "1.5",
+			decimals: -1,
+			wantErr:  true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -431,5 +443,39 @@ func TestTokenConfig(t *testing.T) {
 	}
 	if config.Decimals != 6 {
 		t.Errorf("Decimals = %d; want 6", config.Decimals)
+	}
+}
+
+func TestPaymentError_WithDetails_NilMap(t *testing.T) {
+	// Create a PaymentError with a nil Details map (simulating a manually constructed error)
+	err := &PaymentError{
+		Code:    ErrCodeInvalidRequirements,
+		Message: "test error",
+		Details: nil, // Explicitly nil to test the nil guard
+	}
+
+	// This should not panic
+	result := err.WithDetails("key", "value")
+
+	// Verify the details were added
+	if result.Details == nil {
+		t.Fatal("Details map should have been initialized")
+	}
+	if result.Details["key"] != "value" {
+		t.Errorf("Expected Details[key] = value, got %v", result.Details["key"])
+	}
+}
+
+func TestPaymentError_WithDetails_ChainedCalls(t *testing.T) {
+	err := NewPaymentError(ErrCodeInvalidRequirements, "test error", nil)
+
+	// Chain multiple WithDetails calls
+	result := err.WithDetails("key1", "value1").WithDetails("key2", "value2")
+
+	if result.Details["key1"] != "value1" {
+		t.Errorf("Expected Details[key1] = value1, got %v", result.Details["key1"])
+	}
+	if result.Details["key2"] != "value2" {
+		t.Errorf("Expected Details[key2] = value2, got %v", result.Details["key2"])
 	}
 }

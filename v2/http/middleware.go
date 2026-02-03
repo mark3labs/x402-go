@@ -128,7 +128,9 @@ func NewX402Middleware(config Config) func(http.Handler) http.Handler {
 			if paymentHeader == "" {
 				// No payment provided - return 402 with requirements
 				logger.Info("no payment header provided", "path", r.URL.Path)
-				helpers.SendPaymentRequired(w, resource, enrichedRequirements, "Payment required")
+				if err := helpers.SendPaymentRequired(w, resource, enrichedRequirements, "Payment required"); err != nil {
+					logger.Error("failed to send payment required response", "error", err)
+				}
 				return
 			}
 
@@ -144,7 +146,9 @@ func NewX402Middleware(config Config) func(http.Handler) http.Handler {
 			requirement, err := v2.FindMatchingRequirement(payment, enrichedRequirements)
 			if err != nil {
 				logger.Warn("no matching requirement", "error", err)
-				helpers.SendPaymentRequired(w, resource, enrichedRequirements, "No matching payment requirement")
+				if err := helpers.SendPaymentRequired(w, resource, enrichedRequirements, "No matching payment requirement"); err != nil {
+					logger.Error("failed to send payment required response", "error", err)
+				}
 				return
 			}
 
@@ -163,7 +167,9 @@ func NewX402Middleware(config Config) func(http.Handler) http.Handler {
 
 			if !verifyResp.IsValid {
 				logger.Warn("payment verification failed", "reason", verifyResp.InvalidReason)
-				helpers.SendPaymentRequired(w, resource, enrichedRequirements, verifyResp.InvalidReason)
+				if err := helpers.SendPaymentRequired(w, resource, enrichedRequirements, verifyResp.InvalidReason); err != nil {
+					logger.Error("failed to send payment required response", "error", err)
+				}
 				return
 			}
 
@@ -195,7 +201,9 @@ func NewX402Middleware(config Config) func(http.Handler) http.Handler {
 
 					if !settlementResp.Success {
 						logger.Warn("settlement unsuccessful", "reason", settlementResp.ErrorReason)
-						helpers.SendPaymentRequired(w, resource, enrichedRequirements, settlementResp.ErrorReason)
+						if err := helpers.SendPaymentRequired(w, resource, enrichedRequirements, settlementResp.ErrorReason); err != nil {
+							logger.Error("failed to send payment required response", "error", err)
+						}
 						return false
 					}
 

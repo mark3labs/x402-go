@@ -124,7 +124,11 @@ func NewPaymentError(code ErrorCode, message string, err error) *PaymentError {
 }
 
 // WithDetails adds additional context to the error.
+// Lazily initializes the Details map if nil.
 func (e *PaymentError) WithDetails(key string, value interface{}) *PaymentError {
+	if e.Details == nil {
+		e.Details = make(map[string]interface{})
+	}
 	e.Details[key] = value
 	return e
 }

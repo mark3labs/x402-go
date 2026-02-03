@@ -108,7 +108,10 @@ func TestSendPaymentRequired(t *testing.T) {
 		},
 	}
 
-	SendPaymentRequired(w, resource, requirements, "Payment required for access")
+	err := SendPaymentRequired(w, resource, requirements, "Payment required for access")
+	if err != nil {
+		t.Fatalf("SendPaymentRequired returned error: %v", err)
+	}
 
 	resp := w.Result()
 	defer resp.Body.Close()
@@ -236,6 +239,49 @@ func TestParsePaymentRequirements_EmptyAccepts(t *testing.T) {
 	_, err := ParsePaymentRequirements(resp)
 	if err == nil {
 		t.Error("Expected error for empty accepts, got nil")
+	}
+}
+
+func TestParsePaymentRequirements_NilResponse(t *testing.T) {
+	_, err := ParsePaymentRequirements(nil)
+	if err == nil {
+		t.Fatal("Expected error for nil response, got nil")
+	}
+
+	// Check that it's a PaymentError with the right code
+	var paymentErr *v2.PaymentError
+	if !errors.As(err, &paymentErr) {
+		t.Fatalf("Expected PaymentError, got %T", err)
+	}
+
+	if paymentErr.Code != v2.ErrCodeInvalidRequirements {
+		t.Errorf("Expected ErrCodeInvalidRequirements, got %s", paymentErr.Code)
+	}
+
+	if !errors.Is(err, v2.ErrInvalidRequirements) {
+		t.Errorf("Expected error to wrap ErrInvalidRequirements, got %v", err)
+	}
+}
+
+func TestParsePaymentRequirements_NilBody(t *testing.T) {
+	resp := &http.Response{
+		StatusCode: 402,
+		Body:       nil,
+	}
+
+	_, err := ParsePaymentRequirements(resp)
+	if err == nil {
+		t.Fatal("Expected error for nil body, got nil")
+	}
+
+	// Check that it's a PaymentError with the right code
+	var paymentErr *v2.PaymentError
+	if !errors.As(err, &paymentErr) {
+		t.Fatalf("Expected PaymentError, got %T", err)
+	}
+
+	if paymentErr.Code != v2.ErrCodeInvalidRequirements {
+		t.Errorf("Expected ErrCodeInvalidRequirements, got %s", paymentErr.Code)
 	}
 }
 

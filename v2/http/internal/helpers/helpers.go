@@ -39,7 +39,8 @@ func ParsePaymentHeader(r *http.Request) (*v2.PaymentPayload, error) {
 }
 
 // SendPaymentRequired writes a 402 Payment Required response with the given requirements.
-func SendPaymentRequired(w http.ResponseWriter, resource v2.ResourceInfo, requirements []v2.PaymentRequirements, errMsg string) {
+// Returns an error if JSON encoding fails.
+func SendPaymentRequired(w http.ResponseWriter, resource v2.ResourceInfo, requirements []v2.PaymentRequirements, errMsg string) error {
 	response := v2.PaymentRequired{
 		X402Version: v2.X402Version,
 		Error:       errMsg,
@@ -49,7 +50,10 @@ func SendPaymentRequired(w http.ResponseWriter, resource v2.ResourceInfo, requir
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusPaymentRequired)
-	_ = json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		return fmt.Errorf("encoding PaymentRequired response: %w", err)
+	}
+	return nil
 }
 
 // AddPaymentResponseHeader adds the X-PAYMENT-RESPONSE header with settlement information.
@@ -67,7 +71,12 @@ func AddPaymentResponseHeader(w http.ResponseWriter, settlement *v2.SettleRespon
 }
 
 // ParsePaymentRequirements extracts PaymentRequired from a 402 response body.
+// Returns an error if resp or resp.Body is nil.
 func ParsePaymentRequirements(resp *http.Response) (*v2.PaymentRequired, error) {
+	if resp == nil || resp.Body == nil {
+		return nil, v2.NewPaymentError(v2.ErrCodeInvalidRequirements, "missing response or body", v2.ErrInvalidRequirements)
+	}
+
 	var paymentReq v2.PaymentRequired
 	if err := json.NewDecoder(resp.Body).Decode(&paymentReq); err != nil {
 		return nil, v2.NewPaymentError(v2.ErrCodeInvalidRequirements, "failed to decode payment requirements", err)

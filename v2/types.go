@@ -220,9 +220,20 @@ type TokenConfig struct {
 
 // AmountToBigInt converts a decimal amount string to *big.Int in atomic units.
 // For example, "1.5" with 6 decimals becomes 1500000.
+// Returns ErrInvalidAmount if the amount is negative or decimals is negative.
 func AmountToBigInt(amount string, decimals int) (*big.Int, error) {
+	// Reject negative decimals
+	if decimals < 0 {
+		return nil, ErrInvalidAmount
+	}
+
 	value := new(big.Rat)
 	if _, ok := value.SetString(amount); !ok {
+		return nil, ErrInvalidAmount
+	}
+
+	// Reject negative amounts
+	if value.Sign() < 0 {
 		return nil, ErrInvalidAmount
 	}
 
