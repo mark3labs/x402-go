@@ -15,9 +15,11 @@ import (
 	solutil "github.com/mark3labs/x402-go/v2/internal/solana"
 )
 
-// Test private key (DO NOT use in production)
-// This is a randomly generated Solana key for testing purposes only
-const testPrivateKeyBase58 = "4Z7cXSyeFR8wNGMVXUE1TwtKn5D5Vu7FzEv69dokLv8KrQk7h2ByqYCKQBWUrbXdqeqSHXv2YvPRzYMNL8hFmjXu"
+// newTestWallet generates a fresh Solana wallet for testing.
+// This avoids hardcoding private keys in the repository.
+func newTestWallet() *solana.Wallet {
+	return solana.NewWallet()
+}
 
 // mockRPCClient implements the RPCClient interface for testing.
 // It returns a deterministic blockhash without making real network calls.
@@ -48,6 +50,10 @@ func (m *mockRPCClient) GetLatestBlockhash(ctx context.Context, commitment rpc.C
 }
 
 func TestNewSigner(t *testing.T) {
+	// Generate a fresh wallet for testing
+	testWallet := newTestWallet()
+	testKeyBase58 := testWallet.PrivateKey.String()
+
 	tests := []struct {
 		name      string
 		network   string
@@ -60,7 +66,7 @@ func TestNewSigner(t *testing.T) {
 		{
 			name:    "valid signer",
 			network: v2.NetworkSolanaMainnet,
-			key:     testPrivateKeyBase58,
+			key:     testKeyBase58,
 			tokens: []v2.TokenConfig{
 				{Address: v2.SolanaMainnet.USDCAddress, Symbol: "USDC", Decimals: 6},
 			},
@@ -69,7 +75,7 @@ func TestNewSigner(t *testing.T) {
 		{
 			name:    "valid signer with options",
 			network: v2.NetworkSolanaMainnet,
-			key:     testPrivateKeyBase58,
+			key:     testKeyBase58,
 			tokens: []v2.TokenConfig{
 				{Address: v2.SolanaMainnet.USDCAddress, Symbol: "USDC", Decimals: 6},
 			},
@@ -82,7 +88,7 @@ func TestNewSigner(t *testing.T) {
 		{
 			name:    "valid devnet signer",
 			network: v2.NetworkSolanaDevnet,
-			key:     testPrivateKeyBase58,
+			key:     testKeyBase58,
 			tokens: []v2.TokenConfig{
 				{Address: v2.SolanaDevnet.USDCAddress, Symbol: "USDC", Decimals: 6},
 			},
@@ -99,7 +105,7 @@ func TestNewSigner(t *testing.T) {
 		{
 			name:      "invalid network - EVM",
 			network:   v2.NetworkBaseSepolia,
-			key:       testPrivateKeyBase58,
+			key:       testKeyBase58,
 			tokens:    []v2.TokenConfig{{Address: v2.SolanaMainnet.USDCAddress, Symbol: "USDC", Decimals: 6}},
 			wantErr:   true,
 			errTarget: v2.ErrInvalidNetwork,
@@ -107,7 +113,7 @@ func TestNewSigner(t *testing.T) {
 		{
 			name:      "invalid network - empty",
 			network:   "",
-			key:       testPrivateKeyBase58,
+			key:       testKeyBase58,
 			tokens:    []v2.TokenConfig{{Address: v2.SolanaMainnet.USDCAddress, Symbol: "USDC", Decimals: 6}},
 			wantErr:   true,
 			errTarget: v2.ErrInvalidNetwork,
@@ -115,7 +121,7 @@ func TestNewSigner(t *testing.T) {
 		{
 			name:      "no tokens",
 			network:   v2.NetworkSolanaMainnet,
-			key:       testPrivateKeyBase58,
+			key:       testKeyBase58,
 			tokens:    []v2.TokenConfig{},
 			wantErr:   true,
 			errTarget: v2.ErrInvalidToken,
@@ -142,12 +148,13 @@ func TestNewSigner(t *testing.T) {
 }
 
 func TestSignerInterface(t *testing.T) {
+	testWallet := newTestWallet()
 	tokens := []v2.TokenConfig{
 		{Address: v2.SolanaMainnet.USDCAddress, Symbol: "USDC", Decimals: 6, Priority: 1},
 	}
 	signer, err := NewSigner(
 		v2.NetworkSolanaMainnet,
-		testPrivateKeyBase58,
+		testWallet.PrivateKey.String(),
 		tokens,
 		WithPriority(5),
 		WithMaxAmount(big.NewInt(1000000)),
@@ -198,10 +205,11 @@ func TestSignerInterface(t *testing.T) {
 }
 
 func TestCanSign(t *testing.T) {
+	testWallet := newTestWallet()
 	tokens := []v2.TokenConfig{
 		{Address: v2.SolanaMainnet.USDCAddress, Symbol: "USDC", Decimals: 6},
 	}
-	signer, err := NewSigner(v2.NetworkSolanaMainnet, testPrivateKeyBase58, tokens)
+	signer, err := NewSigner(v2.NetworkSolanaMainnet, testWallet.PrivateKey.String(), tokens)
 	if err != nil {
 		t.Fatalf("failed to create signer: %v", err)
 	}
@@ -279,12 +287,13 @@ func TestCanSign(t *testing.T) {
 }
 
 func TestSign_Validation(t *testing.T) {
+	testWallet := newTestWallet()
 	tokens := []v2.TokenConfig{
 		{Address: v2.SolanaMainnet.USDCAddress, Symbol: "USDC", Decimals: 6},
 	}
 	signer, err := NewSigner(
 		v2.NetworkSolanaMainnet,
-		testPrivateKeyBase58,
+		testWallet.PrivateKey.String(),
 		tokens,
 		WithMaxAmount(big.NewInt(1000000)),
 	)
@@ -403,11 +412,12 @@ func TestSign_Validation(t *testing.T) {
 }
 
 func TestSign_ValidPayment(t *testing.T) {
+	testWallet := newTestWallet()
 	tokens := []v2.TokenConfig{
 		{Address: v2.SolanaMainnet.USDCAddress, Symbol: "USDC", Decimals: 6},
 	}
 	mockClient := newMockRPCClient()
-	signer, err := NewSigner(v2.NetworkSolanaMainnet, testPrivateKeyBase58, tokens, WithRPCClient(mockClient))
+	signer, err := NewSigner(v2.NetworkSolanaMainnet, testWallet.PrivateKey.String(), tokens, WithRPCClient(mockClient))
 	if err != nil {
 		t.Fatalf("failed to create signer: %v", err)
 	}
@@ -461,11 +471,12 @@ func TestSign_ValidPayment(t *testing.T) {
 }
 
 func TestTransactionStructure(t *testing.T) {
+	testWallet := newTestWallet()
 	tokens := []v2.TokenConfig{
 		{Address: v2.SolanaMainnet.USDCAddress, Symbol: "USDC", Decimals: 6},
 	}
 	mockClient := newMockRPCClient()
-	signer, err := NewSigner(v2.NetworkSolanaMainnet, testPrivateKeyBase58, tokens, WithRPCClient(mockClient))
+	signer, err := NewSigner(v2.NetworkSolanaMainnet, testWallet.PrivateKey.String(), tokens, WithRPCClient(mockClient))
 	if err != nil {
 		t.Fatalf("failed to create signer: %v", err)
 	}
@@ -709,11 +720,12 @@ func TestNewSignerFromKeygenFile_InvalidKeyLength(t *testing.T) {
 }
 
 func TestMultipleTokens(t *testing.T) {
+	testWallet := newTestWallet()
 	tokens := []v2.TokenConfig{
 		{Address: v2.SolanaMainnet.USDCAddress, Symbol: "USDC", Decimals: 6, Priority: 1},
 		{Address: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB", Symbol: "USDT", Decimals: 6, Priority: 2},
 	}
-	signer, err := NewSigner(v2.NetworkSolanaMainnet, testPrivateKeyBase58, tokens)
+	signer, err := NewSigner(v2.NetworkSolanaMainnet, testWallet.PrivateKey.String(), tokens)
 	if err != nil {
 		t.Fatalf("failed to create signer: %v", err)
 	}
