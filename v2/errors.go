@@ -80,6 +80,9 @@ const (
 
 	// ErrCodeUnsupportedScheme indicates unsupported payment scheme or network.
 	ErrCodeUnsupportedScheme ErrorCode = "UNSUPPORTED_SCHEME"
+
+	// ErrCodeUnsupportedVersion indicates unsupported x402 protocol version.
+	ErrCodeUnsupportedVersion ErrorCode = "UNSUPPORTED_VERSION"
 )
 
 // PaymentError provides structured error information.

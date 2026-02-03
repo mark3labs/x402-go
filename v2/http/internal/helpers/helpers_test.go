@@ -3,6 +3,7 @@ package helpers
 import (
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -337,4 +338,104 @@ type nopCloser struct {
 
 func (n *nopCloser) Close() error {
 	return nil
+}
+
+func TestAddPaymentResponseHeader_NilSettlement(t *testing.T) {
+	w := httptest.NewRecorder()
+
+	err := AddPaymentResponseHeader(w, nil)
+	if err == nil {
+		t.Fatal("Expected error for nil settlement, got nil")
+	}
+
+	if !errors.Is(err, ErrNilSettlement) {
+		t.Errorf("Expected error to wrap ErrNilSettlement, got %v", err)
+	}
+
+	// Verify error message contains context
+	if !strings.Contains(err.Error(), "AddPaymentResponseHeader") {
+		t.Errorf("Expected error to contain function name, got %v", err)
+	}
+}
+
+func TestBuildPaymentHeader(t *testing.T) {
+	payload := &v2.PaymentPayload{
+		X402Version: 2,
+		Accepted: v2.PaymentRequirements{
+			Scheme:  "exact",
+			Network: "eip155:84532",
+			Amount:  "10000",
+		},
+	}
+
+	header, err := BuildPaymentHeader(payload)
+	if err != nil {
+		t.Fatalf("Failed to build payment header: %v", err)
+	}
+
+	if header == "" {
+		t.Error("Expected non-empty header")
+	}
+
+	// Verify we can decode it back
+	decoded, err := encoding.DecodePayment(header)
+	if err != nil {
+		t.Fatalf("Failed to decode payment header: %v", err)
+	}
+
+	if decoded.X402Version != 2 {
+		t.Errorf("Expected X402Version 2, got %d", decoded.X402Version)
+	}
+}
+
+func TestBuildPaymentHeader_NilPayment(t *testing.T) {
+	_, err := BuildPaymentHeader(nil)
+	if err == nil {
+		t.Fatal("Expected error for nil payment, got nil")
+	}
+
+	if !errors.Is(err, ErrNilPayment) {
+		t.Errorf("Expected error to wrap ErrNilPayment, got %v", err)
+	}
+
+	// Verify error message contains context
+	if !strings.Contains(err.Error(), "BuildPaymentHeader") {
+		t.Errorf("Expected error to contain function name, got %v", err)
+	}
+}
+
+func TestParsePaymentHeader_WrongVersion_ErrorCode(t *testing.T) {
+	// Create a v1 payment payload
+	payload := v2.PaymentPayload{
+		X402Version: 1, // Wrong version
+		Accepted: v2.PaymentRequirements{
+			Scheme:  "exact",
+			Network: "base",
+		},
+	}
+
+	encoded, _ := encoding.EncodePayment(payload)
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	req.Header.Set("X-PAYMENT", encoded)
+
+	_, err := ParsePaymentHeader(req)
+	if err == nil {
+		t.Fatal("Expected error for wrong version, got nil")
+	}
+
+	// Check that the error is a PaymentError with the correct code
+	var paymentErr *v2.PaymentError
+	if !errors.As(err, &paymentErr) {
+		t.Fatalf("Expected PaymentError, got %T", err)
+	}
+
+	if paymentErr.Code != v2.ErrCodeUnsupportedVersion {
+		t.Errorf("Expected ErrCodeUnsupportedVersion, got %s", paymentErr.Code)
+	}
+
+	// Check that it wraps ErrUnsupportedVersion
+	if !errors.Is(err, v2.ErrUnsupportedVersion) {
+		t.Errorf("Expected error to wrap ErrUnsupportedVersion, got %v", err)
+	}
 }

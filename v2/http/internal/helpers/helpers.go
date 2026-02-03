@@ -3,11 +3,19 @@ package helpers
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 
 	v2 "github.com/mark3labs/x402-go/v2"
 	"github.com/mark3labs/x402-go/v2/encoding"
 )
+
+// ErrNilSettlement is returned when settlement is nil in AddPaymentResponseHeader.
+var ErrNilSettlement = errors.New("settlement is nil")
+
+// ErrNilPayment is returned when payment is nil in BuildPaymentHeader.
+var ErrNilPayment = errors.New("payment is nil")
 
 // ParsePaymentHeader extracts and decodes a PaymentPayload from the X-PAYMENT header.
 // Returns ErrMalformedHeader if the header is missing or invalid.
@@ -24,7 +32,7 @@ func ParsePaymentHeader(r *http.Request) (*v2.PaymentPayload, error) {
 
 	// Validate protocol version
 	if payment.X402Version != v2.X402Version {
-		return nil, v2.NewPaymentError(v2.ErrCodeUnsupportedScheme, "unsupported x402 version", v2.ErrUnsupportedVersion)
+		return nil, v2.NewPaymentError(v2.ErrCodeUnsupportedVersion, "unsupported x402 version", v2.ErrUnsupportedVersion)
 	}
 
 	return &payment, nil
@@ -45,10 +53,14 @@ func SendPaymentRequired(w http.ResponseWriter, resource v2.ResourceInfo, requir
 }
 
 // AddPaymentResponseHeader adds the X-PAYMENT-RESPONSE header with settlement information.
+// Returns an error if settlement is nil or encoding fails.
 func AddPaymentResponseHeader(w http.ResponseWriter, settlement *v2.SettleResponse) error {
+	if settlement == nil {
+		return fmt.Errorf("AddPaymentResponseHeader: %w", ErrNilSettlement)
+	}
 	encoded, err := encoding.EncodeSettlement(*settlement)
 	if err != nil {
-		return err
+		return fmt.Errorf("AddPaymentResponseHeader: encode settlement: %w", err)
 	}
 	w.Header().Set("X-PAYMENT-RESPONSE", encoded)
 	return nil
@@ -85,8 +97,16 @@ func ParseSettlement(headerValue string) *v2.SettleResponse {
 }
 
 // BuildPaymentHeader creates the X-PAYMENT header value from a PaymentPayload.
+// Returns an error if payment is nil or encoding fails.
 func BuildPaymentHeader(payment *v2.PaymentPayload) (string, error) {
-	return encoding.EncodePayment(*payment)
+	if payment == nil {
+		return "", fmt.Errorf("BuildPaymentHeader: %w", ErrNilPayment)
+	}
+	encoded, err := encoding.EncodePayment(*payment)
+	if err != nil {
+		return "", fmt.Errorf("BuildPaymentHeader: encode payment: %w", err)
+	}
+	return encoded, nil
 }
 
 // BuildResourceURL constructs the full URL for the protected resource from the request.
