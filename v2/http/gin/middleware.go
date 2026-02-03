@@ -215,7 +215,7 @@ func sendPaymentRequiredGin(c *gin.Context, resource v2.ResourceInfo, requiremen
 	response := v2.PaymentRequired{
 		X402Version: v2.X402Version,
 		Error:       errMsg,
-		Resource:    resource,
+		Resource:    &resource,
 		Accepts:     requirements,
 	}
 

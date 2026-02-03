@@ -502,7 +502,7 @@ func TestValidatePaymentRequired(t *testing.T) {
 	validPR := v2.PaymentRequired{
 		X402Version: 2,
 		Error:       "Payment required",
-		Resource: v2.ResourceInfo{
+		Resource: &v2.ResourceInfo{
 			URL: "https://example.com/api",
 		},
 		Accepts: []v2.PaymentRequirements{
@@ -540,7 +540,7 @@ func TestValidatePaymentRequired(t *testing.T) {
 			name: "empty resource URL",
 			pr: func() v2.PaymentRequired {
 				p := validPR
-				p.Resource.URL = ""
+				p.Resource = &v2.ResourceInfo{URL: ""}
 				return p
 			}(),
 			wantErr: true,

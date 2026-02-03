@@ -185,7 +185,7 @@ func TestParsePaymentRequirements(t *testing.T) {
 	paymentReq := v2.PaymentRequired{
 		X402Version: 2,
 		Error:       "Payment required",
-		Resource: v2.ResourceInfo{
+		Resource: &v2.ResourceInfo{
 			URL: "https://example.com/api/data",
 		},
 		Accepts: []v2.PaymentRequirements{

@@ -35,7 +35,7 @@ func SendPaymentRequired(w http.ResponseWriter, resource v2.ResourceInfo, requir
 	response := v2.PaymentRequired{
 		X402Version: v2.X402Version,
 		Error:       errMsg,
-		Resource:    resource,
+		Resource:    &resource,
 		Accepts:     requirements,
 	}
 

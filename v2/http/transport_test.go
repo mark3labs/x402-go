@@ -83,7 +83,7 @@ func TestTransport_PaymentRequired_AutoPay(t *testing.T) {
 			paymentReq := v2.PaymentRequired{
 				X402Version: 2,
 				Error:       "Payment required",
-				Resource: v2.ResourceInfo{
+				Resource: &v2.ResourceInfo{
 					URL: r.URL.String(),
 				},
 				Accepts: []v2.PaymentRequirements{

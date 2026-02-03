@@ -68,8 +68,8 @@ type PaymentRequired struct {
 	// Error is a human-readable error message.
 	Error string `json:"error,omitempty"`
 
-	// Resource describes the protected resource.
-	Resource ResourceInfo `json:"resource"`
+	// Resource describes the protected resource. Optional for some use cases.
+	Resource *ResourceInfo `json:"resource,omitempty"`
 
 	// Accepts is an array of payment options the server will accept.
 	Accepts []PaymentRequirements `json:"accepts"`
@@ -141,8 +141,11 @@ type VerifyResponse struct {
 	// IsValid indicates whether the payment is valid.
 	IsValid bool `json:"isValid"`
 
-	// InvalidReason provides details if the payment is invalid.
+	// InvalidReason provides a short error code if the payment is invalid.
 	InvalidReason string `json:"invalidReason,omitempty"`
+
+	// InvalidMessage provides a human-readable error message if the payment is invalid.
+	InvalidMessage string `json:"invalidMessage,omitempty"`
 
 	// Payer is the address that made the payment.
 	Payer string `json:"payer,omitempty"`
@@ -153,8 +156,11 @@ type SettleResponse struct {
 	// Success indicates whether the payment was successfully settled.
 	Success bool `json:"success"`
 
-	// ErrorReason provides details if the payment failed.
+	// ErrorReason provides a short error code if the payment failed.
 	ErrorReason string `json:"errorReason,omitempty"`
+
+	// ErrorMessage provides a human-readable error message if the payment failed.
+	ErrorMessage string `json:"errorMessage,omitempty"`
 
 	// Transaction is the blockchain transaction hash.
 	Transaction string `json:"transaction"`

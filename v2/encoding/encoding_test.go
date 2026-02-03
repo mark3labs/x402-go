@@ -185,7 +185,7 @@ func TestEncodeDecodeRequirements(t *testing.T) {
 	original := v2.PaymentRequired{
 		X402Version: 2,
 		Error:       "Payment required",
-		Resource: v2.ResourceInfo{
+		Resource: &v2.ResourceInfo{
 			URL:         "https://example.com/api",
 			Description: "Test API",
 			MimeType:    "application/json",

@@ -206,8 +206,11 @@ func ValidatePaymentRequired(pr v2.PaymentRequired) error {
 		return fmt.Errorf("unsupported x402 version: %d (expected %d)", pr.X402Version, v2.X402Version)
 	}
 
-	if err := ValidateResourceInfo(pr.Resource); err != nil {
-		return fmt.Errorf("invalid payment required: %w", err)
+	// Resource is optional but if present, must be valid
+	if pr.Resource != nil {
+		if err := ValidateResourceInfo(*pr.Resource); err != nil {
+			return fmt.Errorf("invalid payment required: %w", err)
+		}
 	}
 
 	if len(pr.Accepts) == 0 {

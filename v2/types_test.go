@@ -97,7 +97,7 @@ func TestPaymentRequiredJSON(t *testing.T) {
 	pr := PaymentRequired{
 		X402Version: 2,
 		Error:       "Payment required",
-		Resource: ResourceInfo{
+		Resource: &ResourceInfo{
 			URL:         "https://example.com/api",
 			Description: "Test API",
 		},
