@@ -221,22 +221,18 @@ type TokenConfig struct {
 // AmountToBigInt converts a decimal amount string to *big.Int in atomic units.
 // For example, "1.5" with 6 decimals becomes 1500000.
 func AmountToBigInt(amount string, decimals int) (*big.Int, error) {
-	// Parse decimal string and convert to atomic units
-	value := new(big.Float)
+	value := new(big.Rat)
 	if _, ok := value.SetString(amount); !ok {
 		return nil, ErrInvalidAmount
 	}
 
-	// Multiply by 10^decimals
-	multiplier := new(big.Float).SetInt(new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(decimals)), nil))
-	value.Mul(value, multiplier)
+	scale := new(big.Rat).SetInt(new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(decimals)), nil))
+	value.Mul(value, scale)
 
-	// Convert to integer
-	result, accuracy := value.Int(nil)
-	if accuracy != big.Exact {
+	if value.Denom().Cmp(big.NewInt(1)) != 0 {
 		return nil, ErrInvalidAmount
 	}
-	return result, nil
+	return new(big.Int).Set(value.Num()), nil
 }
 
 // BigIntToAmount converts a *big.Int in atomic units to a decimal string.
@@ -246,10 +242,9 @@ func BigIntToAmount(value *big.Int, decimals int) string {
 		return "0"
 	}
 
-	// Convert to float and divide by 10^decimals
-	f := new(big.Float).SetInt(value)
-	divisor := new(big.Float).SetInt(new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(decimals)), nil))
-	f.Quo(f, divisor)
+	rat := new(big.Rat).SetInt(value)
+	scale := new(big.Rat).SetInt(new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(decimals)), nil))
+	rat.Quo(rat, scale)
 
-	return f.Text('f', decimals)
+	return rat.FloatString(decimals)
 }
