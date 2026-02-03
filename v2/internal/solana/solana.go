@@ -86,6 +86,44 @@ func DeriveAssociatedTokenAddress(owner, mint solana.PublicKey) (solana.PublicKe
 	return ata, nil
 }
 
+// BuildCreateIdempotentATAInstruction creates an idempotent Associated Token Account creation instruction.
+// Unlike the standard Create instruction (index 0), CreateIdempotent (index 1) will succeed
+// even if the account already exists, making it safe to use in transactions where the ATA
+// may or may not already be created.
+//
+// Accounts:
+// [0] payer (signer, writable) - Funds the account creation if needed
+// [1] associatedToken (writable) - The ATA to create
+// [2] owner - The owner of the new ATA
+// [3] mint - The SPL token mint
+// [4] systemProgram - System program ID
+// [5] tokenProgram - SPL Token program ID
+func BuildCreateIdempotentATAInstruction(payer, owner, mint solana.PublicKey) (solana.Instruction, error) {
+	ata, err := DeriveAssociatedTokenAddress(owner, mint)
+	if err != nil {
+		return nil, err
+	}
+
+	accounts := solana.AccountMetaSlice{
+		{PublicKey: payer, IsSigner: true, IsWritable: true},
+		{PublicKey: ata, IsSigner: false, IsWritable: true},
+		{PublicKey: owner, IsSigner: false, IsWritable: false},
+		{PublicKey: mint, IsSigner: false, IsWritable: false},
+		{PublicKey: solana.SystemProgramID, IsSigner: false, IsWritable: false},
+		{PublicKey: solana.TokenProgramID, IsSigner: false, IsWritable: false},
+	}
+
+	// Instruction data is just [1] for CreateIdempotent (instruction index 1)
+	// See: https://github.com/solana-labs/solana-program-library/blob/master/associated-token-account/program/src/instruction.rs
+	data := []byte{1}
+
+	return solana.NewInstruction(
+		solana.SPLAssociatedTokenAccountProgramID,
+		accounts,
+		data,
+	), nil
+}
+
 // GetRPCURL returns the RPC URL for a CAIP-2 Solana network identifier.
 func GetRPCURL(network string) (string, error) {
 	switch network {

@@ -10,7 +10,6 @@ import (
 	"os"
 
 	"github.com/gagliardetto/solana-go"
-	associatedtokenaccount "github.com/gagliardetto/solana-go/programs/associated-token-account"
 	"github.com/gagliardetto/solana-go/rpc"
 
 	v2 "github.com/mark3labs/x402-go/v2"
@@ -327,6 +326,13 @@ func buildPartiallySignedTransfer(
 		return "", fmt.Errorf("failed to find destination ATA: %w", err)
 	}
 
+	// Build CreateIdempotent instruction for destination ATA
+	// This is idempotent - it succeeds even if the ATA already exists
+	createATAInstruction, err := solutil.BuildCreateIdempotentATAInstruction(feePayer, recipient, mint)
+	if err != nil {
+		return "", fmt.Errorf("failed to build ATA creation instruction: %w", err)
+	}
+
 	// Build instructions according to exact_svm spec
 	instructions := []solana.Instruction{
 		// Instruction 0: SetComputeUnitLimit
@@ -335,11 +341,7 @@ func buildPartiallySignedTransfer(
 		solutil.BuildSetComputeUnitPriceInstruction(solutil.DefaultComputeUnitPrice),
 		// Instruction 2: Create associated token account (idempotent - won't fail if it exists)
 		// The feePayer sponsors the rent-exempt balance for the destination ATA
-		associatedtokenaccount.NewCreateInstruction(
-			feePayer,  // payer (facilitator sponsors the rent)
-			recipient, // wallet address (owner of the ATA)
-			mint,      // SPL token mint address
-		).Build(),
+		createATAInstruction,
 		// Instruction 3: TransferChecked
 		solutil.BuildTransferCheckedInstruction(sourceATA, mint, destATA, clientPublicKey, amount, decimals),
 	}

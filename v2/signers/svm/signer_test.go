@@ -502,7 +502,7 @@ func TestTransactionStructure(t *testing.T) {
 		t.Errorf("instruction 1: expected discriminator 3 (SetComputeUnitPrice), got %d", inst1.Data[0])
 	}
 
-	// Verify instruction 2: Create Associated Token Account
+	// Verify instruction 2: CreateIdempotent Associated Token Account
 	inst2 := tx.Message.Instructions[2]
 	programID2, err := tx.Message.Program(inst2.ProgramIDIndex)
 	if err != nil {
@@ -511,9 +511,12 @@ func TestTransactionStructure(t *testing.T) {
 	if !programID2.Equals(solana.SPLAssociatedTokenAccountProgramID) {
 		t.Errorf("instruction 2: expected AssociatedTokenAccount program, got %s", programID2)
 	}
-	// The Create instruction has no additional data (just the instruction discriminator)
-	if len(inst2.Data) != 0 {
-		t.Errorf("instruction 2: expected 0 bytes of data for Create instruction, got %d", len(inst2.Data))
+	// The CreateIdempotent instruction has 1 byte of data (instruction discriminator = 1)
+	if len(inst2.Data) != 1 {
+		t.Errorf("instruction 2: expected 1 byte of data for CreateIdempotent instruction, got %d", len(inst2.Data))
+	}
+	if len(inst2.Data) == 1 && inst2.Data[0] != 1 {
+		t.Errorf("instruction 2: expected discriminator 1 (CreateIdempotent), got %d", inst2.Data[0])
 	}
 
 	// Verify instruction 3: TransferChecked
