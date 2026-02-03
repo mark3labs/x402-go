@@ -16,6 +16,12 @@ import (
 	solutil "github.com/mark3labs/x402-go/v2/internal/solana"
 )
 
+// RPCClient is the interface for Solana RPC operations needed by the signer.
+// This allows for dependency injection and easier testing.
+type RPCClient interface {
+	GetLatestBlockhash(ctx context.Context, commitment rpc.CommitmentType) (*rpc.GetLatestBlockhashResult, error)
+}
+
 // Signer implements the v2.Signer interface for Solana (SVM).
 type Signer struct {
 	privateKey solana.PrivateKey
@@ -24,7 +30,7 @@ type Signer struct {
 	tokens     []v2.TokenConfig
 	priority   int
 	maxAmount  *big.Int
-	rpcClient  *rpc.Client
+	rpcClient  RPCClient
 }
 
 // Option configures a Signer.
@@ -111,7 +117,8 @@ func WithPriority(priority int) Option {
 }
 
 // WithRPCClient sets a custom RPC client.
-func WithRPCClient(client *rpc.Client) Option {
+// The client must implement the RPCClient interface.
+func WithRPCClient(client RPCClient) Option {
 	return func(s *Signer) error {
 		s.rpcClient = client
 		return nil

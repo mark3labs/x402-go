@@ -1,6 +1,7 @@
 package svm
 
 import (
+	"context"
 	"encoding/json"
 	"math/big"
 	"os"
@@ -8,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/gagliardetto/solana-go"
+	"github.com/gagliardetto/solana-go/rpc"
 
 	v2 "github.com/mark3labs/x402-go/v2"
 	solutil "github.com/mark3labs/x402-go/v2/internal/solana"
@@ -16,6 +18,34 @@ import (
 // Test private key (DO NOT use in production)
 // This is a randomly generated Solana key for testing purposes only
 const testPrivateKeyBase58 = "4Z7cXSyeFR8wNGMVXUE1TwtKn5D5Vu7FzEv69dokLv8KrQk7h2ByqYCKQBWUrbXdqeqSHXv2YvPRzYMNL8hFmjXu"
+
+// mockRPCClient implements the RPCClient interface for testing.
+// It returns a deterministic blockhash without making real network calls.
+type mockRPCClient struct {
+	blockhash solana.Hash
+	err       error
+}
+
+// newMockRPCClient creates a mock RPC client with a deterministic blockhash.
+func newMockRPCClient() *mockRPCClient {
+	// Use a deterministic hash for reproducible tests
+	return &mockRPCClient{
+		blockhash: solana.MustHashFromBase58("4sGjMW1sUnHzSxGspuhpqLDx6wiyjNtZAMdL4VZHirAn"),
+	}
+}
+
+// GetLatestBlockhash returns a mock blockhash result.
+func (m *mockRPCClient) GetLatestBlockhash(ctx context.Context, commitment rpc.CommitmentType) (*rpc.GetLatestBlockhashResult, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return &rpc.GetLatestBlockhashResult{
+		Value: &rpc.LatestBlockhashResult{
+			Blockhash:            m.blockhash,
+			LastValidBlockHeight: 100000,
+		},
+	}, nil
+}
 
 func TestNewSigner(t *testing.T) {
 	tests := []struct {
@@ -376,7 +406,8 @@ func TestSign_ValidPayment(t *testing.T) {
 	tokens := []v2.TokenConfig{
 		{Address: v2.SolanaMainnet.USDCAddress, Symbol: "USDC", Decimals: 6},
 	}
-	signer, err := NewSigner(v2.NetworkSolanaMainnet, testPrivateKeyBase58, tokens)
+	mockClient := newMockRPCClient()
+	signer, err := NewSigner(v2.NetworkSolanaMainnet, testPrivateKeyBase58, tokens, WithRPCClient(mockClient))
 	if err != nil {
 		t.Fatalf("failed to create signer: %v", err)
 	}
@@ -433,7 +464,8 @@ func TestTransactionStructure(t *testing.T) {
 	tokens := []v2.TokenConfig{
 		{Address: v2.SolanaMainnet.USDCAddress, Symbol: "USDC", Decimals: 6},
 	}
-	signer, err := NewSigner(v2.NetworkSolanaMainnet, testPrivateKeyBase58, tokens)
+	mockClient := newMockRPCClient()
+	signer, err := NewSigner(v2.NetworkSolanaMainnet, testPrivateKeyBase58, tokens, WithRPCClient(mockClient))
 	if err != nil {
 		t.Fatalf("failed to create signer: %v", err)
 	}
