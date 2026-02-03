@@ -49,6 +49,19 @@ func (m *mockRPCClient) GetLatestBlockhash(ctx context.Context, commitment rpc.C
 	}, nil
 }
 
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"math/big"
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/gagliardetto/solana-go"
+	v2 "github.com/mark3labs/x402-go/v2"
+)
+
 func TestNewSigner(t *testing.T) {
 	// Generate a fresh wallet for testing
 	testWallet := newTestWallet()
@@ -134,6 +147,9 @@ func TestNewSigner(t *testing.T) {
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("expected error, got nil")
+				}
+				if tt.errTarget != nil && !errors.Is(err, tt.errTarget) {
+					t.Fatalf("expected error %v, got %v", tt.errTarget, err)
 				}
 				return
 			}
