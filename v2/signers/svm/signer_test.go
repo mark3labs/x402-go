@@ -3,6 +3,7 @@ package svm
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -48,19 +49,6 @@ func (m *mockRPCClient) GetLatestBlockhash(ctx context.Context, commitment rpc.C
 		},
 	}, nil
 }
-
-import (
-	"context"
-	"encoding/json"
-	"errors"
-	"math/big"
-	"os"
-	"path/filepath"
-	"testing"
-
-	"github.com/gagliardetto/solana-go"
-	v2 "github.com/mark3labs/x402-go/v2"
-)
 
 func TestNewSigner(t *testing.T) {
 	// Generate a fresh wallet for testing
