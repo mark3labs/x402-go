@@ -111,6 +111,16 @@ var (
 		EIP3009Name:    "USD Coin",
 		EIP3009Version: "2",
 	}
+
+	// XDCMainnet is the configuration for XDC Network mainnet.
+	// Native Circle USDC; EIP-3009 parameters verified on-chain.
+	XDCMainnet = ChainConfig{
+		NetworkID:      "xdc",
+		USDCAddress:    "0xfA2958CB79b0491CC627c1557F441eF849Ca8eb1",
+		Decimals:       6,
+		EIP3009Name:    "USDC",
+		EIP3009Version: "2",
+	}
 )
 
 // Testnet chain configurations
@@ -152,6 +162,16 @@ var (
 		USDCAddress:    "0x5425890298aed601595a70AB815c96711a31Bc65",
 		Decimals:       6,
 		EIP3009Name:    "USD Coin",
+		EIP3009Version: "2",
+	}
+
+	// XDCApothem is the configuration for XDC Apothem testnet.
+	// Native Circle USDC; EIP-3009 parameters verified on-chain.
+	XDCApothem = ChainConfig{
+		NetworkID:      "xdc-testnet",
+		USDCAddress:    "0xb5AB69F7bBada22B28e79C8FFAECe55eF1c771D4",
+		Decimals:       6,
+		EIP3009Name:    "USDC",
 		EIP3009Version: "2",
 	}
 )

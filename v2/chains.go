@@ -25,12 +25,14 @@ const (
 	NetworkPolygon   = "eip155:137"
 	NetworkAvalanche = "eip155:43114"
 	NetworkEthereum  = "eip155:1"
+	NetworkXDC       = "eip155:50"
 
 	// EVM Testnets
 	NetworkBaseSepolia   = "eip155:84532"
 	NetworkPolygonAmoy   = "eip155:80002"
 	NetworkAvalancheFuji = "eip155:43113"
 	NetworkSepolia       = "eip155:11155111"
+	NetworkXDCTestnet    = "eip155:51"
 
 	// Solana networks (using genesis hash as reference per CAIP-2)
 	NetworkSolanaMainnet = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
@@ -96,6 +98,16 @@ var (
 		EIP3009Name:    "USD Coin",
 		EIP3009Version: "2",
 	}
+
+	// XDCMainnet is the configuration for XDC Network mainnet.
+	// Native Circle USDC; EIP-3009 parameters verified on-chain.
+	XDCMainnet = ChainConfig{
+		Network:        NetworkXDC,
+		USDCAddress:    "0xfA2958CB79b0491CC627c1557F441eF849Ca8eb1",
+		Decimals:       6,
+		EIP3009Name:    "USDC",
+		EIP3009Version: "2",
+	}
 )
 
 // Predefined chain configurations - EVM Testnets
@@ -139,6 +151,16 @@ var (
 		EIP3009Name:    "USDC",
 		EIP3009Version: "2",
 	}
+
+	// XDCApothem is the configuration for XDC Apothem testnet.
+	// Native Circle USDC; EIP-3009 parameters verified on-chain.
+	XDCApothem = ChainConfig{
+		Network:        NetworkXDCTestnet,
+		USDCAddress:    "0xb5AB69F7bBada22B28e79C8FFAECe55eF1c771D4",
+		Decimals:       6,
+		EIP3009Name:    "USDC",
+		EIP3009Version: "2",
+	}
 )
 
 // Predefined chain configurations - Solana
@@ -171,11 +193,13 @@ var chainConfigByNetwork = map[string]ChainConfig{
 	NetworkPolygon:   PolygonMainnet,
 	NetworkAvalanche: AvalancheMainnet,
 	NetworkEthereum:  EthereumMainnet,
+	NetworkXDC:       XDCMainnet,
 	// EVM Testnets
 	NetworkBaseSepolia:   BaseSepolia,
 	NetworkPolygonAmoy:   PolygonAmoy,
 	NetworkAvalancheFuji: AvalancheFuji,
 	NetworkSepolia:       Sepolia,
+	NetworkXDCTestnet:    XDCApothem,
 	// Solana
 	NetworkSolanaMainnet: SolanaMainnet,
 	NetworkSolanaDevnet:  SolanaDevnet,
