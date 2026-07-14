@@ -606,3 +606,145 @@ func TestValidateSolanaRequirements(t *testing.T) {
 		t.Errorf("ValidatePaymentRequirements() error = %v for valid Solana requirements", err)
 	}
 }
+
+func TestNormalizeAddress_EVM(t *testing.T) {
+	// Mixed-case EVM address should be normalized to lowercase
+	normalized, err := NormalizeAddress("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", "eip155:8453")
+	if err != nil {
+		t.Fatalf("NormalizeAddress() error = %v", err)
+	}
+	expected := "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"
+	if normalized != expected {
+		t.Errorf("NormalizeAddress() = %s, want %s", normalized, expected)
+	}
+
+	// Already lowercase address should remain unchanged
+	normalized, err = NormalizeAddress(expected, "eip155:8453")
+	if err != nil {
+		t.Fatalf("NormalizeAddress() error = %v", err)
+	}
+	if normalized != expected {
+		t.Errorf("NormalizeAddress() = %s, want %s", normalized, expected)
+	}
+}
+
+func TestNormalizeAddress_Solana(t *testing.T) {
+	// Solana base58 addresses should remain unchanged
+	solAddr := "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+	normalized, err := NormalizeAddress(solAddr, "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp")
+	if err != nil {
+		t.Fatalf("NormalizeAddress() error = %v", err)
+	}
+	if normalized != solAddr {
+		t.Errorf("NormalizeAddress() = %s, want %s", normalized, solAddr)
+	}
+}
+
+func TestNormalizeAddress_Errors(t *testing.T) {
+	tests := []struct {
+		name    string
+		address string
+		network string
+		errMsg  string
+	}{
+		{
+			name:    "empty address",
+			address: "",
+			network: "eip155:8453",
+			errMsg:  "cannot be empty",
+		},
+		{
+			name:    "invalid network",
+			address: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+			network: "invalid",
+			errMsg:  "cannot normalize address",
+		},
+		{
+			name:    "invalid EVM address format",
+			address: "0x1234",
+			network: "eip155:8453",
+			errMsg:  "invalid EVM address format",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := NormalizeAddress(tt.address, tt.network)
+			if err == nil {
+				t.Error("NormalizeAddress() expected error, got nil")
+			} else if tt.errMsg != "" && !strings.Contains(err.Error(), tt.errMsg) {
+				t.Errorf("NormalizeAddress() error = %v, want error containing %q", err, tt.errMsg)
+			}
+		})
+	}
+}
+
+func TestNormalizePaymentRequirements_EVM(t *testing.T) {
+	req := v2.PaymentRequirements{
+		Scheme:            "exact",
+		Network:           "eip155:8453",
+		Amount:            "1000000",
+		Asset:             "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+		PayTo:             "0x1234567890ABCDEF1234567890abcdef12345678",
+		MaxTimeoutSeconds: 300,
+	}
+
+	normalized, err := NormalizePaymentRequirements(req)
+	if err != nil {
+		t.Fatalf("NormalizePaymentRequirements() error = %v", err)
+	}
+
+	expectedAsset := "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"
+	if normalized.Asset != expectedAsset {
+		t.Errorf("NormalizePaymentRequirements().Asset = %s, want %s", normalized.Asset, expectedAsset)
+	}
+
+	expectedPayTo := "0x1234567890abcdef1234567890abcdef12345678"
+	if normalized.PayTo != expectedPayTo {
+		t.Errorf("NormalizePaymentRequirements().PayTo = %s, want %s", normalized.PayTo, expectedPayTo)
+	}
+
+	// Original should be unchanged
+	if req.Asset != "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" {
+		t.Error("Original Asset was modified")
+	}
+}
+
+func TestNormalizePaymentRequirements_Solana(t *testing.T) {
+	req := v2.PaymentRequirements{
+		Scheme:            "exact",
+		Network:           "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+		Amount:            "1000000",
+		Asset:             "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+		PayTo:             "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+		MaxTimeoutSeconds: 300,
+	}
+
+	normalized, err := NormalizePaymentRequirements(req)
+	if err != nil {
+		t.Fatalf("NormalizePaymentRequirements() error = %v", err)
+	}
+
+	// Solana addresses should remain unchanged
+	if normalized.Asset != req.Asset {
+		t.Errorf("NormalizePaymentRequirements().Asset changed: %s -> %s", req.Asset, normalized.Asset)
+	}
+	if normalized.PayTo != req.PayTo {
+		t.Errorf("NormalizePaymentRequirements().PayTo changed: %s -> %s", req.PayTo, normalized.PayTo)
+	}
+}
+
+func TestNormalizePaymentRequirements_Invalid(t *testing.T) {
+	req := v2.PaymentRequirements{
+		Scheme:  "exact",
+		Network: "eip155:8453",
+		Amount:  "1000000",
+		Asset:   "invalid-address",
+		PayTo:   "0x1234567890123456789012345678901234567890",
+	}
+
+	_, err := NormalizePaymentRequirements(req)
+	if err == nil {
+		t.Error("NormalizePaymentRequirements() expected error, got nil")
+	}
+}
