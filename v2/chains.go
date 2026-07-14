@@ -61,7 +61,7 @@ var (
 	// USDC address and EIP-3009 parameters verified 2025-10-28.
 	BaseMainnet = ChainConfig{
 		Network:        NetworkBase,
-		USDCAddress:    "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+		USDCAddress:    "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
 		Decimals:       6,
 		EIP3009Name:    "USD Coin",
 		EIP3009Version: "2",
@@ -71,7 +71,7 @@ var (
 	// USDC address and EIP-3009 parameters verified 2025-10-28.
 	PolygonMainnet = ChainConfig{
 		Network:        NetworkPolygon,
-		USDCAddress:    "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
+		USDCAddress:    "0x3c499c542cef5e3811e1192ce70d8cc03d5c3359",
 		Decimals:       6,
 		EIP3009Name:    "USD Coin",
 		EIP3009Version: "2",
@@ -81,7 +81,7 @@ var (
 	// USDC address and EIP-3009 parameters verified 2025-10-28.
 	AvalancheMainnet = ChainConfig{
 		Network:        NetworkAvalanche,
-		USDCAddress:    "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+		USDCAddress:    "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e",
 		Decimals:       6,
 		EIP3009Name:    "USD Coin",
 		EIP3009Version: "2",
@@ -91,7 +91,7 @@ var (
 	// USDC address and EIP-3009 parameters verified 2025-10-28.
 	EthereumMainnet = ChainConfig{
 		Network:        NetworkEthereum,
-		USDCAddress:    "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+		USDCAddress:    "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
 		Decimals:       6,
 		EIP3009Name:    "USD Coin",
 		EIP3009Version: "2",
@@ -104,7 +104,7 @@ var (
 	// USDC address and EIP-3009 parameters verified 2025-10-30.
 	BaseSepolia = ChainConfig{
 		Network:        NetworkBaseSepolia,
-		USDCAddress:    "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+		USDCAddress:    "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
 		Decimals:       6,
 		EIP3009Name:    "USDC",
 		EIP3009Version: "2",
@@ -114,7 +114,7 @@ var (
 	// USDC address and EIP-3009 parameters verified 2025-10-28.
 	PolygonAmoy = ChainConfig{
 		Network:        NetworkPolygonAmoy,
-		USDCAddress:    "0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582",
+		USDCAddress:    "0x41e94eb019c0762f9bfcf9fb1e58725bfb0e7582",
 		Decimals:       6,
 		EIP3009Name:    "USDC",
 		EIP3009Version: "2",
@@ -124,7 +124,7 @@ var (
 	// USDC address and EIP-3009 parameters verified 2025-10-28.
 	AvalancheFuji = ChainConfig{
 		Network:        NetworkAvalancheFuji,
-		USDCAddress:    "0x5425890298aed601595a70AB815c96711a31Bc65",
+		USDCAddress:    "0x5425890298aed601595a70ab815c96711a31bc65",
 		Decimals:       6,
 		EIP3009Name:    "USD Coin",
 		EIP3009Version: "2",
@@ -134,7 +134,7 @@ var (
 	// USDC address and EIP-3009 parameters verified 2025-10-28.
 	Sepolia = ChainConfig{
 		Network:        NetworkSepolia,
-		USDCAddress:    "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
+		USDCAddress:    "0x1c7d4b196cb0c7b01d743fbc6116a902379c7238",
 		Decimals:       6,
 		EIP3009Name:    "USDC",
 		EIP3009Version: "2",

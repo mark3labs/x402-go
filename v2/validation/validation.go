@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"net/url"
 	"regexp"
+	"strings"
 
 	v2 "github.com/mark3labs/x402-go/v2"
 )
@@ -60,6 +61,40 @@ func ValidateNetwork(network string) error {
 	return err
 }
 
+// NormalizeAddress normalizes an address based on the network type.
+// For EVM addresses, it converts the hex portion to lowercase.
+// For Solana addresses, it returns the address unchanged (base58 is case-sensitive).
+// Returns an error if the address is invalid for the given network.
+func NormalizeAddress(address string, network string) (string, error) {
+	if address == "" {
+		return "", fmt.Errorf("address cannot be empty")
+	}
+
+	networkType, err := v2.ValidateNetwork(network)
+	if err != nil {
+		return "", fmt.Errorf("cannot normalize address: %w", err)
+	}
+
+	switch networkType {
+	case v2.NetworkTypeEVM:
+		if !evmAddressRegex.MatchString(address) {
+			return "", fmt.Errorf("invalid EVM address format: %s (expected 0x followed by 40 hex characters)", address)
+		}
+		// Normalize to lowercase hex
+		return strings.ToLower(address), nil
+
+	case v2.NetworkTypeSVM:
+		if !solanaAddressRegex.MatchString(address) {
+			return "", fmt.Errorf("invalid Solana address format: %s (expected base58 string 32-44 chars)", address)
+		}
+		// Solana base58 addresses are case-sensitive; return as-is
+		return address, nil
+
+	default:
+		return "", fmt.Errorf("unsupported network type for address normalization: %d", networkType)
+	}
+}
+
 // ValidateAddress validates an address based on the network type.
 // It uses ValidateNetwork to determine the network type and then applies
 // network-specific address validation rules.
@@ -104,6 +139,28 @@ func ValidateResourceInfo(resource v2.ResourceInfo) error {
 	}
 
 	return nil
+}
+
+// NormalizePaymentRequirements normalizes the Asset and PayTo addresses in
+// payment requirements to lowercase for EVM addresses. Solana addresses are
+// returned unchanged (base58 is case-sensitive).
+// Returns a copy with normalized addresses; the original is not modified.
+// Returns an error if any address is invalid for its network.
+func NormalizePaymentRequirements(req v2.PaymentRequirements) (v2.PaymentRequirements, error) {
+	normalizedAsset, err := NormalizeAddress(req.Asset, req.Network)
+	if err != nil {
+		return req, fmt.Errorf("cannot normalize asset address: %w", err)
+	}
+
+	normalizedPayTo, err := NormalizeAddress(req.PayTo, req.Network)
+	if err != nil {
+		return req, fmt.Errorf("cannot normalize payTo address: %w", err)
+	}
+
+	normalized := req
+	normalized.Asset = normalizedAsset
+	normalized.PayTo = normalizedPayTo
+	return normalized, nil
 }
 
 // ValidatePaymentRequirements performs comprehensive validation of payment requirements.
