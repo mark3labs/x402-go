@@ -93,6 +93,18 @@ func TestValidateNetwork(t *testing.T) {
 			wantType: NetworkTypeSVM,
 		},
 		{
+			name:     "valid Nano mainnet",
+			network:  "nano:mainnet",
+			wantType: NetworkTypeNano,
+		},
+		{
+			name:        "unsupported Nano network",
+			network:     "nano:testnet",
+			wantType:    NetworkTypeUnknown,
+			wantErr:     true,
+			errContains: "unsupported Nano network",
+		},
+		{
 			name:        "empty network",
 			network:     "",
 			wantType:    NetworkTypeUnknown,

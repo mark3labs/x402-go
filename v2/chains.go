@@ -16,6 +16,10 @@ const (
 	NetworkTypeEVM
 	// NetworkTypeSVM represents Solana Virtual Machine chains.
 	NetworkTypeSVM
+	// NetworkTypeNano represents the Nano (XNO) block lattice. Nano has no
+	// token contracts and no transaction fees: the asset is the native coin
+	// "XNO" and amounts are integers in raw (1 XNO = 10^30 raw).
+	NetworkTypeNano
 )
 
 // CAIP-2 network identifiers
@@ -35,7 +39,15 @@ const (
 	// Solana networks (using genesis hash as reference per CAIP-2)
 	NetworkSolanaMainnet = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
 	NetworkSolanaDevnet  = "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"
+
+	// Nano network
+	NetworkNanoMainnet = "nano:mainnet"
 )
+
+// NanoAsset is the asset identifier for the native Nano coin. Nano has no
+// token contracts, so requirements on a nano network carry this symbol in
+// place of a contract or mint address.
+const NanoAsset = "XNO"
 
 // ChainConfig holds configuration for a specific blockchain.
 type ChainConfig struct {
@@ -193,6 +205,7 @@ func GetChainConfig(network string) (ChainConfig, error) {
 
 // ValidateNetwork validates a CAIP-2 network identifier and returns its type.
 // Returns NetworkTypeEVM for EIP-155 chains, NetworkTypeSVM for Solana chains,
+// NetworkTypeNano for nano:mainnet,
 // or NetworkTypeUnknown with an error for unrecognized networks.
 func ValidateNetwork(network string) (NetworkType, error) {
 	if network == "" {
@@ -225,6 +238,11 @@ func ValidateNetwork(network string) (NetworkType, error) {
 			return NetworkTypeUnknown, fmt.Errorf("%w: invalid Solana genesis hash length: %s", ErrInvalidNetwork, reference)
 		}
 		return NetworkTypeSVM, nil
+	case "nano":
+		if reference != "mainnet" {
+			return NetworkTypeUnknown, fmt.Errorf("%w: unsupported Nano network: %s", ErrInvalidNetwork, reference)
+		}
+		return NetworkTypeNano, nil
 	default:
 		return NetworkTypeUnknown, fmt.Errorf("%w: unsupported namespace: %s", ErrInvalidNetwork, namespace)
 	}

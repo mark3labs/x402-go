@@ -86,6 +86,9 @@ func ValidateAddress(address string, network string) error {
 		}
 		return nil
 
+	case v2.NetworkTypeNano:
+		return validateNanoAddress(address)
+
 	default:
 		return fmt.Errorf("unsupported network type for address validation: %d", networkType)
 	}
@@ -129,7 +132,12 @@ func ValidatePaymentRequirements(req v2.PaymentRequirements) error {
 		return fmt.Errorf("invalid requirements: asset address cannot be empty")
 	}
 
-	if err := ValidateAddress(req.Asset, req.Network); err != nil {
+	if networkType, _ := v2.ValidateNetwork(req.Network); networkType == v2.NetworkTypeNano {
+		// Nano has no token contracts: the only asset is the native coin.
+		if req.Asset != v2.NanoAsset {
+			return fmt.Errorf("invalid requirements: asset must be %q on a Nano network, got: %s", v2.NanoAsset, req.Asset)
+		}
+	} else if err := ValidateAddress(req.Asset, req.Network); err != nil {
 		return fmt.Errorf("invalid requirements: asset %w", err)
 	}
 
