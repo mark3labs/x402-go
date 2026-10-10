@@ -64,6 +64,8 @@ func TestChainConfigUSDCAddresses(t *testing.T) {
 	}
 }
 
+// TestValidateNetwork tests CAIP-2 parsing and network type detection for
+// EVM, Solana and Nano identifiers, including rejected inputs.
 func TestValidateNetwork(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -91,6 +93,18 @@ func TestValidateNetwork(t *testing.T) {
 			name:     "valid Solana devnet",
 			network:  "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
 			wantType: NetworkTypeSVM,
+		},
+		{
+			name:     "valid Nano mainnet",
+			network:  "nano:mainnet",
+			wantType: NetworkTypeNano,
+		},
+		{
+			name:        "unsupported Nano network",
+			network:     "nano:testnet",
+			wantType:    NetworkTypeUnknown,
+			wantErr:     true,
+			errContains: "unsupported Nano network",
 		},
 		{
 			name:        "empty network",
