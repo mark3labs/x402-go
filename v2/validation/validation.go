@@ -111,6 +111,8 @@ func ValidateResourceInfo(resource v2.ResourceInfo) error {
 
 // ValidatePaymentRequirements performs comprehensive validation of payment requirements.
 // It validates the amount, network, addresses, scheme, and other required fields.
+// On a Nano network the asset must be NanoAsset ("XNO") and the amount must fit
+// a 128-bit Nano balance; on other networks the asset must be a valid address.
 func ValidatePaymentRequirements(req v2.PaymentRequirements) error {
 	// Validate amount (allow zero for free-with-signature flows)
 	if err := ValidateAmount(req.Amount); err != nil {

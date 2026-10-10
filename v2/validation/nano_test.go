@@ -11,6 +11,9 @@ import (
 // E89208DD038FBB269987689621D52292AE9C35941A7484756ECCED92A65093BA.
 const nanoGenesis = "nano_3t6k35gi95xu6tergt6p69ck76ogmitsa8mnijtpxm9fkcm736xtoncuohr3"
 
+// TestValidateNanoAddress tests Nano address validation through ValidateAddress:
+// both prefixes, checksum mismatches, length and alphabet errors, an oversized
+// key, and a non-Nano address on a Nano network.
 func TestValidateNanoAddress(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -77,6 +80,9 @@ func TestValidateNanoAddress(t *testing.T) {
 	}
 }
 
+// TestValidateNanoRequirements tests ValidatePaymentRequirements on a Nano
+// network: the XNO asset rule, payTo checksum validation, and the 2^128-1 raw
+// amount boundary.
 func TestValidateNanoRequirements(t *testing.T) {
 	base := v2.PaymentRequirements{
 		Scheme:            "exact",

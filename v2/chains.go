@@ -40,7 +40,9 @@ const (
 	NetworkSolanaMainnet = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
 	NetworkSolanaDevnet  = "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"
 
-	// Nano network
+	// NetworkNanoMainnet is the Nano main network. Nano has a single live
+	// network, so the reference is the fixed string "mainnet" rather than a
+	// genesis hash or chain ID.
 	NetworkNanoMainnet = "nano:mainnet"
 )
 
@@ -205,7 +207,7 @@ func GetChainConfig(network string) (ChainConfig, error) {
 
 // ValidateNetwork validates a CAIP-2 network identifier and returns its type.
 // Returns NetworkTypeEVM for EIP-155 chains, NetworkTypeSVM for Solana chains,
-// NetworkTypeNano for nano:mainnet,
+// NetworkTypeNano for nano:mainnet (other Nano references are rejected),
 // or NetworkTypeUnknown with an error for unrecognized networks.
 func ValidateNetwork(network string) (NetworkType, error) {
 	if network == "" {
