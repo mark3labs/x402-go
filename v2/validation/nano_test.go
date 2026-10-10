@@ -102,4 +102,16 @@ func TestValidateNanoRequirements(t *testing.T) {
 	if err := ValidatePaymentRequirements(badPayTo); err == nil || !strings.Contains(err.Error(), "payTo") {
 		t.Errorf("expected payTo checksum error, got %v", err)
 	}
+
+	maxAmount := base
+	maxAmount.Amount = "340282366920938463463374607431768211455" // 2^128-1 raw
+	if err := ValidatePaymentRequirements(maxAmount); err != nil {
+		t.Errorf("ValidatePaymentRequirements() error = %v for amount 2^128-1", err)
+	}
+
+	tooLarge := base
+	tooLarge.Amount = "340282366920938463463374607431768211456" // 2^128 raw
+	if err := ValidatePaymentRequirements(tooLarge); err == nil || !strings.Contains(err.Error(), "Nano maximum") {
+		t.Errorf("expected Nano maximum amount error for 2^128, got %v", err)
+	}
 }

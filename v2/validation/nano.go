@@ -58,6 +58,17 @@ func validateNanoAddress(address string) error {
 	return nil
 }
 
+// validateNanoAmount checks that a raw amount fits a Nano balance, which is
+// a 128-bit unsigned integer (at most 2^128-1 raw). The amount must already
+// have passed ValidateAmount.
+func validateNanoAmount(amount string) error {
+	amt, ok := new(big.Int).SetString(amount, 10)
+	if !ok || amt.BitLen() > 128 {
+		return fmt.Errorf("amount exceeds the Nano maximum of 2^128-1 raw, got: %s", amount)
+	}
+	return nil
+}
+
 // decodeNanoBase32 decodes characters of the Nano alphabet, 5 bits each,
 // most significant first.
 func decodeNanoBase32(s string) (*big.Int, bool) {

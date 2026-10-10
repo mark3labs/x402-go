@@ -137,6 +137,9 @@ func ValidatePaymentRequirements(req v2.PaymentRequirements) error {
 		if req.Asset != v2.NanoAsset {
 			return fmt.Errorf("invalid requirements: asset must be %q on a Nano network, got: %s", v2.NanoAsset, req.Asset)
 		}
+		if err := validateNanoAmount(req.Amount); err != nil {
+			return fmt.Errorf("invalid requirements: %w", err)
+		}
 	} else if err := ValidateAddress(req.Asset, req.Network); err != nil {
 		return fmt.Errorf("invalid requirements: asset %w", err)
 	}
